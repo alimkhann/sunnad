@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SignUpView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var email = ""
     @State private var username = ""
     @State private var password = ""
@@ -149,22 +150,34 @@ struct SignUpView: View {
                 .padding(.vertical, 13)
                 .foregroundStyle(.white)
                 .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.black))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color(.systemGray5), lineWidth: 0.5)
+                        .opacity(colorScheme == .dark ? 1 : 0)
+                )
             }
             .buttonStyle(.plain)
 
             Button {
                 onSubmit("", "", "", "google")
             } label: {
-                Text(L10n.t("auth.google"))
-                    .font(.body.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .foregroundStyle(.primary)
-                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color(.systemGray4), lineWidth: 1)
-                    )
+                HStack(spacing: 8) {
+                    Spacer()
+                    Image("google-logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
+                    Text(L10n.t("auth.google"))
+                    Spacer()
+                }
+                .font(.body.weight(.semibold))
+                .padding(.vertical, 13)
+                .foregroundStyle(.black)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color(.systemGray4), lineWidth: 1)
+                )
             }
             .buttonStyle(.plain)
         }

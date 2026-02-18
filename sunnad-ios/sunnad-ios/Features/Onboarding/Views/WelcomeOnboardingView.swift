@@ -11,7 +11,7 @@ struct WelcomeOnboardingView: View {
                 Button(action: onChangeLanguage) {
                     Image(systemName: "globe")
                         .font(.headline)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.primary)
                         .padding(11)
                         .background(Circle().fill(Color(.tertiarySystemFill)))
                 }

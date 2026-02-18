@@ -94,12 +94,11 @@ struct ProfileView: View {
                 .padding(.top, 8)
             }
 
-            Card {
-                Text(L10n.t("profile.version"))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
+            Text(L10n.t("profile.version"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 8)
         }
         .sunnadSolidBars()
     }
