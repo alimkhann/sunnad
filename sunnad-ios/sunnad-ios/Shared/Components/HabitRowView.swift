@@ -3,12 +3,20 @@ import SwiftUI
 struct HabitRowView: View {
     let habit: UIHabit
     let showsChevron: Bool
+    let showsStreak: Bool
     let onTap: () -> Void
     let onToggle: (() -> Void)?
 
-    init(habit: UIHabit, showsChevron: Bool = true, onTap: @escaping () -> Void, onToggle: (() -> Void)? = nil) {
+    init(
+        habit: UIHabit,
+        showsChevron: Bool = true,
+        showsStreak: Bool = true,
+        onTap: @escaping () -> Void,
+        onToggle: (() -> Void)? = nil
+    ) {
         self.habit = habit
         self.showsChevron = showsChevron
+        self.showsStreak = showsStreak
         self.onTap = onTap
         self.onToggle = onToggle
     }
@@ -28,7 +36,7 @@ struct HabitRowView: View {
                         .foregroundStyle(.primary)
                         .multilineTextAlignment(.leading)
 
-                    if habit.streak > 0 {
+                    if showsStreak && habit.streak > 0 {
                         Text("\(habit.streak) \(L10n.t("today.day_streak"))")
                             .font(.caption)
                             .foregroundStyle(.yellow)

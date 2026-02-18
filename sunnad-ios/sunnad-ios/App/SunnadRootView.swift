@@ -101,14 +101,15 @@ struct SunnadRootView: View {
                 onAddTemplates: { templates in
                     state.addTemplateHabits(templates)
                 },
-                onAddCustomHabit: { name, icon, category, schedule, weekdays, reminderTime in
+                onAddCustomHabit: { name, icon, category, schedule, weekdays, reminderTime, hasDhikrCounter in
                     state.addCustomHabit(
                         name: name,
                         iconSystemName: icon,
                         category: category,
                         schedule: schedule,
                         weekdays: weekdays,
-                        reminderTime: reminderTime
+                        reminderTime: reminderTime,
+                        hasDhikrCounter: hasDhikrCounter
                     )
                 }
             )
@@ -159,9 +160,7 @@ struct SunnadRootView: View {
                 habits: $state.habits,
                 onSelectHabit: { habit in
                     state.rootSheet = .habitDetail(habit.id)
-                },
-                onOpenWeekPlaceholder: { state.fullScreen = .weekPlaceholder },
-                onOpenMonthPlaceholder: { state.fullScreen = .monthPlaceholder }
+                }
             )
         case .insightsPlaceholder:
             PlaceholderScreen(

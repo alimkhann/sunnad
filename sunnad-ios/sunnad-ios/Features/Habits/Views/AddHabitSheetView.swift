@@ -11,7 +11,7 @@ struct AddHabitSheetView: View {
 
     let existingHabits: [UIHabit]
     let onAddTemplates: ([HabitTemplate]) -> Void
-    let onAddCustomHabit: (String, String, HabitCategory, HabitSchedule, Set<Int>, Date?) -> Void
+    let onAddCustomHabit: (String, String, HabitCategory, HabitSchedule, Set<Int>, Date?, Bool) -> Void
 
     @State private var step: AddHabitStep = .choice
     @State private var selectedTemplateIDs: Set<String> = []
@@ -24,13 +24,9 @@ struct AddHabitSheetView: View {
     @State private var customWeekdays: Set<Int> = Set(0...6)
     @State private var reminderEnabled = false
     @State private var reminderTime = Date()
-
-    private let customIcons = [
-        "sunrise.fill", "sun.max.fill", "moon.fill", "book.fill", "text.book.closed.fill", "figure.run",
-        "heart.fill", "person.2.fill", "person.2.circle.fill", "house.fill", "face.smiling.fill", "building.columns.fill",
-        "cup.and.saucer.fill", "fork.knife", "bed.double.fill", "character.book.closed.fill", "star.fill", "character.book.closed",
-        "creditcard.fill", "hand.thumbsup.fill"
-    ]
+    @State private var customHasDhikrCounter = false
+    @State private var isSymbolPickerPresented = false
+    @State private var didApplyDebugOverrides = false
 
     private var availableTemplates: [HabitTemplate] {
         let existingKeys = Set(existingHabits.compactMap(\.templateTitleKey))
@@ -47,6 +43,15 @@ struct AddHabitSheetView: View {
         customName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var detents: Set<PresentationDetent> {
+        switch step {
+        case .choice:
+            return [.fraction(0.42)]
+        case .templates, .custom:
+            return [.large]
+        }
+    }
+
     var body: some View {
         NavigationStack {
             content
@@ -54,33 +59,30 @@ struct AddHabitSheetView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .sunnadSolidBars()
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button(L10n.t("common.cancel")) {
-                            dismiss()
-                        }
-                    }
-
-                    if step != .choice {
-                        ToolbarItem(placement: .topBarLeading) {
+                    ToolbarItem(placement: .topBarLeading) {
+                        if step == .choice {
+                            EmptyView()
+                        } else {
                             Button(L10n.t("common.back")) {
                                 step = .choice
                             }
                         }
                     }
 
-                    if step == .templates {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button(L10n.t("common.add"), action: addSelectedTemplates)
-                                .disabled(selectedTemplateIDs.isEmpty)
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
                         }
+                        .accessibilityLabel(L10n.t("common.cancel"))
                     }
-
-                    if step == .custom {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button(L10n.t("common.add"), action: addCustomHabit)
-                                .disabled(trimmedName.isEmpty)
-                        }
-                    }
+                }
+                .presentationDetents(detents)
+                .presentationDragIndicator(step == .choice ? .hidden : .visible)
+                .onAppear(perform: applyDebugOverridesIfNeeded)
+                .sheet(isPresented: $isSymbolPickerPresented) {
+                    SFSymbolPickerSheetView(selectedSymbol: $customIcon)
                 }
         }
     }
@@ -100,7 +102,7 @@ struct AddHabitSheetView: View {
     private var choiceStep: some View {
         ScreenScaffold(title: nil, titleDisplayMode: .inline) {
             VStack(spacing: 16) {
-                Spacer(minLength: 220)
+                Spacer(minLength: 12)
 
                 PrimaryButton(title: L10n.t("habit.add.templates")) {
                     step = .templates
@@ -110,9 +112,10 @@ struct AddHabitSheetView: View {
                     step = .custom
                 }
 
-                Spacer(minLength: 220)
+                Spacer(minLength: 8)
             }
             .frame(maxWidth: .infinity)
+            .padding(.top, 12)
         }
     }
 
@@ -142,14 +145,22 @@ struct AddHabitSheetView: View {
                 }
             }
         } footer: {
-            TextField(L10n.t("common.search"), text: $searchText)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(.tertiarySystemBackground))
+            VStack(spacing: 12) {
+                TextField(L10n.t("common.search"), text: $searchText)
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color(.tertiarySystemBackground))
+                    )
+
+                PrimaryButton(
+                    title: L10n.t("common.add"),
+                    isEnabled: !selectedTemplateIDs.isEmpty,
+                    action: addSelectedTemplates
                 )
+            }
         }
     }
 
@@ -187,55 +198,57 @@ struct AddHabitSheetView: View {
 
             SectionHeader(title: L10n.t("habit.icon"))
             Card {
-                HStack(spacing: 12) {
-                    Image(systemName: customIcon)
-                        .font(.title2)
-                        .foregroundStyle(SunnadTheme.primary)
-                        .frame(width: 36)
+                Button {
+                    isSymbolPickerPresented = true
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: customIcon)
+                            .font(.headline)
+                            .foregroundStyle(SunnadTheme.primary)
+                            .frame(width: 34, height: 34)
+                            .background(Circle().fill(Color(.secondarySystemGroupedBackground)))
 
-                    Text(L10n.t("habit.icon"))
-                        .font(.title3.weight(.medium))
+                        Text(customIcon)
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
 
-                    Spacer()
-                }
+                        Spacer()
 
-                let columns = [
-                    GridItem(.adaptive(minimum: 46), spacing: 12)
-                ]
-
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(customIcons, id: \.self) { icon in
-                        Button {
-                            customIcon = icon
-                        } label: {
-                            Image(systemName: icon)
-                                .font(.title3)
-                                .foregroundStyle(customIcon == icon ? .white : SunnadTheme.primary)
-                                .frame(width: 44, height: 44)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(customIcon == icon ? SunnadTheme.primary : Color(.tertiarySystemBackground))
-                                )
-                        }
-                        .buttonStyle(.plain)
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
                     }
                 }
-                .padding(.top, 8)
+                .buttonStyle(.plain)
             }
 
             SectionHeader(title: L10n.t("habit.schedule"))
-            Card {
-                Picker(L10n.t("habit.schedule"), selection: $customSchedule) {
-                    ForEach(HabitSchedule.allCases) { schedule in
-                        Text(L10n.t(schedule.titleKey)).tag(schedule)
+            Card(contentPadding: 0) {
+                VStack(spacing: 0) {
+                    scheduleChoiceRow(title: L10n.t(HabitSchedule.daily.titleKey), selected: customSchedule == .daily) {
+                        customSchedule = .daily
+                    }
+
+                    Divider().padding(.leading, 16)
+
+                    scheduleChoiceRow(title: L10n.t(HabitSchedule.weekly.titleKey), selected: customSchedule == .weekly) {
+                        customSchedule = .weekly
+                    }
+
+                    if customSchedule == .weekly {
+                        Divider().padding(.leading, 16)
+                        WeekdayPickerRow(selectedDays: $customWeekdays)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
                     }
                 }
-                .pickerStyle(.segmented)
+            }
 
-                if customSchedule == .weekly {
-                    WeekdayPickerRow(selectedDays: $customWeekdays)
-                        .padding(.top, 12)
-                }
+            SectionHeader(title: L10n.t("habit.counter"))
+            Card {
+                Toggle(L10n.t("habit.counter"), isOn: $customHasDhikrCounter)
             }
 
             SectionHeader(title: L10n.t("habit.reminder"))
@@ -255,7 +268,32 @@ struct AddHabitSheetView: View {
                     }
                 }
             }
+        } footer: {
+            PrimaryButton(
+                title: L10n.t("common.add"),
+                isEnabled: !trimmedName.isEmpty,
+                action: addCustomHabit
+            )
         }
+    }
+
+    private func scheduleChoiceRow(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.primary)
+                Spacer()
+                if selected {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(SunnadTheme.primary)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func toggleTemplate(_ id: String) {
@@ -279,8 +317,33 @@ struct AddHabitSheetView: View {
             customCategory,
             customSchedule,
             customWeekdays,
-            reminderEnabled ? reminderTime : nil
+            reminderEnabled ? reminderTime : nil,
+            customHasDhikrCounter
         )
         dismiss()
+    }
+
+    private func applyDebugOverridesIfNeeded() {
+        #if DEBUG
+        guard !didApplyDebugOverrides else {
+            return
+        }
+        didApplyDebugOverrides = true
+
+        guard let rawStep = ProcessInfo.processInfo.environment["SUNNAD_DEBUG_ADD_HABIT_STEP"]?.lowercased() else {
+            return
+        }
+
+        switch rawStep {
+        case "choice":
+            step = .choice
+        case "templates":
+            step = .templates
+        case "custom":
+            step = .custom
+        default:
+            break
+        }
+        #endif
     }
 }

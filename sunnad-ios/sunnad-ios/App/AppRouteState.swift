@@ -182,7 +182,8 @@ final class AppRouteState: ObservableObject {
         category: HabitCategory,
         schedule: HabitSchedule,
         weekdays: Set<Int>,
-        reminderTime: Date?
+        reminderTime: Date?,
+        hasDhikrCounter: Bool
     ) {
         habits.append(
             UIHabit(
@@ -194,9 +195,9 @@ final class AppRouteState: ObservableObject {
                 schedule: schedule,
                 weekdays: weekdays,
                 reminderTime: reminderTime,
-                isDhikr: false,
+                isDhikr: hasDhikrCounter,
                 dhikrCount: 0,
-                dhikrTarget: 0
+                dhikrTarget: hasDhikrCounter ? 33 : 0
             )
         )
     }
@@ -345,32 +346,112 @@ final class AppRouteState: ObservableObject {
             language = debugLanguage
         }
 
-        guard let step = environment["SUNNAD_DEBUG_ONBOARDING_STEP"]?.lowercased() else {
-            return
+        if let step = environment["SUNNAD_DEBUG_ONBOARDING_STEP"]?.lowercased() {
+            showsOnboarding = true
+
+            switch step {
+            case "welcome":
+                onboardingStep = .welcome
+            case "templates":
+                onboardingStep = .templates
+            case "notifications":
+                onboardingStep = .notifications
+            case "join_groups", "joingroups":
+                onboardingStep = .joinGroups
+            case "signin", "sign_in":
+                onboardingStep = .signIn
+            case "signup", "sign_up":
+                onboardingStep = .signUp
+            case "otp":
+                onboardingStep = .otp
+                pendingSignUpEmail = environment["SUNNAD_DEBUG_EMAIL"] ?? "alimkhan.ergebayev@gmail.com"
+                pendingSignUpUsername = environment["SUNNAD_DEBUG_USERNAME"] ?? "alimkhan"
+            default:
+                break
+            }
         }
 
-        showsOnboarding = true
-
-        switch step {
-        case "welcome":
+        if isTruthy(environment["SUNNAD_DEBUG_SKIP_ONBOARDING"]) {
+            showsOnboarding = false
             onboardingStep = .welcome
-        case "templates":
-            onboardingStep = .templates
-        case "notifications":
-            onboardingStep = .notifications
-        case "join_groups", "joingroups":
-            onboardingStep = .joinGroups
-        case "signin", "sign_in":
-            onboardingStep = .signIn
-        case "signup", "sign_up":
-            onboardingStep = .signUp
-        case "otp":
-            onboardingStep = .otp
-            pendingSignUpEmail = environment["SUNNAD_DEBUG_EMAIL"] ?? "alimkhan.ergebayev@gmail.com"
-            pendingSignUpUsername = environment["SUNNAD_DEBUG_USERNAME"] ?? "alimkhan"
-        default:
-            break
         }
+
+        if let rawUser = environment["SUNNAD_DEBUG_USER"]?.lowercased() {
+            switch rawUser {
+            case "signed_in", "signedin", "member":
+                user = UIUserState(isGuest: false, name: "User", email: "user@example.com")
+                groups = UIFixtures.groups(user: user, habits: habits)
+            case "guest":
+                user = .guest
+                groups = []
+            default:
+                break
+            }
+        }
+
+        if let rawTab = environment["SUNNAD_DEBUG_TAB"]?.lowercased() {
+            switch rawTab {
+            case "today":
+                activeTab = .today
+            case "groups":
+                activeTab = .groups
+            case "profile":
+                activeTab = .profile
+            default:
+                break
+            }
+        }
+
+        if let rawSheet = environment["SUNNAD_DEBUG_ROOT_SHEET"]?.lowercased() {
+            switch rawSheet {
+            case "add_habit", "addhabit":
+                rootSheet = .addHabit
+            case "habit_detail", "habitdetail":
+                if environment["SUNNAD_DEBUG_HABIT_DETAIL_TYPE"]?.lowercased() == "dhikr",
+                   let dhikrHabit = habits.first(where: \.isDhikr) {
+                    rootSheet = .habitDetail(dhikrHabit.id)
+                } else if let first = habits.first {
+                    rootSheet = .habitDetail(first.id)
+                }
+            case "quote", "quote_of_day":
+                rootSheet = .quoteOfDay
+            case "create_group":
+                rootSheet = .createGroup
+            case "join_group":
+                rootSheet = .joinGroup
+            case "saved_quotes":
+                rootSheet = .savedQuotes
+            case "language_picker":
+                rootSheet = .languagePicker
+            case "reminder_placeholder":
+                rootSheet = .reminderPlaceholder
+            default:
+                break
+            }
+        }
+
+        if let rawFull = environment["SUNNAD_DEBUG_FULL_SCREEN"]?.lowercased() {
+            switch rawFull {
+            case "schedule":
+                fullScreen = .schedule
+            case "insights":
+                fullScreen = .insightsPlaceholder
+            case "week":
+                fullScreen = .weekPlaceholder
+            case "month":
+                fullScreen = .monthPlaceholder
+            default:
+                break
+            }
+        }
+    }
+
+    private func isTruthy(_ value: String?) -> Bool {
+        guard let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
+            return false
+        }
+
+        return normalized == "1" || normalized == "true" || normalized == "yes"
     }
     #endif
 }

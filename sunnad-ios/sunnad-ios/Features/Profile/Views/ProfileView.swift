@@ -14,7 +14,7 @@ struct ProfileView: View {
     let onSignOut: () -> Void
 
     var body: some View {
-        ScreenScaffold {
+        ScreenScaffold(title: L10n.t("tab.profile")) {
             SectionHeader(title: L10n.t("profile.account"))
 
             Card(contentPadding: 0) {
@@ -101,8 +101,6 @@ struct ProfileView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
             }
         }
-        .navigationTitle(L10n.t("tab.profile"))
-        .navigationBarTitleDisplayMode(.large)
         .sunnadSolidBars()
     }
 

@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct TodayView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let habits: [UIHabit]
     let quote: UIQuote
     let onToggle: (UUID) -> Void
@@ -18,7 +20,9 @@ struct TodayView: View {
     }
 
     var body: some View {
-        ScreenScaffold {
+        ScreenScaffold(contentTopPadding: 8) {
+            headerRow
+
             QuoteCardView(quote: quote, onTap: onOpenQuote)
 
             if habits.isEmpty {
@@ -44,11 +48,9 @@ struct TodayView: View {
                     )
                 }
             } else {
-                Card {
-                    Text(String(format: L10n.t("today.progress"), completedCount, habits.count))
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
+                Text(String(format: L10n.t("today.progress"), completedCount, habits.count))
+                    .font(.body)
+                    .foregroundStyle(.secondary)
 
                 Card(contentPadding: 0) {
                     VStack(spacing: 0) {
@@ -68,17 +70,44 @@ struct TodayView: View {
                 }
             }
         }
-        .navigationTitle(L10n.t("tab.today"))
-        .navigationBarTitleDisplayMode(.large)
+        .toolbar(.hidden, for: .navigationBar)
         .sunnadSolidBars()
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button(L10n.t("today.manage"), action: onManage)
+        .background(alignment: .top) {
+            if colorScheme == .dark {
+                Color.black
+                    .frame(height: 132)
+                    .ignoresSafeArea(edges: .top)
+            }
+        }
+    }
+
+    private var headerRow: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text(L10n.t("tab.today"))
+                .font(.title.weight(.bold))
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Button(action: onManage) {
+                    Image(systemName: "calendar")
+                        .font(.headline)
+                }
+                .accessibilityLabel(L10n.t("today.manage"))
+
                 Button(action: onAddHabit) {
                     Image(systemName: "plus")
+                        .font(.headline)
                 }
                 .accessibilityLabel(L10n.t("today.add_habit"))
             }
+            .foregroundStyle(SunnadTheme.primary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color(.tertiarySystemFill))
+            )
         }
     }
 }

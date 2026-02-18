@@ -18,13 +18,11 @@ struct GroupsView: View {
                 signedInState
             }
         }
-        .navigationTitle(L10n.t("tab.groups"))
-        .navigationBarTitleDisplayMode(.large)
         .sunnadSolidBars()
     }
 
     private var guestState: some View {
-        ScreenScaffold {
+        ScreenScaffold(title: L10n.t("tab.groups")) {
             Card {
                 EmptyStateView(
                     symbol: "person.2.slash",
@@ -38,7 +36,7 @@ struct GroupsView: View {
     }
 
     private var signedInState: some View {
-        ScreenScaffold {
+        ScreenScaffold(title: L10n.t("tab.groups")) {
             if groups.isEmpty {
                 Card {
                     EmptyStateView(

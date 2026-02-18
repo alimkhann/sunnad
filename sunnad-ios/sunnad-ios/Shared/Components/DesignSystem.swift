@@ -200,17 +200,20 @@ struct CompactBackButton: View {
 struct ScreenScaffold<Content: View, Footer: View>: View {
     let title: String?
     let titleDisplayMode: NavigationBarItem.TitleDisplayMode
+    let contentTopPadding: CGFloat?
     @ViewBuilder let content: Content
     @ViewBuilder let footer: Footer
 
     init(
         title: String? = nil,
         titleDisplayMode: NavigationBarItem.TitleDisplayMode = .large,
+        contentTopPadding: CGFloat? = nil,
         @ViewBuilder content: () -> Content,
         @ViewBuilder footer: () -> Footer
     ) {
         self.title = title
         self.titleDisplayMode = titleDisplayMode
+        self.contentTopPadding = contentTopPadding
         self.content = content()
         self.footer = footer()
     }
@@ -228,7 +231,7 @@ struct ScreenScaffold<Content: View, Footer: View>: View {
                     content
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, title == nil ? 20 : 8)
+                .padding(.top, resolvedTopPadding)
                 .padding(.bottom, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -242,6 +245,14 @@ struct ScreenScaffold<Content: View, Footer: View>: View {
             }
         }
         .background(SunnadTheme.background.ignoresSafeArea())
+    }
+
+    private var resolvedTopPadding: CGFloat {
+        if let contentTopPadding {
+            return contentTopPadding
+        }
+
+        return title == nil ? 20 : 8
     }
 
     private var titleFont: Font {
@@ -260,9 +271,10 @@ extension ScreenScaffold where Footer == EmptyView {
     init(
         title: String? = nil,
         titleDisplayMode: NavigationBarItem.TitleDisplayMode = .large,
+        contentTopPadding: CGFloat? = nil,
         @ViewBuilder content: () -> Content
     ) {
-        self.init(title: title, titleDisplayMode: titleDisplayMode, content: content) {
+        self.init(title: title, titleDisplayMode: titleDisplayMode, contentTopPadding: contentTopPadding, content: content) {
             EmptyView()
         }
     }

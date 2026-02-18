@@ -32,9 +32,12 @@ struct PlaceholderScreen: View {
             .sunnadSolidBars()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(L10n.t("common.done")) {
+                    Button {
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
                     }
+                    .accessibilityLabel(L10n.t("common.cancel"))
                 }
             }
         }
