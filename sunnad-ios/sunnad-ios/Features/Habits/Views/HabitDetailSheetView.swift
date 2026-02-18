@@ -22,11 +22,13 @@ struct HabitDetailSheetView: View {
     let user: UIUserState
     let groups: [UIGroup]
     let onDelete: (UUID) -> Void
+    let onUpdateHabitSharing: (UUID, Set<UUID>) -> Void
 
     @State private var mode: HabitDetailMode = .details
     @State private var isSymbolPickerPresented = false
     @State private var showsDeleteConfirmation = false
     @State private var didApplyDebugMode = false
+    @State private var sharedGroupIDs: Set<UUID> = []
 
     var body: some View {
         NavigationStack {
@@ -59,6 +61,10 @@ struct HabitDetailSheetView: View {
             .toolbar(.hidden, for: .navigationBar)
             .sunnadSolidBars()
             .onAppear(perform: applyDebugModeIfNeeded)
+            .onAppear(perform: syncSharedGroups)
+            .onChange(of: groups) {
+                syncSharedGroups()
+            }
             .sheet(isPresented: $isSymbolPickerPresented) {
                 SFSymbolPickerSheetView(selectedSymbol: $habit.iconSystemName)
             }
@@ -238,11 +244,36 @@ struct HabitDetailSheetView: View {
 
             if !user.isGuest, !groups.isEmpty {
                 SectionHeader(title: L10n.t("groups.sharing"))
-                Card {
-                    Text(L10n.t("groups.sharing.habit_level_note"))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                Card(contentPadding: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                            Toggle(isOn: Binding(
+                                get: { sharedGroupIDs.contains(group.id) },
+                                set: { isOn in
+                                    if isOn {
+                                        sharedGroupIDs.insert(group.id)
+                                    } else {
+                                        sharedGroupIDs.remove(group.id)
+                                    }
+                                    onUpdateHabitSharing(habit.id, sharedGroupIDs)
+                                }
+                            )) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(group.name)
+                                        .font(.body.weight(.medium))
+                                    Text(String(format: L10n.t("groups.members_count"), group.members.count))
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+
+                            if index < groups.count - 1 {
+                                Divider().padding(.leading, 16)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -278,19 +309,29 @@ struct HabitDetailSheetView: View {
     }
 
     private var lastSevenDaySymbols: [String] {
-        let symbols = Calendar.current.shortWeekdaySymbols
+        let calendar = Calendar.current
+        let symbols = calendar.shortWeekdaySymbols
         guard symbols.count == 7 else {
             return ["M", "T", "W", "T", "F", "S", "S"]
         }
 
-        let mondayFirst = Array(symbols[1...6]) + [symbols[0]]
-        return mondayFirst.map { String($0.prefix(1)) }
+        let today = Date()
+        return (0..<7).map { offset in
+            let date = calendar.date(byAdding: .day, value: offset - 6, to: today)!
+            let weekday = calendar.component(.weekday, from: date) // 1=Sun..7=Sat
+            return String(symbols[weekday - 1].prefix(1))
+        }
     }
 
     private var lastSevenCompletionMarks: [Bool] {
-        let completed = min(max(habit.streak, 0), 7)
-        let start = max(0, 7 - completed)
-        return (0..<7).map { $0 >= start }
+        // Days before today that were completed (based on streak minus today's contribution)
+        let priorStreak = habit.completedToday ? max(habit.streak - 1, 0) : habit.streak
+        let priorDays = min(priorStreak, 6)
+        // First 6 slots represent the 6 days before today; last slot is today
+        var marks = Array(repeating: false, count: 6 - priorDays)
+            + Array(repeating: true, count: priorDays)
+        marks.append(habit.completedToday)
+        return marks
     }
 
     private func scheduleChoiceRow(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
@@ -333,5 +374,13 @@ struct HabitDetailSheetView: View {
             break
         }
         #endif
+    }
+
+    private func syncSharedGroups() {
+        sharedGroupIDs = Set(
+            groups
+                .filter { $0.sharedHabitIDs.contains(habit.id) }
+                .map(\.id)
+        )
     }
 }

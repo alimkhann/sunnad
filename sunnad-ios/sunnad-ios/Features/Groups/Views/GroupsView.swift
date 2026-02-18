@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct GroupsView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let groups: [UIGroup]
     let user: UIUserState
     let habits: [UIHabit]
@@ -8,7 +10,11 @@ struct GroupsView: View {
     let onJoinGroup: () -> Void
     let onSignIn: () -> Void
     let onUpdateGroupSharing: (UUID, Set<UUID>) -> Void
-    let onOpenReminderPlaceholder: () -> Void
+    let onToggleOwnHabit: (UUID) -> Void
+    let onLeaveGroup: (UUID) -> Void
+    let onDeleteGroup: (UUID) -> Void
+    let onKickMember: (UUID, UUID) -> Void
+    let currentGroupSharedHabitIDs: (UUID) -> Set<UUID>?
 
     var body: some View {
         Group {
@@ -18,11 +24,21 @@ struct GroupsView: View {
                 signedInState
             }
         }
+        .toolbar(.hidden, for: .navigationBar)
         .sunnadSolidBars()
+        .background(alignment: .top) {
+            if colorScheme == .dark {
+                Color.black
+                    .frame(height: 96)
+                    .ignoresSafeArea(edges: .top)
+            }
+        }
     }
 
     private var guestState: some View {
-        ScreenScaffold(title: L10n.t("tab.groups")) {
+        ScreenScaffold(contentTopPadding: 8) {
+            pageHeader
+
             Card {
                 EmptyStateView(
                     symbol: "person.2.slash",
@@ -36,7 +52,9 @@ struct GroupsView: View {
     }
 
     private var signedInState: some View {
-        ScreenScaffold(title: L10n.t("tab.groups")) {
+        ScreenScaffold(contentTopPadding: 8) {
+            pageHeader
+
             if groups.isEmpty {
                 Card {
                     EmptyStateView(
@@ -58,8 +76,13 @@ struct GroupsView: View {
                                     group: group,
                                     habits: habits,
                                     onUpdateSharing: { onUpdateGroupSharing(group.id, $0) },
-                                    onReminderTap: onOpenReminderPlaceholder
+                                    onToggleOwnHabit: onToggleOwnHabit,
+                                    onLeaveGroup: { onLeaveGroup(group.id) },
+                                    onDeleteGroup: { onDeleteGroup(group.id) },
+                                    onKickMember: { onKickMember(group.id, $0) },
+                                    currentSharedHabitIDs: { currentGroupSharedHabitIDs(group.id) }
                                 )
+                                .id(groupDetailIdentity(for: group))
                             } label: {
                                 HStack(spacing: 12) {
                                     Image(systemName: "person.3.fill")
@@ -99,5 +122,14 @@ struct GroupsView: View {
                 SecondaryButton(title: L10n.t("groups.join"), action: onJoinGroup)
             }
         }
+    }
+
+    private var pageHeader: some View {
+        Text(L10n.t("tab.groups"))
+            .font(.title.weight(.bold))
+    }
+
+    private func groupDetailIdentity(for group: UIGroup) -> String {
+        "\(group.id.uuidString)-\(group.members.count)"
     }
 }

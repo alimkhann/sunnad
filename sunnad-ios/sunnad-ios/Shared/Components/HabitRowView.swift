@@ -4,6 +4,7 @@ struct HabitRowView: View {
     let habit: UIHabit
     let showsChevron: Bool
     let showsStreak: Bool
+    let isDimmed: Bool
     let onTap: () -> Void
     let onToggle: (() -> Void)?
 
@@ -11,12 +12,14 @@ struct HabitRowView: View {
         habit: UIHabit,
         showsChevron: Bool = true,
         showsStreak: Bool = true,
+        isDimmed: Bool = false,
         onTap: @escaping () -> Void,
         onToggle: (() -> Void)? = nil
     ) {
         self.habit = habit
         self.showsChevron = showsChevron
         self.showsStreak = showsStreak
+        self.isDimmed = isDimmed
         self.onTap = onTap
         self.onToggle = onToggle
     }
@@ -33,13 +36,13 @@ struct HabitRowView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(habit.displayTitle)
                         .font(.body)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(isDimmed ? .secondary : .primary)
                         .multilineTextAlignment(.leading)
 
                     if showsStreak && habit.streak > 0 {
                         Text("\(habit.streak) \(L10n.t("today.day_streak"))")
                             .font(.caption)
-                            .foregroundStyle(.yellow)
+                            .foregroundStyle(isDimmed ? Color.secondary : Color.yellow)
                     }
                 }
 
@@ -63,6 +66,7 @@ struct HabitRowView: View {
             }
             .contentShape(Rectangle())
             .padding(.vertical, 4)
+            .opacity(isDimmed ? 0.72 : 1)
         }
         .buttonStyle(.plain)
     }

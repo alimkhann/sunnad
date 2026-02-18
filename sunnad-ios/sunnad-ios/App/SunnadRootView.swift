@@ -57,7 +57,13 @@ struct SunnadRootView: View {
                     onJoinGroup: { state.rootSheet = .joinGroup },
                     onSignIn: state.signInFromGroups,
                     onUpdateGroupSharing: state.updateGroupSharing,
-                    onOpenReminderPlaceholder: { state.rootSheet = .reminderPlaceholder }
+                    onToggleOwnHabit: state.toggleHabit,
+                    onLeaveGroup: state.leaveGroup,
+                    onDeleteGroup: state.deleteGroup,
+                    onKickMember: state.kickMember,
+                    currentGroupSharedHabitIDs: { groupID in
+                        state.groups.first(where: { $0.id == groupID })?.sharedHabitIDs
+                    }
                 )
             }
             .sunnadSolidBars()
@@ -119,7 +125,8 @@ struct SunnadRootView: View {
                     habit: binding,
                     user: state.user,
                     groups: state.groups,
-                    onDelete: state.deleteHabit
+                    onDelete: state.deleteHabit,
+                    onUpdateHabitSharing: state.updateHabitSharing
                 )
             } else {
                 PlaceholderScreen(

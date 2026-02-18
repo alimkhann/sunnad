@@ -31,6 +31,8 @@ struct CreateGroupSheet: View {
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+            .presentationDetents([.height(230)])
+            .presentationDragIndicator(.visible)
         }
     }
 }
@@ -67,6 +69,8 @@ struct JoinGroupSheet: View {
                     .disabled(code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+            .presentationDetents([.height(230)])
+            .presentationDragIndicator(.visible)
         }
     }
 }

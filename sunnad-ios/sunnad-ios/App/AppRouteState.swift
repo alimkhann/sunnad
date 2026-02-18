@@ -153,6 +153,13 @@ final class AppRouteState: ObservableObject {
         }
 
         habits[index].completedToday.toggle()
+
+        if habits[index].completedToday {
+            habits[index].streak += 1
+        } else {
+            habits[index].streak = max(habits[index].streak - 1, 0)
+        }
+
         refreshGroupProgress()
     }
 
@@ -262,6 +269,42 @@ final class AppRouteState: ObservableObject {
 
         groups[groupIndex].sharedHabitIDs = habitIDs
         refreshGroupProgress(for: groupID)
+    }
+
+    func updateHabitSharing(habitID: UUID, sharedGroupIDs: Set<UUID>) {
+        guard !groups.isEmpty else {
+            return
+        }
+
+        for index in groups.indices {
+            if sharedGroupIDs.contains(groups[index].id) {
+                groups[index].sharedHabitIDs.insert(habitID)
+            } else {
+                groups[index].sharedHabitIDs.remove(habitID)
+            }
+        }
+
+        refreshGroupProgress()
+    }
+
+    func leaveGroup(_ groupID: UUID) {
+        groups.removeAll { $0.id == groupID }
+    }
+
+    func deleteGroup(_ groupID: UUID) {
+        groups.removeAll { $0.id == groupID }
+    }
+
+    func kickMember(groupID: UUID, memberID: UUID) {
+        guard let groupIndex = groups.firstIndex(where: { $0.id == groupID }) else {
+            return
+        }
+
+        guard groups[groupIndex].ownerMemberID == groups[groupIndex].members.first?.id else {
+            return
+        }
+
+        groups[groupIndex].members.removeAll { $0.id == memberID }
     }
 
     private func defaultMembers() -> [UIGroupMember] {

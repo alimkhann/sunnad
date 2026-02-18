@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ProfileView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let user: UIUserState
     let habits: [UIHabit]
     let savedQuotes: [UISavedQuote]
@@ -14,7 +16,10 @@ struct ProfileView: View {
     let onSignOut: () -> Void
 
     var body: some View {
-        ScreenScaffold(title: L10n.t("tab.profile")) {
+        ScreenScaffold(contentTopPadding: 8) {
+            Text(L10n.t("tab.profile"))
+                .font(.title.weight(.bold))
+
             SectionHeader(title: L10n.t("profile.account"))
 
             Card(contentPadding: 0) {
@@ -100,7 +105,15 @@ struct ProfileView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 8)
         }
+        .toolbar(.hidden, for: .navigationBar)
         .sunnadSolidBars()
+        .background(alignment: .top) {
+            if colorScheme == .dark {
+                Color.black
+                    .frame(height: 96)
+                    .ignoresSafeArea(edges: .top)
+            }
+        }
     }
 
     private func profileLinkRow(
