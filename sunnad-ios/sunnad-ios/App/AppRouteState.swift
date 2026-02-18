@@ -4,7 +4,11 @@ import SwiftUI
 
 @MainActor
 final class AppRouteState: ObservableObject {
-    @Published var language: AppLanguage = .en
+    @Published var language: AppLanguage = .en {
+        didSet {
+            L10n.setLanguage(code: language.localeIdentifier)
+        }
+    }
     @Published var showsOnboarding = true
     @Published var onboardingStep: OnboardingStep = .welcome
 
@@ -22,6 +26,7 @@ final class AppRouteState: ObservableObject {
     @Published var pendingSignUpUsername = ""
 
     init() {
+        L10n.setLanguage(code: language.localeIdentifier)
         habits = UIFixtures.initialHabits
         savedQuotes = UIFixtures.initialSavedQuotes
         #if DEBUG
@@ -334,6 +339,12 @@ final class AppRouteState: ObservableObject {
     #if DEBUG
     private func applyDebugLaunchOverrides() {
         let environment = ProcessInfo.processInfo.environment
+
+        if let rawLanguage = environment["SUNNAD_DEBUG_LANGUAGE"]?.lowercased(),
+           let debugLanguage = AppLanguage(rawValue: rawLanguage) {
+            language = debugLanguage
+        }
+
         guard let step = environment["SUNNAD_DEBUG_ONBOARDING_STEP"]?.lowercased() else {
             return
         }

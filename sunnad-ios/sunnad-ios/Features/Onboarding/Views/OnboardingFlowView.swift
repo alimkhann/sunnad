@@ -30,11 +30,13 @@ struct OnboardingFlowView: View {
             )
         case .notifications:
             NotificationsOnboardingView(
+                onBack: { step = .templates },
                 onContinue: onFinishNotifications,
                 onSkip: onFinishNotifications
             )
         case .joinGroups:
             JoinGroupsOnboardingView(
+                onBack: { step = .notifications },
                 onSignIn: onOpenSignIn,
                 onSignUp: onOpenSignUp,
                 onGuest: onCompleteAsGuest
@@ -54,6 +56,7 @@ struct OnboardingFlowView: View {
         case .otp:
             OTPVerificationView(
                 email: pendingEmail,
+                onBack: { step = .signUp },
                 onVerify: onOTPVerify
             )
         }

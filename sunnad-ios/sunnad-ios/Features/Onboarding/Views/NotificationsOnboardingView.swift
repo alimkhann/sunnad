@@ -1,13 +1,19 @@
 import SwiftUI
 
 struct NotificationsOnboardingView: View {
+    let onBack: () -> Void
     let onContinue: () -> Void
     let onSkip: () -> Void
 
     var body: some View {
         ScreenScaffold {
             VStack(spacing: 18) {
-                Spacer(minLength: 110)
+                HStack {
+                    CompactBackButton(action: onBack)
+                    Spacer()
+                }
+
+                Spacer(minLength: 66)
 
                 Image(systemName: "bell.badge.fill")
                     .font(.system(size: 42, weight: .semibold))

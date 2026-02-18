@@ -20,14 +20,14 @@ struct TemplatesOnboardingView: View {
 
     var body: some View {
         ScreenScaffold(title: nil, titleDisplayMode: .large) {
-            HStack {
-                pillToolbarButton(title: L10n.t("common.back"), action: onBack)
-                Spacer()
-            }
-            .padding(.top, 8)
+            HStack(spacing: 12) {
+                CompactBackButton(action: onBack)
 
-            Text(L10n.t("onboarding.templates.title"))
-                .font(.title.weight(.bold))
+                Text(L10n.t("onboarding.templates.title"))
+                    .font(.title.weight(.bold))
+
+                Spacer(minLength: 0)
+            }
 
             ForEach(HabitCategory.allCases) { category in
                 let sectionItems = filteredTemplates.filter { $0.category == category }
@@ -77,21 +77,5 @@ struct TemplatesOnboardingView: View {
         } else {
             selectedIDs.insert(id)
         }
-    }
-
-    private func pillToolbarButton(
-        title: String,
-        action: @escaping () -> Void,
-        isEnabled: Bool = true
-    ) -> some View {
-        Button(title, action: action)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-            .foregroundStyle(isEnabled ? .primary : .secondary)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color(.tertiarySystemFill))
-            )
-            .disabled(!isEnabled)
     }
 }

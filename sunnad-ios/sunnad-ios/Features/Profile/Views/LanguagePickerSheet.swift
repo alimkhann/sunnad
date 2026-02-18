@@ -47,6 +47,7 @@ struct LanguagePickerSheet: View {
                     }
                 }
             }
+            .presentationDetents([.fraction(0.38)])
         }
     }
 }

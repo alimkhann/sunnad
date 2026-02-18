@@ -28,9 +28,17 @@ struct SignUpView: View {
     var body: some View {
         GeometryReader { proxy in
             VStack(alignment: .leading, spacing: 10) {
-                pillBackButton
-                Text(L10n.t("auth.sign_up"))
-                    .font(.title.weight(.bold))
+                HStack(spacing: 12) {
+                    CompactBackButton(action: onBack)
+
+                    Text(L10n.t("auth.sign_up"))
+                        .font(.title.weight(.bold))
+
+                    Spacer(minLength: 0)
+                }
+
+                Spacer()
+                    .frame(height: 32)
 
                 fieldsCard
                 PrimaryButton(title: L10n.t("auth.sign_up"), isEnabled: isValid) {
@@ -43,12 +51,18 @@ struct SignUpView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 2)
 
+                Spacer()
+                    .frame(height: 24)
+
                 orDivider
                     .padding(.top, 2)
 
+                Spacer()
+                    .frame(height: 24)
+
                 socialButtons
 
-                Spacer(minLength: 0)
+                Spacer()
 
                 termsLinks
             }
@@ -178,15 +192,5 @@ struct SignUpView: View {
             .font(.footnote)
             .frame(maxWidth: .infinity, alignment: .center)
         }
-    }
-
-    private var pillBackButton: some View {
-        Button(L10n.t("common.back"), action: onBack)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 9)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color(.tertiarySystemFill))
-            )
     }
 }

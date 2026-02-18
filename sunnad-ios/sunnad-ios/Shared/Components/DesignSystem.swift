@@ -180,6 +180,23 @@ struct SecondaryButton: View {
     }
 }
 
+struct CompactBackButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.left")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(SunnadTheme.primary)
+                .frame(width: 38, height: 38)
+                .background(
+                    Circle().fill(Color(.tertiarySystemFill))
+                )
+        }
+        .accessibilityLabel(L10n.t("common.back"))
+    }
+}
+
 struct ScreenScaffold<Content: View, Footer: View>: View {
     let title: String?
     let titleDisplayMode: NavigationBarItem.TitleDisplayMode

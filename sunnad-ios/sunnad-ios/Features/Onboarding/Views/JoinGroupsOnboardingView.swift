@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct JoinGroupsOnboardingView: View {
+    let onBack: () -> Void
     let onSignIn: () -> Void
     let onSignUp: () -> Void
     let onGuest: () -> Void
@@ -8,7 +9,12 @@ struct JoinGroupsOnboardingView: View {
     var body: some View {
         ScreenScaffold {
             VStack(spacing: 18) {
-                Spacer(minLength: 110)
+                HStack {
+                    CompactBackButton(action: onBack)
+                    Spacer()
+                }
+
+                Spacer(minLength: 66)
 
                 Image(systemName: "person.3.fill")
                     .font(.system(size: 42, weight: .semibold))

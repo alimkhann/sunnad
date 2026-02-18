@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OTPVerificationView: View {
     let email: String
+    let onBack: () -> Void
     let onVerify: () -> Void
 
     @State private var code = ""
@@ -11,11 +12,18 @@ struct OTPVerificationView: View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(L10n.t("auth.otp.nav_title"))
-                        .font(.largeTitle.weight(.bold))
-                        .padding(.horizontal, 24)
-                        .padding(.top, 10)
-                        .padding(.bottom, 18)
+                    HStack(spacing: 12) {
+                        CompactBackButton(action: onBack)
+
+                        Text(L10n.t("auth.otp.nav_title"))
+                            .font(.largeTitle.weight(.bold))
+                            .lineLimit(1)
+
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    .padding(.bottom, 14)
 
                     Divider()
                 }
