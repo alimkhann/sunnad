@@ -1,32 +1,26 @@
-//
-//  sunnad_iosApp.swift
-//  sunnad-ios
-//
-//  Created by Alimkhan Yergebayev on 17/2/2026.
-//
-
 import SwiftUI
-import SwiftData
+import UIKit
 
 @main
 struct sunnad_iosApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    init() {
+        let tabAppearance = UITabBarAppearance()
+        tabAppearance.configureWithOpaqueBackground()
+        tabAppearance.backgroundColor = UIColor.systemGroupedBackground
+        UITabBar.appearance().standardAppearance = tabAppearance
+        UITabBar.appearance().scrollEdgeAppearance = tabAppearance
 
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+        let navAppearance = UINavigationBarAppearance()
+        navAppearance.configureWithOpaqueBackground()
+        navAppearance.backgroundColor = UIColor.systemGroupedBackground
+        UINavigationBar.appearance().standardAppearance = navAppearance
+        UINavigationBar.appearance().scrollEdgeAppearance = navAppearance
+    }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            SunnadRootView()
+                .tint(SunnadTheme.primary)
         }
-        .modelContainer(sharedModelContainer)
     }
 }

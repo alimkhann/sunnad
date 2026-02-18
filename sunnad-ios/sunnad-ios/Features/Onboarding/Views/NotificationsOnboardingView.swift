@@ -1,0 +1,41 @@
+import SwiftUI
+
+struct NotificationsOnboardingView: View {
+    let onContinue: () -> Void
+    let onSkip: () -> Void
+
+    var body: some View {
+        ScreenScaffold {
+            VStack(spacing: 18) {
+                Spacer(minLength: 110)
+
+                Image(systemName: "bell.badge.fill")
+                    .font(.system(size: 42, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 98, height: 98)
+                    .background(Circle().fill(SunnadTheme.primary))
+
+                Text(L10n.t("onboarding.notifications.title"))
+                    .font(.title.weight(.bold))
+                    .multilineTextAlignment(.center)
+
+                Text(L10n.t("onboarding.notifications.subtitle"))
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 18)
+
+                Spacer(minLength: 240)
+            }
+            .frame(maxWidth: .infinity)
+        } footer: {
+            VStack(spacing: 12) {
+                PrimaryButton(title: L10n.t("onboarding.notifications.enable"), action: onContinue)
+                Button(L10n.t("onboarding.notifications.skip"), action: onSkip)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .foregroundStyle(SunnadTheme.primary)
+            }
+        }
+    }
+}

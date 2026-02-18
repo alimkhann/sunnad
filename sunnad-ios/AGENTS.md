@@ -40,6 +40,11 @@ Suggested folders (only if it fits current repo):
 - Provide EN/RU/KK translations for every key you introduce.
 - Ensure long RU strings and KK Cyrillic fit (Dynamic Type, truncation where needed).
 
+## Liquid Glass policy (system-only)
+- Use system-provided bar/sheet/toolbar appearance only; do not add custom Liquid Glass/material effects to content.
+- Do not use `glassEffect`, `GlassEffectContainer`, or `.ultraThinMaterial/.thinMaterial/.regularMaterial/.thickMaterial` in content rows, cards, or full-screen backgrounds.
+- Any exception requires explicit product/design review approval.
+
 ## Build/test expectations
 - Don’t add new tools (SwiftLint/SwiftFormat) unless asked.
 - If you touch domain logic, add/adjust unit tests.
