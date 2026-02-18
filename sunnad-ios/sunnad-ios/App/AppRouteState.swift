@@ -24,6 +24,9 @@ final class AppRouteState: ObservableObject {
     init() {
         habits = UIFixtures.initialHabits
         savedQuotes = UIFixtures.initialSavedQuotes
+        #if DEBUG
+        applyDebugLaunchOverrides()
+        #endif
     }
 
     var todayHabits: [UIHabit] {
@@ -327,4 +330,36 @@ final class AppRouteState: ObservableObject {
             )
         }
     }
+
+    #if DEBUG
+    private func applyDebugLaunchOverrides() {
+        let environment = ProcessInfo.processInfo.environment
+        guard let step = environment["SUNNAD_DEBUG_ONBOARDING_STEP"]?.lowercased() else {
+            return
+        }
+
+        showsOnboarding = true
+
+        switch step {
+        case "welcome":
+            onboardingStep = .welcome
+        case "templates":
+            onboardingStep = .templates
+        case "notifications":
+            onboardingStep = .notifications
+        case "join_groups", "joingroups":
+            onboardingStep = .joinGroups
+        case "signin", "sign_in":
+            onboardingStep = .signIn
+        case "signup", "sign_up":
+            onboardingStep = .signUp
+        case "otp":
+            onboardingStep = .otp
+            pendingSignUpEmail = environment["SUNNAD_DEBUG_EMAIL"] ?? "alimkhan.ergebayev@gmail.com"
+            pendingSignUpUsername = environment["SUNNAD_DEBUG_USERNAME"] ?? "alimkhan"
+        default:
+            break
+        }
+    }
+    #endif
 }

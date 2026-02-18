@@ -38,8 +38,8 @@ struct SectionHeader: View {
 
     var body: some View {
         Text(title)
-            .font(.subheadline)
-            .fontWeight(.semibold)
+            .font(.caption2.weight(.semibold))
+            .tracking(0.5)
             .foregroundStyle(.secondary)
             .textCase(.uppercase)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -73,7 +73,9 @@ struct SelectableRow: View {
                         Image(systemName: iconSystemName)
                             .font(.body)
                             .foregroundStyle(SunnadTheme.primary)
-                            .frame(width: 24)
+                            .frame(width: 18, height: 18)
+                            .padding(8)
+                            .background(Circle().fill(Color(.tertiarySystemFill)))
                     }
 
                     VStack(alignment: .leading, spacing: 3) {
