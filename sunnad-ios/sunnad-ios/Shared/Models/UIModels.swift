@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 enum AppLanguage: String, CaseIterable, Identifiable {
     case en
@@ -22,6 +23,36 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .kk: return "language.kazakh"
         }
     }
+}
+
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var nameKey: String {
+        switch self {
+        case .system: return "appearance.system"
+        case .light: return "appearance.light"
+        case .dark: return "appearance.dark"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
+struct UINotificationPreferences: Equatable {
+    var habitReminders = true
+    var quoteReminder = true
+    var groupReminders = true
 }
 
 enum AppTab: String, CaseIterable, Identifiable {

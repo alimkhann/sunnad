@@ -5,7 +5,7 @@ struct SavedQuotesView: View {
 
     var body: some View {
         NavigationStack {
-            ScreenScaffold {
+            ScreenScaffold(contentTopPadding: 8) {
                 if quotes.isEmpty {
                     Card {
                         EmptyStateView(

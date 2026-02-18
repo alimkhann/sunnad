@@ -100,7 +100,7 @@ struct AddHabitSheetView: View {
     }
 
     private var choiceStep: some View {
-        ScreenScaffold(title: nil, titleDisplayMode: .inline) {
+        ScreenScaffold(title: nil, titleDisplayMode: .inline, contentTopPadding: 8) {
             VStack(spacing: 16) {
                 Spacer(minLength: 12)
 
@@ -120,7 +120,7 @@ struct AddHabitSheetView: View {
     }
 
     private var templatesStep: some View {
-        ScreenScaffold(title: nil, titleDisplayMode: .inline) {
+        ScreenScaffold(title: nil, titleDisplayMode: .inline, contentTopPadding: 8) {
             ForEach(HabitCategory.allCases) { category in
                 let items = availableTemplates.filter { $0.category == category }
                 if !items.isEmpty {
@@ -165,7 +165,7 @@ struct AddHabitSheetView: View {
     }
 
     private var customStep: some View {
-        ScreenScaffold(title: nil, titleDisplayMode: .inline) {
+        ScreenScaffold(title: nil, titleDisplayMode: .inline, contentTopPadding: 8) {
             Card(contentPadding: 0) {
                 VStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 8) {

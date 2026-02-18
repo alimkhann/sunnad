@@ -11,7 +11,7 @@ struct QuoteOfDaySheetView: View {
 
     var body: some View {
         NavigationStack {
-            ScreenScaffold(title: nil, titleDisplayMode: .inline) {
+            ScreenScaffold(title: nil, titleDisplayMode: .inline, contentTopPadding: 8) {
                 Card {
                     VStack(alignment: .leading, spacing: 18) {
                         Text("\"\(quote.text)\"")

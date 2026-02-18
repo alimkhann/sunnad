@@ -8,7 +8,7 @@ struct PlaceholderScreen: View {
 
     var body: some View {
         NavigationStack {
-            ScreenScaffold(title: nil, titleDisplayMode: .inline) {
+            ScreenScaffold(title: nil, titleDisplayMode: .inline, contentTopPadding: 8) {
                 Card {
                     VStack(spacing: 18) {
                         Image(systemName: "clock.arrow.2.circlepath")

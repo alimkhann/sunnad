@@ -9,6 +9,8 @@ final class AppRouteState: ObservableObject {
             L10n.setLanguage(code: language.localeIdentifier)
         }
     }
+    @Published var appearance: AppAppearance = .system
+    @Published var notificationPreferences = UINotificationPreferences()
     @Published var showsOnboarding = true
     @Published var onboardingStep: OnboardingStep = .welcome
 
@@ -239,6 +241,20 @@ final class AppRouteState: ObservableObject {
     func signOut() {
         user = .guest
         groups = []
+    }
+
+    func deleteData() {
+        habits = []
+        savedQuotes = []
+        groups = []
+        selectedTemplateIDs = []
+    }
+
+    func deleteAccount() {
+        deleteData()
+        pendingSignUpEmail = ""
+        pendingSignUpUsername = ""
+        user = .guest
     }
 
     func createGroup(name: String) {

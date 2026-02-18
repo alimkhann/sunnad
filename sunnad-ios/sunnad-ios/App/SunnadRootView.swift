@@ -25,6 +25,7 @@ struct SunnadRootView: View {
             }
         }
         .environment(\.locale, Locale(identifier: state.language.localeIdentifier))
+        .preferredColorScheme(state.appearance.colorScheme)
         .sheet(item: $state.rootSheet, content: sheetView)
         .fullScreenCover(item: $state.fullScreen, content: fullScreenView)
     }
@@ -78,6 +79,8 @@ struct SunnadRootView: View {
                     habits: state.habits,
                     savedQuotes: state.savedQuotes,
                     selectedLanguage: state.language,
+                    selectedAppearance: $state.appearance,
+                    notificationPreferences: $state.notificationPreferences,
                     onManageHabits: {
                         state.activeTab = .today
                         state.fullScreen = .schedule
@@ -86,7 +89,9 @@ struct SunnadRootView: View {
                     onOpenLanguagePicker: { state.rootSheet = .languagePicker },
                     onOpenInsights: { state.fullScreen = .insightsPlaceholder },
                     onSignIn: state.signInFromGroups,
-                    onSignOut: state.signOut
+                    onSignOut: state.signOut,
+                    onDeleteData: state.deleteData,
+                    onDeleteAccount: state.deleteAccount
                 )
             }
             .sunnadSolidBars()
@@ -170,10 +175,7 @@ struct SunnadRootView: View {
                 }
             )
         case .insightsPlaceholder:
-            PlaceholderScreen(
-                title: L10n.t("insights.placeholder.title"),
-                message: L10n.t("insights.placeholder.subtitle")
-            )
+            InsightsView(habits: state.habits)
         case .weekPlaceholder:
             PlaceholderScreen(
                 title: L10n.t("schedule.week.placeholder.title"),

@@ -230,7 +230,7 @@ struct ScreenScaffold<Content: View, Footer: View>: View {
 
                     content
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 12)
                 .padding(.top, resolvedTopPadding)
                 .padding(.bottom, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -238,7 +238,7 @@ struct ScreenScaffold<Content: View, Footer: View>: View {
 
             if Footer.self != EmptyView.self {
                 footer
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, 12)
                     .padding(.top, 8)
                     .padding(.bottom, 16)
                     .background(SunnadTheme.background)

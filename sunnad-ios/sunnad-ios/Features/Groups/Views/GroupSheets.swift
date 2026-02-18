@@ -8,7 +8,7 @@ struct CreateGroupSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScreenScaffold(title: nil, titleDisplayMode: .inline) {
+            ScreenScaffold(title: nil, titleDisplayMode: .inline, contentTopPadding: 8) {
                 Card {
                     TextField(L10n.t("groups.group_name_placeholder"), text: $name)
                         .textFieldStyle(.plain)
@@ -45,7 +45,7 @@ struct JoinGroupSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScreenScaffold(title: nil, titleDisplayMode: .inline) {
+            ScreenScaffold(title: nil, titleDisplayMode: .inline, contentTopPadding: 8) {
                 Card {
                     TextField(L10n.t("groups.group_code_placeholder"), text: $code)
                         .textFieldStyle(.plain)

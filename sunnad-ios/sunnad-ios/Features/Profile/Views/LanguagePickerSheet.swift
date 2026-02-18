@@ -8,7 +8,7 @@ struct LanguagePickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScreenScaffold {
+            ScreenScaffold(contentTopPadding: 8) {
                 Card(contentPadding: 0) {
                     VStack(spacing: 0) {
                         ForEach(Array(AppLanguage.allCases.enumerated()), id: \.element.id) { index, language in
