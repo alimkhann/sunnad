@@ -238,6 +238,38 @@ final class AppRouteState: ObservableObject {
         groups = UIFixtures.groups(user: user, habits: habits)
     }
 
+    func openProfileSignIn() {
+        fullScreen = .profileSignIn
+    }
+
+    func openProfileSignUp() {
+        fullScreen = .profileSignUp
+    }
+
+    func handleProfileSignIn(username: String, password: String) {
+        handleSignIn(username: username, password: password)
+        fullScreen = nil
+    }
+
+    func handleProfileSignUp(email: String, username: String, password: String, method: String) {
+        if method == "email" {
+            pendingSignUpEmail = email
+            pendingSignUpUsername = username
+            fullScreen = .profileOTP
+            return
+        }
+
+        user = UIUserState(isGuest: false, name: username.isEmpty ? "User" : username, email: email.isEmpty ? "user@example.com" : email)
+        groups = UIFixtures.groups(user: user, habits: habits)
+        fullScreen = nil
+    }
+
+    func verifyProfileOTP() {
+        user = UIUserState(isGuest: false, name: pendingSignUpUsername, email: pendingSignUpEmail)
+        groups = UIFixtures.groups(user: user, habits: habits)
+        fullScreen = nil
+    }
+
     func signOut() {
         user = .guest
         groups = []

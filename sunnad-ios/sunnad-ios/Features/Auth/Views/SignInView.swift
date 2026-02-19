@@ -8,6 +8,7 @@ struct SignInView: View {
     let onBack: () -> Void
     let onSwitchToSignUp: () -> Void
     let onSubmit: (String, String) -> Void
+    var showsBackButton: Bool = true
 
     private var trimmedUsername: String {
         username.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -21,7 +22,9 @@ struct SignInView: View {
         GeometryReader { proxy in
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 12) {
-                    CompactBackButton(action: onBack)
+                    if showsBackButton {
+                        CompactBackButton(action: onBack)
+                    }
 
                     Text(L10n.t("auth.sign_in"))
                         .font(.title.weight(.bold))

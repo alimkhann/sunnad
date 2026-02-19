@@ -88,7 +88,7 @@ struct SunnadRootView: View {
                     onOpenSavedQuotes: { state.rootSheet = .savedQuotes },
                     onOpenLanguagePicker: { state.rootSheet = .languagePicker },
                     onOpenInsights: { state.fullScreen = .insightsPlaceholder },
-                    onSignIn: state.signInFromGroups,
+                    onSignIn: state.openProfileSignIn,
                     onSignOut: state.signOut,
                     onDeleteData: state.deleteData,
                     onDeleteAccount: state.deleteAccount
@@ -185,6 +185,26 @@ struct SunnadRootView: View {
             PlaceholderScreen(
                 title: L10n.t("schedule.month.placeholder.title"),
                 message: L10n.t("schedule.month.placeholder.subtitle")
+            )
+        case .profileSignIn:
+            SignInView(
+                onBack: {},
+                onSwitchToSignUp: state.openProfileSignUp,
+                onSubmit: state.handleProfileSignIn,
+                showsBackButton: false
+            )
+        case .profileSignUp:
+            SignUpView(
+                onBack: state.openProfileSignIn,
+                onSwitchToSignIn: state.openProfileSignIn,
+                onSubmit: state.handleProfileSignUp,
+                showsBackButton: false
+            )
+        case .profileOTP:
+            OTPVerificationView(
+                email: state.pendingSignUpEmail,
+                onBack: state.openProfileSignUp,
+                onVerify: state.verifyProfileOTP
             )
         }
     }

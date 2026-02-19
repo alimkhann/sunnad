@@ -110,6 +110,9 @@ enum FullScreenRoute: Identifiable, Equatable {
     case insightsPlaceholder
     case weekPlaceholder
     case monthPlaceholder
+    case profileSignIn
+    case profileSignUp
+    case profileOTP
 
     var id: String {
         switch self {
@@ -121,6 +124,12 @@ enum FullScreenRoute: Identifiable, Equatable {
             return "weekPlaceholder"
         case .monthPlaceholder:
             return "monthPlaceholder"
+        case .profileSignIn:
+            return "profileSignIn"
+        case .profileSignUp:
+            return "profileSignUp"
+        case .profileOTP:
+            return "profileOTP"
         }
     }
 }
