@@ -112,6 +112,7 @@
 			);
 			name = "sunnad-ios";
 			packageProductDependencies = (
+				A1D9E801D7D14B9A8A5E1001 /* Supabase */,
 			);
 			productName = "sunnad-ios";
 			productReference = 47C8D7192F44B4DC006F8DF3 /* sunnad-ios.app */;
@@ -199,6 +200,9 @@
 			productRefGroup = 47C8D71A2F44B4DC006F8DF3 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
+			packageReferences = (
+				A1D9E801D7D14B9A8A5E2001 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			targets = (
 				47C8D7182F44B4DC006F8DF3 /* sunnad-ios */,
 				47C8D7272F44B4DD006F8DF3 /* sunnad-iosTests */,
@@ -267,6 +271,25 @@
 			targetProxy = 47C8D7332F44B4DD006F8DF3 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A1D9E801D7D14B9A8A5E2001 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.19.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1D9E801D7D14B9A8A5E1001 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1D9E801D7D14B9A8A5E2001 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		47C8D73A2F44B4DD006F8DF3 /* Debug */ = {

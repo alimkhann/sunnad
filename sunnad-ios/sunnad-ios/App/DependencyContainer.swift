@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import SwiftData
+import Supabase
 
 final class DependencyContainer {
     let environment: AppEnvironment
@@ -12,23 +13,34 @@ final class DependencyContainer {
     let quotesRepository: QuotesLocalRepository
     let groupsRepository: GroupsLocalRepository
     let reminderScheduler: LocalReminderScheduling
+    let authService: AuthService
+    let deviceTokenSyncService: DeviceTokenSyncing
 
-    init(environment: AppEnvironment = .current) {
+    init(
+        environment: AppEnvironment = .current,
+        modelContainer: ModelContainer? = nil,
+        authService: AuthService? = nil,
+        deviceTokenSyncService: DeviceTokenSyncing? = nil
+    ) {
         self.environment = environment
 
-        do {
-            modelContainer = try ModelContainer(
-                for: HabitEntity.self,
-                CompletionEntity.self,
-                QuoteEntity.self,
-                SavedQuoteEntity.self,
-                DiagnosticEventEntity.self
-            )
-        } catch {
-            fatalError("Failed to initialize SwiftData container: \(error)")
+        if let modelContainer {
+            self.modelContainer = modelContainer
+        } else {
+            do {
+                self.modelContainer = try ModelContainer(
+                    for: HabitEntity.self,
+                    CompletionEntity.self,
+                    QuoteEntity.self,
+                    SavedQuoteEntity.self,
+                    DiagnosticEventEntity.self
+                )
+            } catch {
+                fatalError("Failed to initialize SwiftData container: \(error)")
+            }
         }
 
-        let modelContext = modelContainer.mainContext
+        let modelContext = self.modelContainer.mainContext
         let diagnosticsStore = LocalDiagnosticsStore(modelContext: modelContext)
         let logger = OSLogAnalyticsLogger(diagnosticsStore: diagnosticsStore)
 
@@ -38,6 +50,24 @@ final class DependencyContainer {
         quotesRepository = QuotesLocalRepository(modelContext: modelContext, logger: logger)
         groupsRepository = GroupsLocalRepository()
         reminderScheduler = UserNotificationReminderScheduler(logger: logger)
+
+        if let authService {
+            self.authService = authService
+        } else if let config = environment.supabaseConfig {
+            let client = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
+            self.authService = SupabaseAuthService(client: client)
+        } else {
+            self.authService = UnconfiguredAuthService()
+        }
+
+        if let deviceTokenSyncService {
+            self.deviceTokenSyncService = deviceTokenSyncService
+        } else if let config = environment.supabaseConfig {
+            let client = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
+            self.deviceTokenSyncService = SupabaseDeviceTokenSyncService(client: client, logger: logger)
+        } else {
+            self.deviceTokenSyncService = NoOpDeviceTokenSyncService()
+        }
 
         seedLocalDataIfNeeded()
     }
