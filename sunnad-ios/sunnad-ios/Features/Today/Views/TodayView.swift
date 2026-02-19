@@ -142,12 +142,14 @@ struct TodayView: View {
                         .font(.headline)
                 }
                 .accessibilityLabel(L10n.t("today.manage"))
+                .accessibilityIdentifier("today.manage.button")
 
                 Button(action: onAddHabit) {
                     Image(systemName: "plus")
                         .font(.headline)
                 }
                 .accessibilityLabel(L10n.t("today.add_habit"))
+                .accessibilityIdentifier("today.add.button")
             }
             .foregroundStyle(SunnadTheme.primary)
             .padding(.horizontal, 14)

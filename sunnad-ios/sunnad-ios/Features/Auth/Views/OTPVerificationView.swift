@@ -26,6 +26,7 @@ struct OTPVerificationView: View {
                                     .background(Circle().fill(Color(.tertiarySystemFill)))
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("auth.close.button")
                         }
 
                         Text(L10n.t("auth.otp.nav_title"))

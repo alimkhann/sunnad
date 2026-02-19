@@ -10,6 +10,7 @@ final class DependencyContainer {
     let habitsRepository: HabitsLocalRepository
     let completionsRepository: CompletionsLocalRepository
     let quotesRepository: QuotesLocalRepository
+    let groupsRepository: GroupsLocalRepository
     let reminderScheduler: LocalReminderScheduling
 
     init(environment: AppEnvironment = .current) {
@@ -35,6 +36,7 @@ final class DependencyContainer {
         habitsRepository = HabitsLocalRepository(modelContext: modelContext, logger: logger)
         completionsRepository = CompletionsLocalRepository(modelContext: modelContext, logger: logger)
         quotesRepository = QuotesLocalRepository(modelContext: modelContext, logger: logger)
+        groupsRepository = GroupsLocalRepository()
         reminderScheduler = UserNotificationReminderScheduler(logger: logger)
 
         seedLocalDataIfNeeded()

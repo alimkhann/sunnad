@@ -68,7 +68,7 @@ struct SunnadRootView: View {
                     onDeleteGroup: state.deleteGroup,
                     onKickMember: state.kickMember,
                     currentGroupSharedHabitIDs: { groupID in
-                        state.groupsViewModel.groups.first(where: { $0.id == groupID })?.sharedHabitIDs
+                        state.groupsViewModel.currentGroupSharedHabitIDs(for: groupID)
                     }
                 )
             }
@@ -96,7 +96,9 @@ struct SunnadRootView: View {
                     onSignIn: state.openProfileSignIn,
                     onSignOut: state.signOut,
                     onDeleteData: state.deleteData,
-                    onDeleteAccount: state.deleteAccount
+                    onDeleteAccount: state.deleteAccount,
+                    privacyURL: state.privacyURL,
+                    helpURL: state.helpURL
                 )
             }
             .sunnadSolidBars()
@@ -104,6 +106,14 @@ struct SunnadRootView: View {
                 Label(L10n.t("tab.profile"), systemImage: "person.crop.circle")
             }
             .tag(AppTab.profile)
+        }
+        .overlay(alignment: .topLeading) {
+            if state.isUITestMode {
+                Text("\(state.debugPendingReminderCount)")
+                    .font(.caption2)
+                    .foregroundStyle(.clear)
+                    .accessibilityIdentifier("debug.reminder.pending.count")
+            }
         }
         .sunnadSolidBars()
     }
@@ -134,7 +144,7 @@ struct SunnadRootView: View {
                 HabitDetailSheetView(
                     habit: binding,
                     user: state.user,
-                    groups: state.groups,
+                    groups: state.groupsViewModel.groups,
                     lastSevenCompletionMarksOverride: state.lastSevenCompletionMarks(for: habitID),
                     onDelete: state.deleteHabit,
                     onUpdateHabitSharing: state.updateHabitSharing
@@ -148,6 +158,7 @@ struct SunnadRootView: View {
         case .quoteOfDay:
             QuoteOfDaySheetView(
                 quote: state.todayQuote,
+                shareLink: state.publicAppLink,
                 onSave: {
                     state.saveCurrentQuote()
                 }
@@ -157,7 +168,7 @@ struct SunnadRootView: View {
         case .joinGroup:
             JoinGroupSheet(onJoin: state.joinGroup)
         case .savedQuotes:
-            SavedQuotesView(quotes: state.savedQuotes)
+            SavedQuotesView(quotes: state.profileViewModel.savedQuotes)
         case .languagePicker:
             LanguagePickerSheet(selected: state.language) {
                 state.language = $0
@@ -182,7 +193,7 @@ struct SunnadRootView: View {
                 onReorderHabits: state.reorderHabits
             )
         case .insightsPlaceholder:
-            InsightsView(habits: state.habits)
+            InsightsView(viewModel: state.insightsViewModel)
         case .weekPlaceholder:
             PlaceholderScreen(
                 title: L10n.t("schedule.week.placeholder.title"),

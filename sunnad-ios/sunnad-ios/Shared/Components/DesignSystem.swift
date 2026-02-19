@@ -194,6 +194,7 @@ struct CompactBackButton: View {
                 )
         }
         .accessibilityLabel(L10n.t("common.back"))
+        .accessibilityIdentifier("back.compact.button")
     }
 }
 

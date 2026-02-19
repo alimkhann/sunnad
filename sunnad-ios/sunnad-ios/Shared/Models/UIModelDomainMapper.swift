@@ -110,3 +110,79 @@ extension Quote {
         UIQuote(rawText: text, rawAuthor: source ?? "")
     }
 }
+
+extension UISharedHabit {
+    func asDomainSharedHabit() -> SharedHabit {
+        SharedHabit(
+            id: id,
+            habitID: habitID,
+            title: habitTitle,
+            icon: habitIconSystemName,
+            completedToday: completedToday,
+            streak: streak
+        )
+    }
+}
+
+extension SharedHabit {
+    func asUISharedHabit() -> UISharedHabit {
+        UISharedHabit(
+            id: id,
+            habitID: habitID,
+            habitTitle: title,
+            habitIconSystemName: icon,
+            completedToday: completedToday,
+            streak: streak
+        )
+    }
+}
+
+extension UIGroupMember {
+    func asDomainGroupMember() -> GroupMember {
+        GroupMember(
+            id: id,
+            name: name,
+            completedToday: completedToday,
+            totalSharedHabits: totalSharedHabits,
+            sharedHabits: sharedHabits.map { $0.asDomainSharedHabit() }
+        )
+    }
+}
+
+extension GroupMember {
+    func asUIGroupMember() -> UIGroupMember {
+        UIGroupMember(
+            id: id,
+            name: name,
+            completedToday: completedToday,
+            totalSharedHabits: totalSharedHabits,
+            sharedHabits: sharedHabits.map { $0.asUISharedHabit() }
+        )
+    }
+}
+
+extension UIGroup {
+    func asDomainGroup() -> Group {
+        Group(
+            id: id,
+            name: name,
+            code: code,
+            members: members.map { $0.asDomainGroupMember() },
+            sharedHabitIDs: sharedHabitIDs,
+            ownerMemberID: ownerMemberID
+        )
+    }
+}
+
+extension Group {
+    func asUIGroup() -> UIGroup {
+        UIGroup(
+            id: id,
+            name: name,
+            code: code,
+            members: members.map { $0.asUIGroupMember() },
+            sharedHabitIDs: sharedHabitIDs,
+            ownerMemberID: ownerMemberID
+        )
+    }
+}

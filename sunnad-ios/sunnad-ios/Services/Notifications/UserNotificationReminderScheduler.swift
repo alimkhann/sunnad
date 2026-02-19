@@ -18,7 +18,7 @@ extension UNUserNotificationCenter: UserNotificationCenterClient {
     }
 }
 
-final class UserNotificationReminderScheduler: LocalReminderScheduling, @unchecked Sendable {
+final class UserNotificationReminderScheduler: LocalReminderScheduling, ReminderSchedulingDebugInspectable, @unchecked Sendable {
     private let center: UserNotificationCenterClient
     private let logger: AnalyticsLogging
 
@@ -160,5 +160,11 @@ final class UserNotificationReminderScheduler: LocalReminderScheduling, @uncheck
 
     private func reminderPrefix(for habitID: UUID) -> String {
         "habit-reminder-\(habitID.uuidString)"
+    }
+
+    func debugPendingReminderRequestIdentifiers() async -> [String] {
+        await center.fetchPendingNotificationRequests()
+            .map(\.identifier)
+            .filter { $0.hasPrefix("habit-reminder-") }
     }
 }

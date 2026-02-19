@@ -20,6 +20,7 @@ final class AppRouteState: ObservableObject {
     @Published var notificationPreferences = UINotificationPreferences() {
         didSet {
             dependencies.syncHabitReminders(enabled: notificationPreferences.habitReminders)
+            Task { await refreshDebugReminderCountIfNeeded() }
         }
     }
     @Published var showsOnboarding = true
@@ -31,24 +32,17 @@ final class AppRouteState: ObservableObject {
 
     @Published var user: UIUserState = .guest {
         didSet {
-            groupsViewModel.user = user
-            profileViewModel.user = user
+            profileViewModel.updateUser(user)
+            Task {
+                await groupsViewModel.load(user: user, habits: habits)
+            }
         }
     }
     @Published var habits: [UIHabit] = [] {
         didSet {
-            groupsViewModel.habits = habits
-            profileViewModel.habits = habits
-        }
-    }
-    @Published var groups: [UIGroup] = [] {
-        didSet {
-            groupsViewModel.groups = groups
-        }
-    }
-    @Published var savedQuotes: [UISavedQuote] = [] {
-        didSet {
-            profileViewModel.savedQuotes = savedQuotes
+            Task {
+                await groupsViewModel.syncHabits(habits)
+            }
         }
     }
 
@@ -58,10 +52,32 @@ final class AppRouteState: ObservableObject {
     @Published var todayQuote: UIQuote = UIFixtures.dailyQuote
     @Published private(set) var todayHabitsData: [UIHabit] = []
     @Published private(set) var completionMarksByHabit: [UUID: [Bool]] = [:]
+    @Published private(set) var debugPendingReminderCount = 0
+
+    var publicAppLink: URL {
+        dependencies.environment.publicAppLink
+    }
+
+    var privacyURL: URL {
+        dependencies.environment.privacyURL
+    }
+
+    var helpURL: URL {
+        dependencies.environment.helpURL
+    }
+
+    var isUITestMode: Bool {
+        #if DEBUG
+        return isTruthy(ProcessInfo.processInfo.environment["SUNNAD_UI_TEST_MODE"])
+        #else
+        return false
+        #endif
+    }
 
     let todayViewModel: TodayViewModel
     let groupsViewModel: GroupsViewModel
     let profileViewModel: ProfileViewModel
+    let insightsViewModel: InsightsViewModel
 
     private let dependencies: DependencyContainer
     private let userDefaults: UserDefaults
@@ -73,10 +89,8 @@ final class AppRouteState: ObservableObject {
         self.userDefaults = .standard
 
         let initialHabits = UIFixtures.initialHabits
-        let initialSavedQuotes = UIFixtures.initialSavedQuotes
 
         self.habits = initialHabits
-        self.savedQuotes = initialSavedQuotes
 
         self.todayViewModel = TodayViewModel(
             habitsRepository: dependencies.habitsRepository,
@@ -86,8 +100,21 @@ final class AppRouteState: ObservableObject {
             localeCode: AppLanguage.en.localeIdentifier
         )
 
-        self.groupsViewModel = GroupsViewModel(groups: [], user: .guest, habits: initialHabits)
-        self.profileViewModel = ProfileViewModel(user: .guest, habits: initialHabits, savedQuotes: initialSavedQuotes)
+        self.groupsViewModel = GroupsViewModel(
+            groupsRepository: dependencies.groupsRepository,
+            logger: dependencies.analyticsLogger
+        )
+        self.profileViewModel = ProfileViewModel(
+            habitsRepository: dependencies.habitsRepository,
+            completionsRepository: dependencies.completionsRepository,
+            quotesRepository: dependencies.quotesRepository,
+            logger: dependencies.analyticsLogger
+        )
+        self.insightsViewModel = InsightsViewModel(
+            habitsRepository: dependencies.habitsRepository,
+            completionsRepository: dependencies.completionsRepository,
+            logger: dependencies.analyticsLogger
+        )
 
         self.showsOnboarding = !userDefaults.bool(forKey: LocalStateKeys.onboardingCompleted)
         L10n.setLanguage(code: language.localeIdentifier)
@@ -193,7 +220,6 @@ final class AppRouteState: ObservableObject {
 
     func completeAsGuest() {
         user = .guest
-        groups = []
         markOnboardingCompleted()
         activeTab = .today
         Task { await loadTodayData() }
@@ -208,7 +234,6 @@ final class AppRouteState: ObservableObject {
         }
 
         user = UIUserState(isGuest: false, name: username, email: email)
-        groups = UIFixtures.groups(user: user, habits: habits)
         markOnboardingCompleted()
         activeTab = .today
     }
@@ -222,14 +247,12 @@ final class AppRouteState: ObservableObject {
         }
 
         user = UIUserState(isGuest: false, name: username.isEmpty ? "User" : username, email: email.isEmpty ? "user@example.com" : email)
-        groups = UIFixtures.groups(user: user, habits: habits)
         markOnboardingCompleted()
         activeTab = .today
     }
 
     func verifyOTP() {
         user = UIUserState(isGuest: false, name: pendingSignUpUsername, email: pendingSignUpEmail)
-        groups = UIFixtures.groups(user: user, habits: habits)
         markOnboardingCompleted()
         activeTab = .today
     }
@@ -238,7 +261,6 @@ final class AppRouteState: ObservableObject {
         Task {
             await todayViewModel.toggleHabit(habitID)
             await loadTodayData()
-            refreshGroupProgress()
         }
     }
 
@@ -300,12 +322,10 @@ final class AppRouteState: ObservableObject {
 
         habits[index] = habit
         persistHabit(habit)
-        refreshGroupProgress()
     }
 
     func reorderHabits(_ reordered: [UIHabit]) {
         habits = reordered
-        refreshGroupProgress()
 
         Task {
             do {
@@ -323,32 +343,24 @@ final class AppRouteState: ObservableObject {
 
     func deleteHabit(_ habitID: UUID) {
         habits.removeAll(where: { $0.id == habitID })
-        for index in groups.indices {
-            groups[index].sharedHabitIDs.remove(habitID)
-        }
 
         Task {
             do {
                 try await dependencies.habitsRepository.deleteHabit(id: habitID)
+                await groupsViewModel.updateHabitSharing(habitID: habitID, sharedGroupIDs: [])
                 await dependencies.reminderScheduler.removeReminder(habitID: habitID)
                 await loadTodayData()
             } catch {
                 dependencies.analyticsLogger.log(.storageFailure, metadata: ["scope": "delete_habit", "error": error.localizedDescription])
             }
         }
-
-        refreshGroupProgress()
     }
 
     func saveCurrentQuote() {
         Task {
             await todayViewModel.saveCurrentQuote()
+            await profileViewModel.load()
         }
-    }
-
-    func saveQuote(_ quote: UIQuote) {
-        let item = UISavedQuote(text: quote.text, author: quote.author)
-        savedQuotes.insert(item, at: 0)
     }
 
     func signInFromGroups() {
@@ -377,28 +389,28 @@ final class AppRouteState: ObservableObject {
         }
 
         user = UIUserState(isGuest: false, name: username.isEmpty ? "User" : username, email: email.isEmpty ? "user@example.com" : email)
-        groups = UIFixtures.groups(user: user, habits: habits)
         markOnboardingCompleted()
         fullScreen = nil
     }
 
     func verifyProfileOTP() {
         user = UIUserState(isGuest: false, name: pendingSignUpUsername, email: pendingSignUpEmail)
-        groups = UIFixtures.groups(user: user, habits: habits)
         markOnboardingCompleted()
         fullScreen = nil
     }
 
     func signOut() {
         user = .guest
-        groups = []
     }
 
     func deleteData() {
         habits = []
-        savedQuotes = []
-        groups = []
         selectedTemplateIDs = []
+
+        Task {
+            await groupsViewModel.load(user: user, habits: habits)
+            await profileViewModel.load()
+        }
     }
 
     func deleteAccount() {
@@ -413,69 +425,45 @@ final class AppRouteState: ObservableObject {
     }
 
     func createGroup(name: String) {
-        let code = String(UUID().uuidString.prefix(6)).uppercased()
-        let newGroup = UIGroup(
-            name: name,
-            code: code,
-            members: defaultMembers(),
-            sharedHabitIDs: Set(habits.map(\.id))
-        )
-        groups.append(newGroup)
+        Task {
+            await groupsViewModel.createGroup(name: name)
+        }
     }
 
     func joinGroup(code: String) {
-        let group = UIGroup(
-            name: "\(L10n.t("groups.group")) \(code.uppercased())",
-            code: code.uppercased(),
-            members: defaultMembers(),
-            sharedHabitIDs: Set(habits.map(\.id))
-        )
-        groups.append(group)
+        Task {
+            await groupsViewModel.joinGroup(code: code)
+        }
     }
 
     func updateGroupSharing(groupID: UUID, habitIDs: Set<UUID>) {
-        guard let groupIndex = groups.firstIndex(where: { $0.id == groupID }) else {
-            return
+        Task {
+            await groupsViewModel.updateGroupSharing(groupID: groupID, habitIDs: habitIDs)
         }
-
-        groups[groupIndex].sharedHabitIDs = habitIDs
-        refreshGroupProgress(for: groupID)
     }
 
     func updateHabitSharing(habitID: UUID, sharedGroupIDs: Set<UUID>) {
-        guard !groups.isEmpty else {
-            return
+        Task {
+            await groupsViewModel.updateHabitSharing(habitID: habitID, sharedGroupIDs: sharedGroupIDs)
         }
-
-        for index in groups.indices {
-            if sharedGroupIDs.contains(groups[index].id) {
-                groups[index].sharedHabitIDs.insert(habitID)
-            } else {
-                groups[index].sharedHabitIDs.remove(habitID)
-            }
-        }
-
-        refreshGroupProgress()
     }
 
     func leaveGroup(_ groupID: UUID) {
-        groups.removeAll { $0.id == groupID }
+        Task {
+            await groupsViewModel.leaveGroup(groupID)
+        }
     }
 
     func deleteGroup(_ groupID: UUID) {
-        groups.removeAll { $0.id == groupID }
+        Task {
+            await groupsViewModel.deleteGroup(groupID)
+        }
     }
 
     func kickMember(groupID: UUID, memberID: UUID) {
-        guard let groupIndex = groups.firstIndex(where: { $0.id == groupID }) else {
-            return
+        Task {
+            await groupsViewModel.kickMember(groupID: groupID, memberID: memberID)
         }
-
-        guard groups[groupIndex].ownerMemberID == groups[groupIndex].members.first?.id else {
-            return
-        }
-
-        groups[groupIndex].members.removeAll { $0.id == memberID }
     }
 
     private func bindTodayViewModel() {
@@ -493,12 +481,6 @@ final class AppRouteState: ObservableObject {
             }
             .store(in: &cancellables)
 
-        todayViewModel.$savedQuotes
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] savedQuotes in
-                self?.savedQuotes = savedQuotes
-            }
-            .store(in: &cancellables)
     }
 
     func lastSevenCompletionMarks(for habitID: UUID) -> [Bool]? {
@@ -523,8 +505,9 @@ final class AppRouteState: ObservableObject {
     private func loadTodayData() async {
         await reloadAllHabitsFromStorage()
         await todayViewModel.loadToday()
+        await profileViewModel.load()
         dependencies.syncHabitReminders(enabled: notificationPreferences.habitReminders)
-        refreshGroupProgress()
+        await refreshDebugReminderCountIfNeeded()
     }
 
     private func reloadAllHabitsFromStorage() async {
@@ -673,77 +656,25 @@ final class AppRouteState: ObservableObject {
         }
     }
 
-    private func defaultMembers() -> [UIGroupMember] {
-        let me = UIGroupMember(
-            name: user.name ?? L10n.t("groups.you"),
-            completedToday: habits.filter(\.completedToday).count,
-            totalSharedHabits: habits.count,
-            sharedHabits: habits.map {
-                UISharedHabit(
-                    habitID: $0.id,
-                    habitTitle: $0.displayTitle,
-                    habitIconSystemName: $0.iconSystemName,
-                    completedToday: $0.completedToday,
-                    streak: $0.streak
-                )
-            }
-        )
-
-        let friend = UIGroupMember(
-            name: "Sara",
-            completedToday: 2,
-            totalSharedHabits: 4,
-            sharedHabits: [
-                UISharedHabit(
-                    habitID: UUID(),
-                    habitTitle: L10n.t("habit.read_quran"),
-                    habitIconSystemName: "book.fill",
-                    completedToday: true,
-                    streak: 9
-                ),
-                UISharedHabit(
-                    habitID: UUID(),
-                    habitTitle: L10n.t("habit.exercise"),
-                    habitIconSystemName: "figure.run",
-                    completedToday: false,
-                    streak: 2
-                )
-            ]
-        )
-
-        return [me, friend]
-    }
-
-    private func refreshGroupProgress(for groupID: UUID? = nil) {
-        for index in groups.indices {
-            if let groupID, groups[index].id != groupID {
-                continue
-            }
-
-            let selectedHabitIDs = groups[index].sharedHabitIDs
-            let myHabits = habits.filter { selectedHabitIDs.contains($0.id) }
-            let mySharedHabits = myHabits.map {
-                UISharedHabit(
-                    habitID: $0.id,
-                    habitTitle: $0.displayTitle,
-                    habitIconSystemName: $0.iconSystemName,
-                    completedToday: $0.completedToday,
-                    streak: $0.streak
-                )
-            }
-
-            guard !groups[index].members.isEmpty else {
-                continue
-            }
-
-            groups[index].members[0] = UIGroupMember(
-                id: groups[index].members[0].id,
-                name: groups[index].members[0].name,
-                completedToday: myHabits.filter(\.completedToday).count,
-                totalSharedHabits: myHabits.count,
-                sharedHabits: mySharedHabits
-            )
+    private func refreshDebugReminderCountIfNeeded() async {
+        #if DEBUG
+        guard isUITestMode else {
+            return
         }
+
+        do {
+            try await Task.sleep(nanoseconds: 120_000_000)
+        } catch {
+            return
+        }
+
+        guard let debugScheduler = dependencies.reminderScheduler as? ReminderSchedulingDebugInspectable else {
+            return
+        }
+
+        let identifiers = await debugScheduler.debugPendingReminderRequestIdentifiers()
+        debugPendingReminderCount = identifiers.count
+        #endif
     }
 
     #if DEBUG
@@ -789,10 +720,8 @@ final class AppRouteState: ObservableObject {
             switch rawUser {
             case "signed_in", "signedin", "member":
                 user = UIUserState(isGuest: false, name: "User", email: "user@example.com")
-                groups = UIFixtures.groups(user: user, habits: habits)
             case "guest":
                 user = .guest
-                groups = []
             default:
                 break
             }

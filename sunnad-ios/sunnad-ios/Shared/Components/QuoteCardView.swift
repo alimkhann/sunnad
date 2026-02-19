@@ -27,5 +27,6 @@ struct QuoteCardView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(L10n.t("quote.card.open"))
+        .accessibilityIdentifier("quote.card.open")
     }
 }

@@ -1,18 +1,14 @@
 import SwiftUI
 import UIKit
 
-private struct SharePayload: Identifiable {
-    let id = UUID()
-    let text: String
-}
-
 struct QuoteOfDaySheetView: View {
     let quote: UIQuote
+    let shareLink: URL
     let onSave: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var showsSavedConfirmation = false
-    @State private var sharePayload: SharePayload?
+    @State private var didTriggerShareFlow = false
     @State private var didApplyDebugState = false
 
     var body: some View {
@@ -44,14 +40,19 @@ struct QuoteOfDaySheetView: View {
                     }
 
                     PrimaryButton(title: L10n.t("common.share")) {
+                        let shareFooter = L10n.t("quote.share.footer")
+                            .replacingOccurrences(of: "https://www.sunnad.app", with: shareLink.absoluteString)
+                            .replacingOccurrences(of: "https://sunnad.app", with: shareLink.absoluteString)
                         let message = """
                         "\(quote.text)"
                         — \(quote.author)
 
-                        \(L10n.t("quote.share.footer"))
+                        \(shareFooter)
                         """
-                        sharePayload = SharePayload(text: message)
+                        triggerShare(message: message)
                     }
+                    .accessibilityIdentifier("quote.share.button")
+                    .accessibilityValue(didTriggerShareFlow ? "1" : "0")
                 }.frame(maxWidth: .infinity)
             }
             .navigationTitle(L10n.t("today.quote_of_day"))
@@ -68,10 +69,11 @@ struct QuoteOfDaySheetView: View {
                         Image(systemName: "xmark")
                     }
                     .accessibilityLabel(L10n.t("common.cancel"))
+                    .accessibilityIdentifier("quote.sheet.close")
                 }
             }
-            .sheet(item: $sharePayload) { payload in
-                ActivityShareSheet(activityItems: [payload.text])
+            .overlay(alignment: .topLeading) {
+                EmptyView()
             }
         }
     }
@@ -88,14 +90,40 @@ struct QuoteOfDaySheetView: View {
         showsSavedConfirmation = rawValue == "1" || rawValue == "true" || rawValue == "yes"
         #endif
     }
+
+    private func triggerShare(message: String) {
+        didTriggerShareFlow = true
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["SUNNAD_UI_TEST_MODE"] == "1" {
+            return
+        }
+        #endif
+        SharePresenter.present(message: message)
+    }
 }
 
-private struct ActivityShareSheet: UIViewControllerRepresentable {
-    let activityItems: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+private enum SharePresenter {
+    static func present(message: String) {
+        let activityController = UIActivityViewController(activityItems: [message], applicationActivities: nil)
+        topViewController()?.present(activityController, animated: true)
     }
 
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    private static func topViewController(
+        base: UIViewController? = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .rootViewController
+    ) -> UIViewController? {
+        if let navigation = base as? UINavigationController {
+            return topViewController(base: navigation.visibleViewController)
+        }
+        if let tab = base as? UITabBarController, let selected = tab.selectedViewController {
+            return topViewController(base: selected)
+        }
+        if let presented = base?.presentedViewController {
+            return topViewController(base: presented)
+        }
+        return base
+    }
 }

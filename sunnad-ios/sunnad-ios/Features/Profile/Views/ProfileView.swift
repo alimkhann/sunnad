@@ -18,6 +18,8 @@ struct ProfileView: View {
     let onSignOut: () -> Void
     let onDeleteData: () -> Void
     let onDeleteAccount: () -> Void
+    let privacyURL: URL
+    let helpURL: URL
 
     @State private var showsNotificationSettings = false
     @State private var showsFeedback = false
@@ -25,9 +27,6 @@ struct ProfileView: View {
     @State private var confirmsSignOut = false
     @State private var confirmsDeleteData = false
     @State private var confirmsDeleteAccount = false
-
-    private let privacyURL = URL(string: "https://www.sunnad.app/privacy")!
-    private let helpURL = URL(string: "https://www.sunnad.app/help")!
 
     var body: some View {
         ScreenScaffold(contentTopPadding: 8) {

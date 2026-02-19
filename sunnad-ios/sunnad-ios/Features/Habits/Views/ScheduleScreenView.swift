@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ScheduleScreenView: View {
     @Environment(\.dismiss) private var dismiss
@@ -13,6 +14,7 @@ struct ScheduleScreenView: View {
     @State private var searchText = ""
     @State private var isEditing = false
     @State private var didApplyDebugMode = false
+    @State private var draggedHabit: UIHabit?
 
     private var filteredHabits: [UIHabit] {
         guard !searchText.isEmpty else {
@@ -109,6 +111,7 @@ struct ScheduleScreenView: View {
                     Capsule(style: .continuous)
                         .fill(Color(.tertiarySystemFill))
                 )
+                .accessibilityIdentifier("schedule.reorder.button")
             }
         }
     }
@@ -124,44 +127,43 @@ struct ScheduleScreenView: View {
                 Card(contentPadding: 0) {
                     VStack(spacing: 0) {
                         ForEach(Array(allModeHabits.enumerated()), id: \.element.id) { index, habit in
-                            HStack(spacing: 8) {
+                            HStack(spacing: 10) {
                                 if isEditing {
-                                    HStack(spacing: 6) {
-                                        Button {
-                                            moveHabit(from: index, to: index - 1)
-                                        } label: {
-                                            Image(systemName: "arrow.up")
-                                                .font(.caption.weight(.semibold))
-                                                .foregroundStyle(index == 0 ? .tertiary : .secondary)
-                                                .frame(width: 16, height: 16)
+                                    Image(systemName: "line.3.horizontal")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 22, height: 22)
+                                        .accessibilityIdentifier("schedule.reorder.handle.\(index)")
+                                        .onDrag {
+                                            draggedHabit = habit
+                                            return NSItemProvider(object: habit.id.uuidString as NSString)
                                         }
-                                        .buttonStyle(.plain)
-                                        .disabled(index == 0)
-
-                                        Button {
-                                            moveHabit(from: index, to: index + 1)
-                                        } label: {
-                                            Image(systemName: "arrow.down")
-                                                .font(.caption.weight(.semibold))
-                                                .foregroundStyle(index == allModeHabits.count - 1 ? .tertiary : .secondary)
-                                                .frame(width: 16, height: 16)
-                                        }
-                                        .buttonStyle(.plain)
-                                        .disabled(index == allModeHabits.count - 1)
-                                    }
-                                    .frame(width: 44)
                                 }
 
                                 HabitRowView(
                                     habit: habit,
                                     showsChevron: !isEditing,
-                                    onTap: { onSelectHabit(habit) }
+                                    onTap: {
+                                        guard !isEditing else { return }
+                                        onSelectHabit(habit)
+                                    }
                                 )
+                                .accessibilityIdentifier("schedule.habit.row.\(index)")
+                                .accessibilityLabel(habit.displayTitle)
                             }
                             .padding(.horizontal, 16)
+                            .onDrop(
+                                of: [UTType.text],
+                                delegate: HabitDropDelegate(
+                                    habit: habit,
+                                    habits: $habits,
+                                    draggedHabit: $draggedHabit,
+                                    onReorderHabits: onReorderHabits
+                                )
+                            )
 
                             if index < allModeHabits.count - 1 {
-                                Divider().padding(.leading, isEditing ? 82 : 62)
+                                Divider().padding(.leading, isEditing ? 70 : 62)
                             }
                         }
                     }
@@ -330,19 +332,6 @@ struct ScheduleScreenView: View {
         return date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
     }
 
-    private func moveHabit(from source: Int, to destination: Int) {
-        guard habits.indices.contains(source), habits.indices.contains(destination), source != destination else {
-            return
-        }
-
-        var reordered = habits
-        let moved = reordered.remove(at: source)
-        reordered.insert(moved, at: destination)
-
-        habits = reordered
-        onReorderHabits(reordered)
-    }
-
     private func applyDebugModeIfNeeded() {
         #if DEBUG
         guard !didApplyDebugMode else {
@@ -367,5 +356,35 @@ struct ScheduleScreenView: View {
             break
         }
         #endif
+    }
+}
+
+private struct HabitDropDelegate: DropDelegate {
+    let habit: UIHabit
+    @Binding var habits: [UIHabit]
+    @Binding var draggedHabit: UIHabit?
+    let onReorderHabits: ([UIHabit]) -> Void
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggedHabit = nil
+        onReorderHabits(habits)
+        return true
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let draggedHabit,
+              draggedHabit != habit,
+              let from = habits.firstIndex(of: draggedHabit),
+              let to = habits.firstIndex(of: habit) else {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.15)) {
+            habits.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
     }
 }

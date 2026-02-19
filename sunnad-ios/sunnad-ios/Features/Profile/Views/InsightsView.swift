@@ -1,15 +1,6 @@
 import Charts
 import SwiftUI
 
-private struct InsightPoint: Identifiable {
-    let date: Date
-    let completed: Double
-    let due: Double
-    let missedHabitIDs: [UUID]
-
-    var id: Date { date }
-}
-
 private struct InsightRenderPoint: Identifiable {
     let id: Int
     let date: Date
@@ -17,44 +8,20 @@ private struct InsightRenderPoint: Identifiable {
     let due: Double
 }
 
-private struct HabitDayState: Identifiable {
-    let date: Date
-    let scheduled: Bool
-    let completed: Bool
-
-    var id: Date { date }
-}
-
-private struct HabitPerformance: Identifiable {
-    let id: UUID
-    let title: String
-    let percentage: Int
-    let days: [HabitDayState]
-}
-
 struct InsightsView: View {
     @Environment(\.dismiss) private var dismiss
 
-    let habits: [UIHabit]
+    @ObservedObject var viewModel: InsightsViewModel
 
     @State private var selectedChartDate: Date?
     @State private var expandedHabitIDs: Set<UUID> = []
+    @State private var didApplyDebugExpansion = false
 
-    private let totalDays = 40
     private let visibleChartDays = 7
+    private let weekRows = 7
 
     private var completedSeriesName: String { L10n.t("insights.completed_label") }
     private var dueSeriesName: String { L10n.t("insights.due_label") }
-    private let weekRows = 7
-
-    private var debugForcePerfectDays: Bool {
-        #if DEBUG
-        let raw = ProcessInfo.processInfo.environment["SUNNAD_DEBUG_INSIGHTS_FORCE_PERFECT"]?.lowercased()
-        return raw == "1" || raw == "true" || raw == "yes"
-        #else
-        return false
-        #endif
-    }
 
     private var debugExpandAllHabitPerformance: Bool {
         #if DEBUG
@@ -65,41 +32,8 @@ struct InsightsView: View {
         #endif
     }
 
-    private var timelineDays: [Date] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-
-        return (0..<totalDays).compactMap { index in
-            calendar.date(byAdding: .day, value: -(totalDays - 1 - index), to: today)
-        }
-    }
-
     private var points: [InsightPoint] {
-        let calendar = Calendar.current
-
-        return timelineDays.enumerated().map { index, day in
-            let scheduledHabits = habits.filter { $0.isScheduled(on: day, calendar: calendar) }
-            var completedHabits = scheduledHabits.filter { completionState(for: $0, on: day, calendar: calendar) }
-            var missedHabitIDs = scheduledHabits
-                .filter { !completionState(for: $0, on: day, calendar: calendar) }
-                .map(\.id)
-
-            if debugForcePerfectDays && index.isMultiple(of: 9) {
-                completedHabits = scheduledHabits
-                missedHabitIDs = []
-            }
-
-            let dueCount = scheduledHabits.count
-            let completedCount = min(completedHabits.count, dueCount)
-            let dueValue = max(dueCount, completedCount)
-
-            return InsightPoint(
-                date: day,
-                completed: Double(completedCount),
-                due: Double(dueValue),
-                missedHabitIDs: missedHabitIDs
-            )
-        }
+        viewModel.points
     }
 
     private var renderPoints: [InsightRenderPoint] {
@@ -141,34 +75,42 @@ struct InsightsView: View {
         Double(max(1, Int(points.map(\.due).max() ?? 0)))
     }
 
-    private var habitPerformance: [HabitPerformance] {
-        let calendar = Calendar.current
-
-        return habits.map { habit in
-            let dayStates = timelineDays.map { day in
-                let scheduled = habit.isScheduled(on: day, calendar: calendar)
-                let completed = scheduled && completionState(for: habit, on: day, calendar: calendar)
-                return HabitDayState(date: day, scheduled: scheduled, completed: completed)
-            }
-
-            let scheduledCount = dayStates.filter(\.scheduled).count
-            let completedCount = dayStates.filter(\.completed).count
-            let percentage = scheduledCount == 0 ? 0 : Int((Double(completedCount) / Double(scheduledCount) * 100).rounded())
-
-            return HabitPerformance(
-                id: habit.id,
-                title: habit.displayTitle,
-                percentage: percentage,
-                days: dayStates
-            )
-        }
-        .sorted { $0.percentage > $1.percentage }
-    }
-
     var body: some View {
         ScreenScaffold(contentTopPadding: 8) {
             headerRow
 
+            if viewModel.isLoading && points.isEmpty {
+                Card {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+            } else if let errorMessage = viewModel.errorMessage, points.isEmpty {
+                Card {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                completionTrendSection
+                habitPerformanceSection
+            }
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .sunnadSolidBars()
+        .onAppear {
+            Task {
+                await viewModel.load()
+                applyDebugExpansionIfNeeded()
+            }
+        }
+        .onChange(of: viewModel.habitPerformance) { _, _ in
+            applyDebugExpansionIfNeeded()
+        }
+    }
+
+    private var completionTrendSection: some View {
+        VStack(spacing: 12) {
             SectionHeader(title: L10n.t("insights.completion_trend"))
             Card {
                 Text(L10n.t("insights.window_hint"))
@@ -253,6 +195,7 @@ struct InsightsView: View {
                     }
                 }
                 .padding(.top, 6)
+                .frame(height: 220)
                 .chartYScale(domain: 0...(maxDueValue + 0.8))
                 .chartXScale(domain: chartDomain)
                 .chartScrollableAxes(.horizontal)
@@ -278,7 +221,6 @@ struct InsightsView: View {
                         .padding(.leading, 6)
                         .padding(.trailing, 6)
                 }
-                .frame(height: 220)
 
                 HStack(spacing: 12) {
                     legendItem(color: .yellow, title: dueSeriesName)
@@ -299,7 +241,7 @@ struct InsightsView: View {
                             .foregroundStyle(.secondary)
                             .textCase(.uppercase)
 
-                        let missedTitles = missedHabitTitles(for: selectedPoint)
+                        let missedTitles = viewModel.missedHabitTitles(for: selectedPoint)
                         if missedTitles.isEmpty {
                             Text(L10n.t("insights.none_missed"))
                                 .font(.footnote)
@@ -316,11 +258,15 @@ struct InsightsView: View {
                     }
                 }
             }
+        }
+    }
 
+    private var habitPerformanceSection: some View {
+        VStack(spacing: 12) {
             SectionHeader(title: L10n.t("insights.habit_performance"))
             Card(contentPadding: 0) {
                 VStack(spacing: 0) {
-                    ForEach(Array(habitPerformance.enumerated()), id: \.element.id) { index, item in
+                    ForEach(Array(viewModel.habitPerformance.enumerated()), id: \.element.id) { index, item in
                         VStack(spacing: 0) {
                             Button {
                                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -368,18 +314,12 @@ struct InsightsView: View {
                             }
                         }
 
-                        if index < habitPerformance.count - 1 {
+                        if index < viewModel.habitPerformance.count - 1 {
                             Divider().padding(.leading, 16)
                         }
                     }
                 }
             }
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .sunnadSolidBars()
-        .onAppear {
-            guard debugExpandAllHabitPerformance else { return }
-            expandedHabitIDs = Set(habitPerformance.map(\.id))
         }
     }
 
@@ -498,11 +438,6 @@ struct InsightsView: View {
         return (weekday + 5) % 7
     }
 
-    private func missedHabitTitles(for point: InsightPoint) -> [String] {
-        let lookup = Dictionary(uniqueKeysWithValues: habits.map { ($0.id, $0.displayTitle) })
-        return point.missedHabitIDs.compactMap { lookup[$0] }
-    }
-
     private var chartDomain: ClosedRange<Date> {
         guard let first = renderPointsPadded.first?.date, let last = renderPointsPadded.last?.date else {
             let now = Date()
@@ -519,26 +454,12 @@ struct InsightsView: View {
         return Calendar.current.date(byAdding: .day, value: -(visibleChartDays - 1), to: last) ?? last
     }
 
-    private func completionState(for habit: UIHabit, on date: Date, calendar: Calendar) -> Bool {
-        guard habit.isScheduled(on: date, calendar: calendar) else {
-            return false
+    private func applyDebugExpansionIfNeeded() {
+        guard debugExpandAllHabitPerformance, !didApplyDebugExpansion else {
+            return
         }
-
-        if calendar.isDateInToday(date) {
-            return habit.completedToday
-        }
-
-        let dayStamp = Int(date.timeIntervalSince1970 / 86_400)
-        let seed = deterministicSeed(for: habit.id.uuidString)
-        let normalized = Double((seed + dayStamp * 13) % 100) / 100.0
-        let chance = min(0.92, max(0.18, Double((seed % 45) + 35) / 100.0))
-        return normalized < chance
-    }
-
-    private func deterministicSeed(for value: String) -> Int {
-        value.unicodeScalars.reduce(0) { partial, scalar in
-            (partial * 31 + Int(scalar.value)) % 1000
-        }
+        didApplyDebugExpansion = true
+        expandedHabitIDs = Set(viewModel.habitPerformance.map(\.id))
     }
 
     private func makeSmoothedRenderPoints(from points: [InsightPoint]) -> [InsightRenderPoint] {

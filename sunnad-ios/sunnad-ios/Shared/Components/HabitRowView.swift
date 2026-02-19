@@ -62,6 +62,7 @@ struct HabitRowView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(L10n.t("today.toggle_completion"))
+                    .accessibilityIdentifier("habit.toggle.\(habit.id.uuidString)")
                 }
             }
             .contentShape(Rectangle())

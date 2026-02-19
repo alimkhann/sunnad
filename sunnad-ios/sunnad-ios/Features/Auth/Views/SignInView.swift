@@ -34,6 +34,7 @@ struct SignInView: View {
                                 .background(Circle().fill(Color(.tertiarySystemFill)))
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("auth.close.button")
                     }
 
                     Text(L10n.t("auth.sign_in"))
