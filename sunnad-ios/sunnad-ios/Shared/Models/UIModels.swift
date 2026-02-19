@@ -388,6 +388,7 @@ struct UIGroup: Identifiable, Hashable {
     var members: [UIGroupMember]
     var sharedHabitIDs: Set<UUID>
     var ownerMemberID: UUID
+    var currentUserMemberID: UUID?
 
     init(
         id: UUID = UUID(),
@@ -395,7 +396,8 @@ struct UIGroup: Identifiable, Hashable {
         code: String,
         members: [UIGroupMember],
         sharedHabitIDs: Set<UUID>,
-        ownerMemberID: UUID? = nil
+        ownerMemberID: UUID? = nil,
+        currentUserMemberID: UUID? = nil
     ) {
         self.id = id
         self.name = name
@@ -403,5 +405,6 @@ struct UIGroup: Identifiable, Hashable {
         self.members = members
         self.sharedHabitIDs = sharedHabitIDs
         self.ownerMemberID = ownerMemberID ?? members.first?.id ?? UUID()
+        self.currentUserMemberID = currentUserMemberID
     }
 }

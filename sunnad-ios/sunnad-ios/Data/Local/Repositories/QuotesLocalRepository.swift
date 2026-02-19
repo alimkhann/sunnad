@@ -42,6 +42,10 @@ final class QuotesLocalRepository: QuotesRepository {
         logger.log(.quoteSaved, metadata: ["quote_id": quote.id.uuidString])
     }
 
+    func deleteAllSavedQuotes() async throws {
+        try savedQuotesRepository.deleteAll()
+    }
+
     func upsertQuotes(_ quotes: [Quote]) throws {
         for quote in quotes {
             let descriptor = FetchDescriptor<QuoteEntity>(predicate: #Predicate { $0.id == quote.id })

@@ -35,4 +35,13 @@ final class SavedQuotesLocalRepository {
         modelContext.insert(entity)
         try modelContext.save()
     }
+
+    func deleteAll() throws {
+        let descriptor = FetchDescriptor<SavedQuoteEntity>()
+        let items = try modelContext.fetch(descriptor)
+        for item in items {
+            modelContext.delete(item)
+        }
+        try modelContext.save()
+    }
 }

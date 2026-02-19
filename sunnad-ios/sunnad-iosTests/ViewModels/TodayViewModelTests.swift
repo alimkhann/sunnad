@@ -279,4 +279,8 @@ final class FakeQuotesRepository: QuotesRepository, @unchecked Sendable {
             )
         )
     }
+
+    func deleteAllSavedQuotes() async throws {
+        savedQuotes = []
+    }
 }

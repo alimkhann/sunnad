@@ -48,6 +48,39 @@ struct ShellViewModelsTests {
     }
 
     @Test
+    func groupsViewModelJoinGroupMarksCurrentUserAsNonOwner() async throws {
+        let habit = UIHabit(customTitle: "Read", iconSystemName: "book.fill", category: .spiritual)
+        let repository = FakeGroupsRepository(groups: [])
+        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger())
+
+        await vm.load(user: UIUserState(isGuest: false, name: "Ali", email: "a@b.com"), habits: [habit])
+        await vm.joinGroup(code: "ABC123")
+
+        #expect(vm.groups.count == 1)
+        let group = try #require(vm.groups.first)
+        #expect(group.currentUserMemberID != nil)
+        #expect(group.currentUserMemberID != group.ownerMemberID)
+    }
+
+    @Test
+    func groupsViewModelKickMemberRejectedWhenCurrentUserNotOwner() async throws {
+        let habit = UIHabit(customTitle: "Read", iconSystemName: "book.fill", category: .spiritual)
+        let repository = FakeGroupsRepository(groups: [])
+        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger())
+
+        await vm.load(user: UIUserState(isGuest: false, name: "Ali", email: "a@b.com"), habits: [habit])
+        await vm.joinGroup(code: "ABC123")
+        let group = try #require(vm.groups.first)
+        let memberCountBefore = group.members.count
+        let friendMemberID = try #require(group.members.first(where: { $0.id != group.currentUserMemberID })?.id)
+
+        await vm.kickMember(groupID: group.id, memberID: friendMemberID)
+
+        let updatedGroup = try #require(vm.groups.first)
+        #expect(updatedGroup.members.count == memberCountBefore)
+    }
+
+    @Test
     func profileViewModelLoadsLocalHabitsAndSavedQuotes() async {
         let habit = Habit(
             id: UUID(),

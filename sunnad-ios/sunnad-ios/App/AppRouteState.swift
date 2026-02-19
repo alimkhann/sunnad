@@ -120,6 +120,7 @@ final class AppRouteState: ObservableObject {
         L10n.setLanguage(code: language.localeIdentifier)
 
         bindTodayViewModel()
+        bindChildViewModels()
         bindTimeChangeNotifications()
 
         #if DEBUG
@@ -404,24 +405,27 @@ final class AppRouteState: ObservableObject {
     }
 
     func deleteData() {
-        habits = []
-        selectedTemplateIDs = []
-
         Task {
-            await groupsViewModel.load(user: user, habits: habits)
-            await profileViewModel.load()
+            await clearLocalData()
+            selectedTemplateIDs = []
+            pendingSignUpEmail = ""
+            pendingSignUpUsername = ""
+            await loadTodayData()
         }
     }
 
     func deleteAccount() {
-        deleteData()
-        pendingSignUpEmail = ""
-        pendingSignUpUsername = ""
-        user = .guest
-        userDefaults.set(false, forKey: LocalStateKeys.onboardingCompleted)
-        showsOnboarding = true
-        onboardingStep = .welcome
-        activeTab = .today
+        Task {
+            await clearLocalData()
+            selectedTemplateIDs = []
+            pendingSignUpEmail = ""
+            pendingSignUpUsername = ""
+            user = .guest
+            userDefaults.set(false, forKey: LocalStateKeys.onboardingCompleted)
+            showsOnboarding = true
+            onboardingStep = .welcome
+            activeTab = .today
+        }
     }
 
     func createGroup(name: String) {
@@ -481,6 +485,29 @@ final class AppRouteState: ObservableObject {
             }
             .store(in: &cancellables)
 
+    }
+
+    private func bindChildViewModels() {
+        groupsViewModel.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
+        profileViewModel.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+
+        insightsViewModel.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
 
     func lastSevenCompletionMarks(for habitID: UUID) -> [Bool]? {
@@ -549,6 +576,39 @@ final class AppRouteState: ObservableObject {
             completionMarksByHabit = marksByHabit
         } catch {
             dependencies.analyticsLogger.log(.storageFailure, metadata: ["scope": "reload_habits", "error": error.localizedDescription])
+        }
+    }
+
+    private func clearLocalData() async {
+        do {
+            let allHabits = try await dependencies.habitsRepository.fetchHabits(includeArchived: true)
+
+            for habit in allHabits {
+                let completions = try await dependencies.completionsRepository.fetchCompletions(for: habit.id)
+                for completion in completions {
+                    try await dependencies.completionsRepository.deleteCompletion(
+                        habitID: habit.id,
+                        on: completion.dayDate,
+                        calendar: .current,
+                        timeZone: .current
+                    )
+                }
+
+                await dependencies.reminderScheduler.removeReminder(habitID: habit.id)
+                try await dependencies.habitsRepository.deleteHabit(id: habit.id)
+            }
+
+            try await dependencies.quotesRepository.deleteAllSavedQuotes()
+            try await dependencies.groupsRepository.replaceGroups([])
+
+            habits = []
+            todayHabitsData = []
+            completionMarksByHabit = [:]
+            await groupsViewModel.load(user: user, habits: [])
+            await profileViewModel.load()
+            await refreshDebugReminderCountIfNeeded()
+        } catch {
+            dependencies.analyticsLogger.log(.storageFailure, metadata: ["scope": "clear_local_data", "error": error.localizedDescription])
         }
     }
 

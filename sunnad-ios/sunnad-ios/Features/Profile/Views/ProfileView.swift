@@ -137,18 +137,16 @@ struct ProfileView: View {
                             action: { confirmsSignOut = true }
                         )
                         Divider().padding(.leading, 16)
-                    }
-                    dangerRow(
-                        title: L10n.t("profile.delete_data"),
-                        icon: "trash",
-                        action: { confirmsDeleteData = true }
-                    )
-                    if !user.isGuest {
-                        Divider().padding(.leading, 16)
                         dangerRow(
                             title: L10n.t("profile.delete_account"),
                             icon: "person.crop.circle.badge.xmark",
                             action: { confirmsDeleteAccount = true }
+                        )
+                    } else {
+                        dangerRow(
+                            title: L10n.t("profile.delete_data"),
+                            icon: "trash",
+                            action: { confirmsDeleteData = true }
                         )
                     }
                 }

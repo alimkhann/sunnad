@@ -60,6 +60,7 @@ struct GroupDetailView: View {
     @State private var reminderAttemptCount: [String: Int] = [:]
     @State private var ownCompletionOverrides: [UUID: Bool] = [:]
     @State private var pendingKickMember: UIGroupMember?
+    @State private var swipedMemberID: UUID?
     @State private var showsLeaveConfirmation = false
     @State private var showsDeleteConfirmation = false
     @State private var showsCopiedCodeSuccess = false
@@ -240,16 +241,11 @@ struct GroupDetailView: View {
         Card(contentPadding: 0) {
             VStack(spacing: 0) {
                 ForEach(Array(group.members.enumerated()), id: \.element.id) { index, member in
-                    let isCurrentUser = index == 0
+                    let isCurrentUser = member.id == resolvedCurrentUserMemberID
                     let progress = memberProgress(for: member, isCurrentUser: isCurrentUser)
+                    let canKickMember = canKick(member: member, isCurrentUser: isCurrentUser)
                     VStack(spacing: 0) {
-                        Button {
-                            if expandedMemberIDs.contains(member.id) {
-                                expandedMemberIDs.remove(member.id)
-                            } else {
-                                expandedMemberIDs.insert(member.id)
-                            }
-                        } label: {
+                        HStack(spacing: 0) {
                             HStack(spacing: 12) {
                                 Text(String(member.name.prefix(1)).uppercased())
                                     .font(.headline.weight(.semibold))
@@ -275,16 +271,60 @@ struct GroupDetailView: View {
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
+                            .frame(minHeight: 72)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            if canKick(member: member, isCurrentUser: isCurrentUser) {
-                                Button(L10n.t("groups.kick"), role: .destructive) {
-                                    pendingKickMember = member
+                            .gesture(
+                                DragGesture(minimumDistance: 10)
+                                    .onEnded { value in
+                                        guard canKickMember else {
+                                            swipedMemberID = nil
+                                            return
+                                        }
+
+                                        if value.translation.width <= -44 {
+                                            swipedMemberID = member.id
+                                        } else if value.translation.width >= 20 {
+                                            swipedMemberID = nil
+                                        }
+                                    }
+                            )
+                            .onTapGesture {
+                                if swipedMemberID == member.id {
+                                    swipedMemberID = nil
+                                    return
+                                }
+
+                                swipedMemberID = nil
+
+                                if expandedMemberIDs.contains(member.id) {
+                                    expandedMemberIDs.remove(member.id)
+                                } else {
+                                    expandedMemberIDs.insert(member.id)
                                 }
                             }
+
+                            if canKickMember {
+                                Button(role: .destructive) {
+                                    swipedMemberID = nil
+                                    pendingKickMember = member
+                                } label: {
+                                    Label(L10n.t("groups.kick"), systemImage: "person.fill.xmark")
+                                        .font(.subheadline.weight(.semibold))
+                                        .frame(width: 104, height: 72)
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.white)
+                                .frame(width: swipedMemberID == member.id ? 104 : 0, height: 72)
+                                .background(.red)
+                                .clipped()
+                                .opacity(swipedMemberID == member.id ? 1 : 0)
+                                .allowsHitTesting(swipedMemberID == member.id)
+                                .animation(.easeInOut(duration: 0.18), value: swipedMemberID == member.id)
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .clipped()
 
                         if expandedMemberIDs.contains(member.id) {
                             Divider().padding(.leading, 16)
@@ -331,6 +371,11 @@ struct GroupDetailView: View {
                 }
             }
         }
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(SunnadTheme.surface)
+        )
     }
 
     private var destructiveActionButton: some View {
@@ -471,11 +516,15 @@ struct GroupDetailView: View {
     }
 
     private var isCurrentUserOwner: Bool {
-        group.ownerMemberID == group.members.first?.id
+        group.ownerMemberID == resolvedCurrentUserMemberID
     }
 
     private func canKick(member: UIGroupMember, isCurrentUser: Bool) -> Bool {
         isCurrentUserOwner && !isCurrentUser
+    }
+
+    private var resolvedCurrentUserMemberID: UUID {
+        group.currentUserMemberID ?? group.members.first?.id ?? UUID()
     }
 
     private func sendReminder(to target: ReminderTarget) {

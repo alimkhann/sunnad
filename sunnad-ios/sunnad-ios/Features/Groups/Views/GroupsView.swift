@@ -115,11 +115,10 @@ struct GroupsView: View {
                         }
                     }
                 }
-            }
-
-            VStack(spacing: 12) {
-                PrimaryButton(title: L10n.t("groups.create"), action: onCreateGroup)
-                SecondaryButton(title: L10n.t("groups.join"), action: onJoinGroup)
+                VStack(spacing: 12) {
+                    PrimaryButton(title: L10n.t("groups.create"), action: onCreateGroup)
+                    SecondaryButton(title: L10n.t("groups.join"), action: onJoinGroup)
+                }
             }
         }
     }

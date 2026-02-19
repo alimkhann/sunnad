@@ -169,7 +169,8 @@ extension UIGroup {
             code: code,
             members: members.map { $0.asDomainGroupMember() },
             sharedHabitIDs: sharedHabitIDs,
-            ownerMemberID: ownerMemberID
+            ownerMemberID: ownerMemberID,
+            currentUserMemberID: currentUserMemberID
         )
     }
 }
@@ -182,7 +183,8 @@ extension Group {
             code: code,
             members: members.map { $0.asUIGroupMember() },
             sharedHabitIDs: sharedHabitIDs,
-            ownerMemberID: ownerMemberID
+            ownerMemberID: ownerMemberID,
+            currentUserMemberID: currentUserMemberID
         )
     }
 }

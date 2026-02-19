@@ -71,7 +71,8 @@ final class GroupsViewModel: ObservableObject {
             code: code,
             members: [me, friend],
             sharedHabitIDs: Set(habits.map(\.id)),
-            ownerMemberID: me.id
+            ownerMemberID: me.id,
+            currentUserMemberID: me.id
         )
 
         groups.append(group)
@@ -94,9 +95,10 @@ final class GroupsViewModel: ObservableObject {
         let group = UIGroup(
             name: "\(L10n.t("groups.group")) \(code.uppercased())",
             code: code.uppercased(),
-            members: [me, friend],
+            members: [friend, me],
             sharedHabitIDs: Set(habits.map(\.id)),
-            ownerMemberID: me.id
+            ownerMemberID: friend.id,
+            currentUserMemberID: me.id
         )
 
         groups.append(group)
@@ -171,7 +173,7 @@ final class GroupsViewModel: ObservableObject {
             return
         }
 
-        guard groups[groupIndex].ownerMemberID == groups[groupIndex].members.first?.id else {
+        guard groups[groupIndex].ownerMemberID == groups[groupIndex].currentUserMemberID else {
             return
         }
 
@@ -191,7 +193,7 @@ final class GroupsViewModel: ObservableObject {
     private func refreshGroupProgress(for groups: [UIGroup]) -> [UIGroup] {
         groups.map { group in
             var mutable = group
-            let myMemberID = mutable.ownerMemberID
+            let myMemberID = mutable.currentUserMemberID ?? mutable.ownerMemberID
 
             let myHabits = habits.filter { mutable.sharedHabitIDs.contains($0.id) }
             let mySharedHabits = myHabits.map {
@@ -216,6 +218,10 @@ final class GroupsViewModel: ObservableObject {
                 mutable.members[index] = updatedMe
             } else {
                 mutable.members.insert(updatedMe, at: 0)
+            }
+
+            if mutable.currentUserMemberID == nil {
+                mutable.currentUserMemberID = updatedMe.id
             }
 
             return mutable

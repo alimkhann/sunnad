@@ -55,6 +55,7 @@ struct Group: Identifiable, Codable, Hashable, Sendable {
     var members: [GroupMember]
     var sharedHabitIDs: Set<UUID>
     var ownerMemberID: UUID
+    var currentUserMemberID: UUID?
 
     init(
         id: UUID = UUID(),
@@ -62,7 +63,8 @@ struct Group: Identifiable, Codable, Hashable, Sendable {
         code: String,
         members: [GroupMember],
         sharedHabitIDs: Set<UUID>,
-        ownerMemberID: UUID? = nil
+        ownerMemberID: UUID? = nil,
+        currentUserMemberID: UUID? = nil
     ) {
         self.id = id
         self.name = name
@@ -70,6 +72,7 @@ struct Group: Identifiable, Codable, Hashable, Sendable {
         self.members = members
         self.sharedHabitIDs = sharedHabitIDs
         self.ownerMemberID = ownerMemberID ?? members.first?.id ?? UUID()
+        self.currentUserMemberID = currentUserMemberID
     }
 }
 
