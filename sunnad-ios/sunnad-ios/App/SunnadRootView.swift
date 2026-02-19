@@ -178,7 +178,8 @@ struct SunnadRootView: View {
                 habits: $state.habits,
                 onSelectHabit: { habit in
                     state.rootSheet = .habitDetail(habit.id)
-                }
+                },
+                onReorderHabits: state.reorderHabits
             )
         case .insightsPlaceholder:
             InsightsView(habits: state.habits)
@@ -197,20 +198,24 @@ struct SunnadRootView: View {
                 onBack: {},
                 onSwitchToSignUp: state.openProfileSignUp,
                 onSubmit: state.handleProfileSignIn,
-                showsBackButton: false
+                showsBackButton: false,
+                onClose: { state.fullScreen = nil }
             )
         case .profileSignUp:
             SignUpView(
                 onBack: state.openProfileSignIn,
                 onSwitchToSignIn: state.openProfileSignIn,
                 onSubmit: state.handleProfileSignUp,
-                showsBackButton: false
+                showsBackButton: false,
+                onClose: { state.fullScreen = nil }
             )
         case .profileOTP:
             OTPVerificationView(
                 email: state.pendingSignUpEmail,
                 onBack: state.openProfileSignUp,
-                onVerify: state.verifyProfileOTP
+                onVerify: state.verifyProfileOTP,
+                showsBackButton: false,
+                onClose: { state.fullScreen = nil }
             )
         }
     }

@@ -9,6 +9,7 @@ struct SignInView: View {
     let onSwitchToSignUp: () -> Void
     let onSubmit: (String, String) -> Void
     var showsBackButton: Bool = true
+    var onClose: (() -> Void)? = nil
 
     private var trimmedUsername: String {
         username.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -24,6 +25,15 @@ struct SignInView: View {
                 HStack(spacing: 12) {
                     if showsBackButton {
                         CompactBackButton(action: onBack)
+                    } else if let onClose {
+                        Button(action: onClose) {
+                            Image(systemName: "xmark")
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 38, height: 38)
+                                .background(Circle().fill(Color(.tertiarySystemFill)))
+                        }
+                        .buttonStyle(.plain)
                     }
 
                     Text(L10n.t("auth.sign_in"))

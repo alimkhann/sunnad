@@ -4,6 +4,8 @@ struct OTPVerificationView: View {
     let email: String
     let onBack: () -> Void
     let onVerify: () -> Void
+    var showsBackButton: Bool = true
+    var onClose: (() -> Void)? = nil
 
     @State private var code = ""
     @FocusState private var isCodeFieldFocused: Bool
@@ -13,7 +15,18 @@ struct OTPVerificationView: View {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 12) {
-                        CompactBackButton(action: onBack)
+                        if showsBackButton {
+                            CompactBackButton(action: onBack)
+                        } else if let onClose {
+                            Button(action: onClose) {
+                                Image(systemName: "xmark")
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 38, height: 38)
+                                    .background(Circle().fill(Color(.tertiarySystemFill)))
+                            }
+                            .buttonStyle(.plain)
+                        }
 
                         Text(L10n.t("auth.otp.nav_title"))
                             .font(.largeTitle.weight(.bold))

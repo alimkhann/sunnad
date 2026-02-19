@@ -41,7 +41,7 @@ final class UserNotificationReminderScheduler: LocalReminderScheduling, @uncheck
         }
     }
 
-    func syncReminders(for habits: [Habit], enabled: Bool) async {
+    func syncReminders(for habits: [Habit], enabled: Bool, excludingHabitIDs: Set<UUID>) async {
         let requests = await center.fetchPendingNotificationRequests()
         let existingIDs = Set(requests.map(\.identifier).filter { $0.hasPrefix("habit-reminder-") })
 
@@ -53,14 +53,14 @@ final class UserNotificationReminderScheduler: LocalReminderScheduling, @uncheck
             return
         }
 
-        let desiredIDs = Set(habits.flatMap(requestIdentifiers(for:)))
+        let desiredIDs = Set(habits.flatMap { requestIdentifiers(for: $0, excludingHabitIDs: excludingHabitIDs) })
         let staleIDs = existingIDs.subtracting(desiredIDs)
         if !staleIDs.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: Array(staleIDs))
         }
 
         for habit in habits {
-            await scheduleRequests(for: habit)
+            await scheduleRequests(for: habit, excludingHabitIDs: excludingHabitIDs)
         }
 
         logger.log(.reminderSynced, metadata: ["enabled": "true", "count": "\(desiredIDs.count)"])
@@ -80,8 +80,8 @@ final class UserNotificationReminderScheduler: LocalReminderScheduling, @uncheck
         logger.log(.reminderRemoved, metadata: ["habit_id": habitID.uuidString])
     }
 
-    private func requestIdentifiers(for habit: Habit) -> [String] {
-        guard !habit.archived, habit.reminder != nil else {
+    private func requestIdentifiers(for habit: Habit, excludingHabitIDs: Set<UUID>) -> [String] {
+        guard !habit.archived, habit.reminder != nil, !excludingHabitIDs.contains(habit.id) else {
             return []
         }
 
@@ -98,8 +98,8 @@ final class UserNotificationReminderScheduler: LocalReminderScheduling, @uncheck
         }
     }
 
-    private func scheduleRequests(for habit: Habit) async {
-        guard !habit.archived, let reminder = habit.reminder else {
+    private func scheduleRequests(for habit: Habit, excludingHabitIDs: Set<UUID>) async {
+        guard !habit.archived, let reminder = habit.reminder, !excludingHabitIDs.contains(habit.id) else {
             return
         }
 

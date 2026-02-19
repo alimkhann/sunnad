@@ -13,6 +13,8 @@ final class HabitEntity {
     var weekdaysISO: String
     var reminderHour: Int?
     var reminderMinute: Int?
+    var selectedDhikrKey: String?
+    var dhikrCountsJSON: String?
     var sortOrder: Int
     var archived: Bool
     var createdAt: Date
@@ -29,6 +31,8 @@ final class HabitEntity {
         weekdaysISO: String,
         reminderHour: Int?,
         reminderMinute: Int?,
+        selectedDhikrKey: String?,
+        dhikrCountsJSON: String?,
         sortOrder: Int,
         archived: Bool,
         createdAt: Date,
@@ -44,6 +48,8 @@ final class HabitEntity {
         self.weekdaysISO = weekdaysISO
         self.reminderHour = reminderHour
         self.reminderMinute = reminderMinute
+        self.selectedDhikrKey = selectedDhikrKey
+        self.dhikrCountsJSON = dhikrCountsJSON
         self.sortOrder = sortOrder
         self.archived = archived
         self.createdAt = createdAt
@@ -62,6 +68,8 @@ extension HabitEntity {
         weekdaysISO = habit.schedule.weekdayCSV
         reminderHour = habit.reminder?.hour
         reminderMinute = habit.reminder?.minute
+        selectedDhikrKey = habit.selectedDhikrKey
+        dhikrCountsJSON = habit.dhikrCountsByKey.dhikrCountsJSONString
         sortOrder = habit.sortOrder
         archived = habit.archived
         createdAt = habit.createdAt
@@ -78,6 +86,8 @@ extension HabitEntity {
             targetCount: targetCount,
             schedule: HabitSchedule.fromStorage(frequency: scheduleFrequency, weekdayCSV: weekdaysISO),
             reminder: HabitReminder.fromStorage(hour: reminderHour, minute: reminderMinute),
+            selectedDhikrKey: selectedDhikrKey ?? Habit.defaultDhikrKey,
+            dhikrCountsByKey: (dhikrCountsJSON ?? "{}").decodedDhikrCounts,
             sortOrder: sortOrder,
             archived: archived,
             createdAt: createdAt,
@@ -129,5 +139,25 @@ private extension HabitReminder {
             return nil
         }
         return HabitReminder(hour: hour, minute: minute)
+    }
+}
+
+private extension Dictionary where Key == String, Value == Int {
+    var dhikrCountsJSONString: String {
+        guard let data = try? JSONEncoder().encode(self),
+              let string = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return string
+    }
+}
+
+private extension String {
+    var decodedDhikrCounts: [String: Int] {
+        guard let data = data(using: .utf8),
+              let value = try? JSONDecoder().decode([String: Int].self, from: data) else {
+            return [:]
+        }
+        return value
     }
 }

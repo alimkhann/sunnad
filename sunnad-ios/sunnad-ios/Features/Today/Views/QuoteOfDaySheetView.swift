@@ -1,12 +1,18 @@
 import SwiftUI
 import UIKit
 
+private struct SharePayload: Identifiable {
+    let id = UUID()
+    let text: String
+}
+
 struct QuoteOfDaySheetView: View {
     let quote: UIQuote
     let onSave: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var showsSavedConfirmation = false
+    @State private var sharePayload: SharePayload?
     @State private var didApplyDebugState = false
 
     var body: some View {
@@ -38,14 +44,13 @@ struct QuoteOfDaySheetView: View {
                     }
 
                     PrimaryButton(title: L10n.t("common.share")) {
-                        let message = "\"\(quote.text)\" — \(quote.author)"
-                        let activityVC = UIActivityViewController(activityItems: [message], applicationActivities: nil)
-                        UIApplication.shared.connectedScenes
-                            .compactMap { $0 as? UIWindowScene }
-                            .flatMap(\.windows)
-                            .first?
-                            .rootViewController?
-                            .present(activityVC, animated: true)
+                        let message = """
+                        "\(quote.text)"
+                        — \(quote.author)
+
+                        \(L10n.t("quote.share.footer"))
+                        """
+                        sharePayload = SharePayload(text: message)
                     }
                 }.frame(maxWidth: .infinity)
             }
@@ -65,6 +70,9 @@ struct QuoteOfDaySheetView: View {
                     .accessibilityLabel(L10n.t("common.cancel"))
                 }
             }
+            .sheet(item: $sharePayload) { payload in
+                ActivityShareSheet(activityItems: [payload.text])
+            }
         }
     }
 
@@ -80,4 +88,14 @@ struct QuoteOfDaySheetView: View {
         showsSavedConfirmation = rawValue == "1" || rawValue == "true" || rawValue == "yes"
         #endif
     }
+}
+
+private struct ActivityShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

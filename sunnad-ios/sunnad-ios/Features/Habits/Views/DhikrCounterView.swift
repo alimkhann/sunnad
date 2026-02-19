@@ -3,8 +3,8 @@ import SwiftUI
 struct DhikrCounterView: View {
     @Binding var count: Int
     @Binding var target: Int
-
-    @State private var selectedDhikrKey = "dhikr.choice.subhanallah"
+    @Binding var selectedDhikrKey: String
+    @Binding var countsByDhikr: [String: Int]
 
     private let commonDhikrs = [
         "dhikr.choice.subhanallah",
@@ -18,7 +18,7 @@ struct DhikrCounterView: View {
                 HStack(spacing: 10) {
                     ForEach(commonDhikrs, id: \.self) { key in
                         Button {
-                            selectedDhikrKey = key
+                            switchDhikr(to: key)
                         } label: {
                             Text(L10n.t(key))
                                 .font(.subheadline.weight(.semibold))
@@ -139,6 +139,10 @@ struct DhikrCounterView: View {
             }
         }
         .padding(.vertical, 16)
+        .onAppear(perform: bootstrapDhikrCountsIfNeeded)
+        .onChange(of: count) { _, newCount in
+            countsByDhikr[selectedDhikrKey] = max(newCount, 0)
+        }
     }
 
     private var progress: CGFloat {
@@ -148,5 +152,31 @@ struct DhikrCounterView: View {
 
     private func increment() {
         count = min(count + 1, max(target, 1))
+    }
+
+    private func bootstrapDhikrCountsIfNeeded() {
+        for key in commonDhikrs where countsByDhikr[key] == nil {
+            countsByDhikr[key] = 0
+        }
+
+        if !commonDhikrs.contains(selectedDhikrKey) {
+            selectedDhikrKey = commonDhikrs[0]
+        }
+
+        if countsByDhikr[selectedDhikrKey] == 0 && count > 0 {
+            countsByDhikr[selectedDhikrKey] = count
+        }
+
+        count = countsByDhikr[selectedDhikrKey] ?? 0
+    }
+
+    private func switchDhikr(to key: String) {
+        guard selectedDhikrKey != key else {
+            return
+        }
+
+        countsByDhikr[selectedDhikrKey] = count
+        selectedDhikrKey = key
+        count = countsByDhikr[key] ?? 0
     }
 }

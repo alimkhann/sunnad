@@ -7,6 +7,7 @@ struct ScheduleScreenView: View {
     @Binding var habits: [UIHabit]
 
     let onSelectHabit: (UIHabit) -> Void
+    let onReorderHabits: ([UIHabit]) -> Void
 
     @State private var mode: ScheduleViewMode = .all
     @State private var searchText = ""
@@ -19,6 +20,10 @@ struct ScheduleScreenView: View {
         }
 
         return habits.filter { $0.displayTitle.localizedCaseInsensitiveContains(searchText) }
+    }
+
+    private var allModeHabits: [UIHabit] {
+        isEditing ? habits : filteredHabits
     }
 
     private var showsBottomSearchOnCurrentOS: Bool {
@@ -91,6 +96,9 @@ struct ScheduleScreenView: View {
 
             if mode == .all {
                 Button(isEditing ? L10n.t("common.done") : L10n.t("common.reorder")) {
+                    if !isEditing {
+                        searchText = ""
+                    }
                     isEditing.toggle()
                 }
                 .font(.headline)
@@ -107,7 +115,7 @@ struct ScheduleScreenView: View {
 
     private var allHabitsSection: some View {
         SwiftUI.Group {
-            if filteredHabits.isEmpty {
+            if allModeHabits.isEmpty {
                 Card {
                     Text(L10n.t("schedule.empty"))
                         .foregroundStyle(.secondary)
@@ -115,13 +123,33 @@ struct ScheduleScreenView: View {
             } else {
                 Card(contentPadding: 0) {
                     VStack(spacing: 0) {
-                        ForEach(Array(filteredHabits.enumerated()), id: \.element.id) { index, habit in
+                        ForEach(Array(allModeHabits.enumerated()), id: \.element.id) { index, habit in
                             HStack(spacing: 8) {
                                 if isEditing {
-                                    Image(systemName: "line.3.horizontal")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 20)
+                                    HStack(spacing: 6) {
+                                        Button {
+                                            moveHabit(from: index, to: index - 1)
+                                        } label: {
+                                            Image(systemName: "arrow.up")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(index == 0 ? .tertiary : .secondary)
+                                                .frame(width: 16, height: 16)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(index == 0)
+
+                                        Button {
+                                            moveHabit(from: index, to: index + 1)
+                                        } label: {
+                                            Image(systemName: "arrow.down")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(index == allModeHabits.count - 1 ? .tertiary : .secondary)
+                                                .frame(width: 16, height: 16)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(index == allModeHabits.count - 1)
+                                    }
+                                    .frame(width: 44)
                                 }
 
                                 HabitRowView(
@@ -132,7 +160,7 @@ struct ScheduleScreenView: View {
                             }
                             .padding(.horizontal, 16)
 
-                            if index < filteredHabits.count - 1 {
+                            if index < allModeHabits.count - 1 {
                                 Divider().padding(.leading, isEditing ? 82 : 62)
                             }
                         }
@@ -300,6 +328,19 @@ struct ScheduleScreenView: View {
         }
 
         return date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+    }
+
+    private func moveHabit(from source: Int, to destination: Int) {
+        guard habits.indices.contains(source), habits.indices.contains(destination), source != destination else {
+            return
+        }
+
+        var reordered = habits
+        let moved = reordered.remove(at: source)
+        reordered.insert(moved, at: destination)
+
+        habits = reordered
+        onReorderHabits(reordered)
     }
 
     private func applyDebugModeIfNeeded() {

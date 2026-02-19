@@ -237,7 +237,7 @@ final class AppRouteState: ObservableObject {
     func toggleTodayHabit(_ habitID: UUID) {
         Task {
             await todayViewModel.toggleHabit(habitID)
-            await reloadAllHabitsFromStorage()
+            await loadTodayData()
             refreshGroupProgress()
         }
     }
@@ -301,6 +301,24 @@ final class AppRouteState: ObservableObject {
         habits[index] = habit
         persistHabit(habit)
         refreshGroupProgress()
+    }
+
+    func reorderHabits(_ reordered: [UIHabit]) {
+        habits = reordered
+        refreshGroupProgress()
+
+        Task {
+            do {
+                for (index, habit) in reordered.enumerated() {
+                    var domain = habit.asDomainHabit()
+                    domain.sortOrder = index
+                    try await dependencies.habitsRepository.saveHabit(domain)
+                }
+                await loadTodayData()
+            } catch {
+                dependencies.analyticsLogger.log(.storageFailure, metadata: ["scope": "reorder_habits", "error": error.localizedDescription])
+            }
+        }
     }
 
     func deleteHabit(_ habitID: UUID) {
@@ -566,7 +584,8 @@ final class AppRouteState: ObservableObject {
 
                 if habit.isDhikr {
                     let now = Date()
-                    let value = min(max(habit.dhikrCount, 0), domain.normalizedTargetCount)
+                    let maxTrackedCount = ([habit.dhikrCount] + Array(habit.dhikrCountsByKey.values)).max() ?? 0
+                    let value = min(max(maxTrackedCount, 0), domain.normalizedTargetCount)
                     let completion = HabitCompletion(
                         habitID: habit.id,
                         dayDate: now,

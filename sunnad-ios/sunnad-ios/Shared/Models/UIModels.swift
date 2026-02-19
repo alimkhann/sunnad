@@ -185,6 +185,8 @@ struct HabitTemplate: Identifiable, Hashable {
 }
 
 struct UIHabit: Identifiable, Hashable {
+    static let defaultDhikrKey = "dhikr.choice.subhanallah"
+
     let id: UUID
     var templateTitleKey: String?
     var customTitle: String?
@@ -196,6 +198,8 @@ struct UIHabit: Identifiable, Hashable {
     var weekdays: Set<Int>
     var reminderTime: Date?
     var isDhikr: Bool
+    var selectedDhikrKey: String
+    var dhikrCountsByKey: [String: Int]
     var dhikrCount: Int
     var dhikrTarget: Int
 
@@ -211,9 +215,17 @@ struct UIHabit: Identifiable, Hashable {
         weekdays: Set<Int> = Set(0...6),
         reminderTime: Date? = nil,
         isDhikr: Bool = false,
+        selectedDhikrKey: String = UIHabit.defaultDhikrKey,
+        dhikrCountsByKey: [String: Int] = [:],
         dhikrCount: Int = 0,
         dhikrTarget: Int = 33
     ) {
+        var normalizedCounts = dhikrCountsByKey
+        normalizedCounts = normalizedCounts.mapValues { max($0, 0) }
+        if isDhikr {
+            normalizedCounts[selectedDhikrKey] = max(normalizedCounts[selectedDhikrKey] ?? dhikrCount, 0)
+        }
+
         self.id = id
         self.templateTitleKey = templateTitleKey
         self.customTitle = customTitle
@@ -225,6 +237,8 @@ struct UIHabit: Identifiable, Hashable {
         self.weekdays = weekdays
         self.reminderTime = reminderTime
         self.isDhikr = isDhikr
+        self.selectedDhikrKey = selectedDhikrKey
+        self.dhikrCountsByKey = normalizedCounts
         self.dhikrCount = dhikrCount
         self.dhikrTarget = dhikrTarget
     }

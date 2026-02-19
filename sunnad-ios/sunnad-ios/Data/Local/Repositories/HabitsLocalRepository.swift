@@ -55,6 +55,8 @@ final class HabitsLocalRepository: HabitsRepository {
                 weekdaysISO: weekdayCSV(for: habit.schedule),
                 reminderHour: habit.reminder?.hour,
                 reminderMinute: habit.reminder?.minute,
+                selectedDhikrKey: habit.selectedDhikrKey,
+                dhikrCountsJSON: dhikrCountsJSON(for: habit.dhikrCountsByKey),
                 sortOrder: habit.sortOrder,
                 archived: habit.archived,
                 createdAt: habit.createdAt,
@@ -99,5 +101,12 @@ final class HabitsLocalRepository: HabitsRepository {
                 .joined(separator: ",")
         }
     }
-}
 
+    private func dhikrCountsJSON(for counts: [String: Int]) -> String {
+        guard let data = try? JSONEncoder().encode(counts),
+              let string = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return string
+    }
+}

@@ -80,6 +80,14 @@ final class DependencyContainer {
                             }(),
                             reminderHour: habit.reminder?.hour,
                             reminderMinute: habit.reminder?.minute,
+                            selectedDhikrKey: habit.selectedDhikrKey,
+                            dhikrCountsJSON: {
+                                guard let data = try? JSONEncoder().encode(habit.dhikrCountsByKey),
+                                      let string = String(data: data, encoding: .utf8) else {
+                                    return "{}"
+                                }
+                                return string
+                            }(),
                             sortOrder: habit.sortOrder,
                             archived: habit.archived,
                             createdAt: habit.createdAt,
@@ -104,7 +112,27 @@ final class DependencyContainer {
         Task { @MainActor in
             do {
                 let habits = try await habitsRepository.fetchHabits(includeArchived: false)
-                await reminderScheduler.syncReminders(for: habits, enabled: enabled)
+                let today = Date()
+                let completions = try await completionsRepository.fetchCompletions(
+                    on: today,
+                    calendar: .current,
+                    timeZone: .current
+                )
+                let habitsByID = Dictionary(uniqueKeysWithValues: habits.map { ($0.id, $0) })
+                let completedHabitIDs: Set<UUID> = Set(
+                    completions.compactMap { completion in
+                        guard let habit = habitsByID[completion.habitID], completion.isCompleted(for: habit) else {
+                            return nil
+                        }
+                        return completion.habitID
+                    }
+                )
+
+                await reminderScheduler.syncReminders(
+                    for: habits,
+                    enabled: enabled,
+                    excludingHabitIDs: completedHabitIDs
+                )
             } catch {
                 analyticsLogger.log(.storageFailure, metadata: ["scope": "reminder_sync", "error": error.localizedDescription])
             }

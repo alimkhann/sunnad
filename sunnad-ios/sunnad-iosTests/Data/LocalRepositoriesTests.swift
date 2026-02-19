@@ -115,6 +115,69 @@ struct LocalRepositoriesTests {
         #expect(saved[0].savedAt > saved[1].savedAt)
     }
 
+    @Test
+    func habitsAreFetchedByPersistedSortOrder() async throws {
+        let container = try makeInMemoryContainer()
+        let logger = TestLogger()
+        let repository = HabitsLocalRepository(modelContext: container.mainContext, logger: logger)
+
+        let first = Habit(
+            id: UUID(),
+            name: "First",
+            icon: "1.circle",
+            category: .spiritual,
+            type: .binary,
+            schedule: .daily,
+            sortOrder: 1
+        )
+
+        let second = Habit(
+            id: UUID(),
+            name: "Second",
+            icon: "2.circle",
+            category: .spiritual,
+            type: .binary,
+            schedule: .daily,
+            sortOrder: 0
+        )
+
+        try await repository.saveHabit(first)
+        try await repository.saveHabit(second)
+
+        let fetched = try await repository.fetchHabits(includeArchived: false)
+        #expect(fetched.map(\.id) == [second.id, first.id])
+    }
+
+    @Test
+    func dhikrCountersPersistPerKey() async throws {
+        let container = try makeInMemoryContainer()
+        let logger = TestLogger()
+        let repository = HabitsLocalRepository(modelContext: container.mainContext, logger: logger)
+
+        let habit = Habit(
+            id: UUID(),
+            name: "Morning dhikr",
+            icon: "sun.max.fill",
+            category: .spiritual,
+            type: .dhikr,
+            targetCount: 33,
+            schedule: .daily,
+            selectedDhikrKey: "dhikr.choice.alhamdulillah",
+            dhikrCountsByKey: [
+                "dhikr.choice.subhanallah": 7,
+                "dhikr.choice.alhamdulillah": 12
+            ]
+        )
+
+        try await repository.saveHabit(habit)
+        let fetched = try await repository.fetchHabits(includeArchived: false)
+
+        #expect(fetched.count == 1)
+        #expect(fetched[0].selectedDhikrKey == "dhikr.choice.alhamdulillah")
+        #expect(fetched[0].dhikrCountsByKey["dhikr.choice.subhanallah"] == 7)
+        #expect(fetched[0].dhikrCountsByKey["dhikr.choice.alhamdulillah"] == 12)
+    }
+
     private func date(year: Int, month: Int, day: Int, hour: Int = 12) -> Date {
         let calendar = Calendar.gregorianUTC
         return calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: 0))!

@@ -37,6 +37,8 @@ struct HabitReminder: Codable, Hashable, Sendable {
 }
 
 struct Habit: Identifiable, Codable, Hashable, Sendable {
+    static let defaultDhikrKey = "dhikr.choice.subhanallah"
+
     let id: UUID
     var name: String
     var icon: String
@@ -45,6 +47,8 @@ struct Habit: Identifiable, Codable, Hashable, Sendable {
     var targetCount: Int?
     var schedule: HabitSchedule
     var reminder: HabitReminder?
+    var selectedDhikrKey: String
+    var dhikrCountsByKey: [String: Int]
     var sortOrder: Int
     var archived: Bool
     var createdAt: Date
@@ -59,11 +63,16 @@ struct Habit: Identifiable, Codable, Hashable, Sendable {
         targetCount: Int? = nil,
         schedule: HabitSchedule = .daily,
         reminder: HabitReminder? = nil,
+        selectedDhikrKey: String = Habit.defaultDhikrKey,
+        dhikrCountsByKey: [String: Int] = [:],
         sortOrder: Int = 0,
         archived: Bool = false,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
+        var normalizedCounts = dhikrCountsByKey
+        normalizedCounts = normalizedCounts.mapValues { max($0, 0) }
+
         self.id = id
         self.name = name
         self.icon = icon
@@ -72,6 +81,8 @@ struct Habit: Identifiable, Codable, Hashable, Sendable {
         self.targetCount = targetCount
         self.schedule = schedule
         self.reminder = reminder
+        self.selectedDhikrKey = selectedDhikrKey
+        self.dhikrCountsByKey = normalizedCounts
         self.sortOrder = sortOrder
         self.archived = archived
         self.createdAt = createdAt

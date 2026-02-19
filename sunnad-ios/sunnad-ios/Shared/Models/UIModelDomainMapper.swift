@@ -13,6 +13,8 @@ extension UIHabit {
             targetCount: isDhikr ? dhikrTarget : nil,
             schedule: HabitSchedule.fromUI(schedule, weekdays: weekdays),
             reminder: reminder,
+            selectedDhikrKey: selectedDhikrKey,
+            dhikrCountsByKey: dhikrCountsByKey,
             sortOrder: 0,
             archived: false,
             createdAt: now,
@@ -41,6 +43,13 @@ extension Habit {
             )
         }
 
+        var countsByKey = dhikrCountsByKey
+        let selectedKey = selectedDhikrKey
+        if type == .dhikr {
+            countsByKey[selectedKey] = countsByKey[selectedKey] ?? completionValue
+        }
+        let displayCount = countsByKey[selectedKey] ?? completionValue
+
         return UIHabit(
             id: id,
             customTitle: name,
@@ -52,7 +61,9 @@ extension Habit {
             weekdays: schedule.uiWeekdays,
             reminderTime: reminderDate,
             isDhikr: type == .dhikr,
-            dhikrCount: completionValue,
+            selectedDhikrKey: selectedKey,
+            dhikrCountsByKey: countsByKey,
+            dhikrCount: displayCount,
             dhikrTarget: normalizedTargetCount
         )
     }

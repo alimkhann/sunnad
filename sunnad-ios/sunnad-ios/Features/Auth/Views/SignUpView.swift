@@ -11,6 +11,7 @@ struct SignUpView: View {
     let onSwitchToSignIn: () -> Void
     let onSubmit: (String, String, String, String) -> Void
     var showsBackButton: Bool = true
+    var onClose: (() -> Void)? = nil
 
     private var trimmedEmail: String {
         email.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -33,6 +34,15 @@ struct SignUpView: View {
                 HStack(spacing: 12) {
                     if showsBackButton {
                         CompactBackButton(action: onBack)
+                    } else if let onClose {
+                        Button(action: onClose) {
+                            Image(systemName: "xmark")
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 38, height: 38)
+                                .background(Circle().fill(Color(.tertiarySystemFill)))
+                        }
+                        .buttonStyle(.plain)
                     }
 
                     Text(L10n.t("auth.sign_up"))

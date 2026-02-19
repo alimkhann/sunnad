@@ -34,7 +34,7 @@ struct NotificationSchedulerTests {
             reminder: HabitReminder(hour: 9, minute: 0)
         )
 
-        await scheduler.syncReminders(for: [habit], enabled: true)
+        await scheduler.syncReminders(for: [habit], enabled: true, excludingHabitIDs: [])
 
         #expect(center.pending.count == 1)
         #expect(center.pending.keys.contains("habit-reminder-\(habitID.uuidString)"))
@@ -56,7 +56,7 @@ struct NotificationSchedulerTests {
             reminder: HabitReminder(hour: 18, minute: 30)
         )
 
-        await scheduler.syncReminders(for: [habit], enabled: true)
+        await scheduler.syncReminders(for: [habit], enabled: true, excludingHabitIDs: [])
 
         #expect(center.pending.count == 2)
         #expect(center.pending.keys.contains("habit-reminder-\(habitID.uuidString)-w1"))
@@ -79,7 +79,7 @@ struct NotificationSchedulerTests {
             reminder: HabitReminder(hour: 9, minute: 0)
         )
 
-        await scheduler.syncReminders(for: [original], enabled: true)
+        await scheduler.syncReminders(for: [original], enabled: true, excludingHabitIDs: [])
 
         let updated = Habit(
             id: habitID,
@@ -91,7 +91,7 @@ struct NotificationSchedulerTests {
             reminder: HabitReminder(hour: 21, minute: 15)
         )
 
-        await scheduler.syncReminders(for: [updated], enabled: true)
+        await scheduler.syncReminders(for: [updated], enabled: true, excludingHabitIDs: [])
 
         #expect(center.pending.count == 1)
         let request = center.pending["habit-reminder-\(habitID.uuidString)"]
@@ -116,8 +116,29 @@ struct NotificationSchedulerTests {
             reminder: HabitReminder(hour: 9, minute: 0)
         )
 
-        await scheduler.syncReminders(for: [habit], enabled: true)
-        await scheduler.syncReminders(for: [habit], enabled: false)
+        await scheduler.syncReminders(for: [habit], enabled: true, excludingHabitIDs: [])
+        await scheduler.syncReminders(for: [habit], enabled: false, excludingHabitIDs: [])
+
+        #expect(center.pending.isEmpty)
+    }
+
+    @Test
+    func completedHabitsAreExcludedFromScheduling() async {
+        let center = FakeNotificationCenter()
+        let scheduler = UserNotificationReminderScheduler(center: center, logger: TestLogger())
+        let habitID = UUID()
+
+        let habit = Habit(
+            id: habitID,
+            name: "Read",
+            icon: "book.fill",
+            category: .spiritual,
+            type: .binary,
+            schedule: .daily,
+            reminder: HabitReminder(hour: 9, minute: 0)
+        )
+
+        await scheduler.syncReminders(for: [habit], enabled: true, excludingHabitIDs: [habitID])
 
         #expect(center.pending.isEmpty)
     }

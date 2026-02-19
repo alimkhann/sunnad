@@ -409,7 +409,7 @@ struct InsightsView: View {
     }
 
     private func habitGrid(days: [HabitDayState]) -> some View {
-        let columnCount = max(1, Int(ceil(Double(days.count) / Double(weekRows))))
+        let columnCount = weekColumnCount(for: days)
         let columns = Array(repeating: GridItem(.flexible(minimum: 18, maximum: .infinity), spacing: 6), count: columnCount)
         let arrangedCells = arrangedWeekCells(from: days, columns: columnCount)
 
@@ -447,16 +447,55 @@ struct InsightsView: View {
     }
 
     private func arrangedWeekCells(from days: [HabitDayState], columns: Int) -> [HabitDayState?] {
-        var cells = Array<HabitDayState?>(repeating: nil, count: weekRows * columns)
+        guard !days.isEmpty else {
+            return Array<HabitDayState?>(repeating: nil, count: weekRows * columns)
+        }
 
-        for sourceIndex in days.indices {
-            let weekColumn = sourceIndex / weekRows
-            let weekdayRow = sourceIndex % weekRows
+        var calendar = Calendar.current
+        calendar.timeZone = .current
+        var cells = Array<HabitDayState?>(repeating: nil, count: weekRows * columns)
+        let startMonday = mondayStart(for: days[0].date, calendar: calendar)
+
+        for day in days {
+            let dayStart = calendar.startOfDay(for: day.date)
+            let daysFromStart = calendar.dateComponents([.day], from: startMonday, to: dayStart).day ?? 0
+            let weekColumn = max(0, daysFromStart / weekRows)
+            let weekdayRow = mondayFirstWeekdayIndex(for: dayStart, calendar: calendar)
+
+            guard weekColumn < columns else {
+                continue
+            }
+
             let targetIndex = weekdayRow * columns + weekColumn
-            cells[targetIndex] = days[sourceIndex]
+            cells[targetIndex] = day
         }
 
         return cells
+    }
+
+    private func weekColumnCount(for days: [HabitDayState]) -> Int {
+        guard let first = days.first?.date, let last = days.last?.date else {
+            return 1
+        }
+
+        var calendar = Calendar.current
+        calendar.timeZone = .current
+
+        let startMonday = mondayStart(for: first, calendar: calendar)
+        let endMonday = mondayStart(for: last, calendar: calendar)
+        let diffDays = calendar.dateComponents([.day], from: startMonday, to: endMonday).day ?? 0
+        return max(1, (diffDays / weekRows) + 1)
+    }
+
+    private func mondayStart(for date: Date, calendar: Calendar) -> Date {
+        let dayStart = calendar.startOfDay(for: date)
+        let mondayIndex = mondayFirstWeekdayIndex(for: dayStart, calendar: calendar)
+        return calendar.date(byAdding: .day, value: -mondayIndex, to: dayStart) ?? dayStart
+    }
+
+    private func mondayFirstWeekdayIndex(for date: Date, calendar: Calendar) -> Int {
+        let weekday = calendar.component(.weekday, from: date)
+        return (weekday + 5) % 7
     }
 
     private func missedHabitTitles(for point: InsightPoint) -> [String] {

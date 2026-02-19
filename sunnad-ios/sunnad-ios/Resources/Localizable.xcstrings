@@ -1235,6 +1235,29 @@
         }
       }
     },
+    "quote.share.footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shared from Sunnad app: https://sunnad.app"
+          }
+        },
+        "kk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sunnad қолданбасынан бөлісілді: https://sunnad.app"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправлено из приложения Sunnad: https://sunnad.app"
+          }
+        }
+      }
+    },
     "Date" : {
 
     },

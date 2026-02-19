@@ -2,6 +2,6 @@ import Foundation
 
 protocol LocalReminderScheduling: Sendable {
     func requestAuthorizationIfNeeded() async -> Bool
-    func syncReminders(for habits: [Habit], enabled: Bool) async
+    func syncReminders(for habits: [Habit], enabled: Bool, excludingHabitIDs: Set<UUID>) async
     func removeReminder(habitID: UUID) async
 }

@@ -47,7 +47,12 @@ struct HabitDetailSheetView: View {
 
                 if mode == .counter, habit.isDhikr {
                     Card {
-                        DhikrCounterView(count: $habit.dhikrCount, target: $habit.dhikrTarget)
+                        DhikrCounterView(
+                            count: $habit.dhikrCount,
+                            target: $habit.dhikrTarget,
+                            selectedDhikrKey: $habit.selectedDhikrKey,
+                            countsByDhikr: $habit.dhikrCountsByKey
+                        )
                     }
                 } else {
                     detailsContent
