@@ -2,6 +2,10 @@ import Foundation
 import Supabase
 
 final class SupabaseAuthService: AuthService, @unchecked Sendable {
+    private struct ProfileUsernameRow: Decodable {
+        let username: String?
+    }
+
     private let client: SupabaseClient
 
     init(client: SupabaseClient) {
@@ -10,29 +14,36 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 
     func signUp(email: String, password: String, username: String?) async throws -> SessionUser {
         do {
+            let cleanedUsername = sanitizeUsername(username)
             let response = try await client.auth.signUp(
                 email: email,
                 password: password,
-                data: username.flatMap { value in
-                    guard !value.isEmpty else { return nil }
-                    return ["username": AnyJSON.string(value)]
+                data: cleanedUsername.flatMap { value in
+                    ["username": AnyJSON.string(value)]
                 }
             )
 
             if let session = response.session {
-                return mapUser(session.user)
+                if let cleanedUsername {
+                    try? await persistProfileUsername(cleanedUsername, for: session.user.id)
+                }
+                return await sessionUser(from: session.user, fallbackUsername: cleanedUsername)
             }
 
-            return mapUser(response.user)
+            if let cleanedUsername {
+                try? await persistProfileUsername(cleanedUsername, for: response.user.id)
+            }
+            return await sessionUser(from: response.user, fallbackUsername: cleanedUsername)
         } catch {
             throw mapAuthError(error)
         }
     }
 
-    func signIn(email: String, password: String) async throws -> SessionUser {
+    func signIn(identifier: String, password: String) async throws -> SessionUser {
         do {
-            let session = try await client.auth.signIn(email: email, password: password)
-            return mapUser(session.user)
+            let resolvedEmail = await resolveSignInEmail(identifier: identifier)
+            let session = try await client.auth.signIn(email: resolvedEmail, password: password)
+            return await sessionUser(from: session.user)
         } catch {
             throw mapAuthError(error)
         }
@@ -48,19 +59,92 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 
     func currentUser() async -> SessionUser? {
         if let user = client.auth.currentUser {
-            return mapUser(user)
+            return await sessionUser(from: user)
         }
 
         do {
             let session = try await client.auth.session
-            return mapUser(session.user)
+            return await sessionUser(from: session.user)
         } catch {
             return nil
         }
     }
 
-    private func mapUser(_ user: User) -> SessionUser {
-        SessionUser(id: user.id, email: user.email, username: nil)
+    private func sessionUser(from user: User, fallbackUsername: String? = nil) async -> SessionUser {
+        let profileUsername = await fetchProfileUsername(for: user.id)
+        let metadataUsername = sanitizeUsername(user.userMetadata["username"]?.stringValue)
+        let username = profileUsername ?? metadataUsername ?? sanitizeUsername(fallbackUsername)
+        return SessionUser(id: user.id, email: user.email, username: username)
+    }
+
+    private func sanitizeUsername(_ username: String?) -> String? {
+        guard let username else { return nil }
+        let trimmed = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func persistProfileUsername(_ username: String, for userID: UUID) async throws {
+        try await client
+            .from("profiles")
+            .update(["username": AnyJSON.string(username)])
+            .eq("id", value: userID)
+            .execute()
+    }
+
+    private func fetchProfileUsername(for userID: UUID) async -> String? {
+        do {
+            let response = try await client
+                .from("profiles")
+                .select("username")
+                .eq("id", value: userID)
+                .limit(1)
+                .execute()
+
+            let rows = try JSONDecoder().decode([ProfileUsernameRow].self, from: response.data)
+            return sanitizeUsername(rows.first?.username)
+        } catch {
+            return nil
+        }
+    }
+
+    private func resolveSignInEmail(identifier: String) async -> String {
+        let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
+
+        if trimmed.contains("@") {
+            return trimmed
+        }
+
+        do {
+            let response = try await client
+                .rpc("resolve_sign_in_email", params: ["identifier": trimmed])
+                .execute()
+
+            if let resolved = decodeResolvedEmail(from: response.data), !resolved.isEmpty {
+                return resolved
+            }
+        } catch {
+            return trimmed
+        }
+
+        return trimmed
+    }
+
+    private func decodeResolvedEmail(from data: Data) -> String? {
+        if let direct = try? JSONDecoder().decode(String.self, from: data) {
+            return direct
+        }
+
+        if let wrapped = try? JSONDecoder().decode([String: String].self, from: data),
+           let value = wrapped.values.first {
+            return value
+        }
+
+        if let arrayWrapped = try? JSONDecoder().decode([String].self, from: data) {
+            return arrayWrapped.first
+        }
+
+        return nil
     }
 
     private func mapAuthError(_ error: Error) -> AuthServiceError {

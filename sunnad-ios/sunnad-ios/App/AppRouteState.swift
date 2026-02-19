@@ -228,11 +228,11 @@ final class AppRouteState: ObservableObject {
         Task { await loadTodayData() }
     }
 
-    func handleSignIn(username: String, password: String) {
+    func handleSignIn(identifier: String, password: String) {
         Task {
             do {
                 let sessionUser = try await dependencies.authService.signIn(
-                    email: username.trimmingCharacters(in: .whitespacesAndNewlines),
+                    identifier: identifier.trimmingCharacters(in: .whitespacesAndNewlines),
                     password: password
                 )
                 authErrorMessage = nil
@@ -404,11 +404,11 @@ final class AppRouteState: ObservableObject {
         fullScreen = .profileSignUp
     }
 
-    func handleProfileSignIn(username: String, password: String) {
+    func handleProfileSignIn(identifier: String, password: String) {
         Task {
             do {
                 let sessionUser = try await dependencies.authService.signIn(
-                    email: username.trimmingCharacters(in: .whitespacesAndNewlines),
+                    identifier: identifier.trimmingCharacters(in: .whitespacesAndNewlines),
                     password: password
                 )
                 authErrorMessage = nil
@@ -488,15 +488,26 @@ final class AppRouteState: ObservableObject {
 
     func deleteAccount() {
         Task {
+            do {
+                try await dependencies.authService.signOut()
+            } catch {
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_delete_account_sign_out", "error": error.localizedDescription]
+                )
+            }
+
             await clearLocalData()
             selectedTemplateIDs = []
             pendingSignUpEmail = ""
             pendingSignUpUsername = ""
             user = .guest
-            userDefaults.set(false, forKey: LocalStateKeys.onboardingCompleted)
-            showsOnboarding = true
-            onboardingStep = .welcome
-            activeTab = .today
+            authErrorMessage = nil
+            markOnboardingCompleted()
+            rootSheet = nil
+            fullScreen = nil
+            activeTab = .profile
+            await profileViewModel.load()
         }
     }
 

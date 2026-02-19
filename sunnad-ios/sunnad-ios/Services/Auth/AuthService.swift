@@ -10,7 +10,7 @@ enum AuthServiceError: Error, LocalizedError {
         case .unavailable:
             return "Authentication is not configured."
         case .invalidCredentials:
-            return "Invalid email or password."
+            return "Invalid email/username or password."
         case .unknown(let message):
             return message
         }
@@ -19,7 +19,7 @@ enum AuthServiceError: Error, LocalizedError {
 
 protocol AuthService: Sendable {
     func signUp(email: String, password: String, username: String?) async throws -> SessionUser
-    func signIn(email: String, password: String) async throws -> SessionUser
+    func signIn(identifier: String, password: String) async throws -> SessionUser
     func signOut() async throws
     func currentUser() async -> SessionUser?
 }
@@ -33,7 +33,7 @@ struct UnconfiguredAuthService: AuthService {
         throw AuthServiceError.unavailable
     }
 
-    func signIn(email: String, password: String) async throws -> SessionUser {
+    func signIn(identifier: String, password: String) async throws -> SessionUser {
         throw AuthServiceError.unavailable
     }
 

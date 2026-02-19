@@ -8,7 +8,7 @@ struct AuthServiceTests {
         let service = await UnconfiguredAuthService()
 
         await #expect(throws: AuthServiceError.self) {
-            _ = try await service.signIn(email: "user@example.com", password: "password")
+            _ = try await service.signIn(identifier: "user@example.com", password: "password")
         }
 
         let currentUser = await service.currentUser()
