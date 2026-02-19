@@ -62,6 +62,8 @@ struct GroupDetailView: View {
     @State private var pendingKickMember: UIGroupMember?
     @State private var showsLeaveConfirmation = false
     @State private var showsDeleteConfirmation = false
+    @State private var showsCopiedCodeSuccess = false
+    @State private var copyCodeSequence = 0
 
     init(
         group: UIGroup,
@@ -103,7 +105,7 @@ struct GroupDetailView: View {
         .onAppear {
             sharedHabitIDs = currentSharedHabitIDs() ?? group.sharedHabitIDs
         }
-        .onChange(of: group.sharedHabitIDs) { newValue in
+        .onChange(of: group.sharedHabitIDs) { oldValue, newValue in
             sharedHabitIDs = newValue
         }
         .sheet(item: $reminderTarget) { target in
@@ -205,10 +207,23 @@ struct GroupDetailView: View {
 
             Button {
                 UIPasteboard.general.string = group.code
+                copyCodeSequence += 1
+                let sequence = copyCodeSequence
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showsCopiedCodeSuccess = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+                    guard sequence == copyCodeSequence else { return }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showsCopiedCodeSuccess = false
+                    }
+                }
             } label: {
-                Image(systemName: "doc.on.doc")
+                Image(systemName: showsCopiedCodeSuccess ? "checkmark.circle.fill" : "doc.on.doc")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(showsCopiedCodeSuccess ? SunnadTheme.primary : .secondary)
+                    .contentTransition(.symbolEffect(.replace))
+                    .symbolEffect(.bounce, value: showsCopiedCodeSuccess)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(L10n.t("common.copy"))
