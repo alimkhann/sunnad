@@ -18,7 +18,7 @@ struct LabeledTextFieldRow: View {
 
             if isSecure {
                 HStack {
-                    Group {
+                    SwiftUI.Group {
                         if showsSecureText {
                             TextField(placeholder, text: $value)
                         } else {

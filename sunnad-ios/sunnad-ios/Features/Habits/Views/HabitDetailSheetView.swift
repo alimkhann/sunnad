@@ -21,6 +21,7 @@ struct HabitDetailSheetView: View {
 
     let user: UIUserState
     let groups: [UIGroup]
+    let lastSevenCompletionMarksOverride: [Bool]?
     let onDelete: (UUID) -> Void
     let onUpdateHabitSharing: (UUID, Set<UUID>) -> Void
 
@@ -185,7 +186,7 @@ struct HabitDetailSheetView: View {
             Card(contentPadding: 0) {
                 VStack(spacing: 0) {
                     scheduleChoiceRow(
-                        title: L10n.t(HabitSchedule.daily.titleKey),
+                        title: L10n.t(UIHabitSchedule.daily.titleKey),
                         selected: habit.schedule == .daily
                     ) {
                         habit.schedule = .daily
@@ -194,7 +195,7 @@ struct HabitDetailSheetView: View {
                     Divider().padding(.leading, 16)
 
                     scheduleChoiceRow(
-                        title: L10n.t(HabitSchedule.weekly.titleKey),
+                        title: L10n.t(UIHabitSchedule.weekly.titleKey),
                         selected: habit.schedule == .weekly
                     ) {
                         habit.schedule = .weekly
@@ -324,6 +325,10 @@ struct HabitDetailSheetView: View {
     }
 
     private var lastSevenCompletionMarks: [Bool] {
+        if let lastSevenCompletionMarksOverride, lastSevenCompletionMarksOverride.count == 7 {
+            return lastSevenCompletionMarksOverride
+        }
+
         // Days before today that were completed (based on streak minus today's contribution)
         let priorStreak = habit.completedToday ? max(habit.streak - 1, 0) : habit.streak
         let priorDays = min(priorStreak, 6)

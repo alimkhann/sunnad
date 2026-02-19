@@ -1,0 +1,34 @@
+# Sunnad Architecture (MVP)
+
+## Core principles
+- Offline-first by default.
+- SwiftData is the local source of truth.
+- Supabase is a sync target for signed-in users.
+- Groups and friend accountability require authentication.
+
+## iOS layering
+- `Features/*/Views`: presentation only (SwiftUI screens).
+- `Features/*/ViewModels`: state and user actions.
+- `Domain/*`: pure models and business rules.
+- `Data/Local/*`: SwiftData entities and repositories.
+- `Data/Remote/*`: reserved for Supabase repositories (future stage).
+- `Services/*`: cross-cutting services (notifications, logging, auth, sync).
+- `App/*`: dependency composition and app routing state.
+
+## Source of truth and sync model
+- Guest mode uses local storage only.
+- Logged-in mode keeps local-first behavior and adds best-effort sync.
+- Sync can be disabled without breaking core habit tracking.
+
+## Tabs and scope
+- Exactly 3 tabs: Today, Groups, Profile.
+- Today includes quote of the day and due habits only.
+- Dhikr counter stays inside habit detail.
+
+## Notifications
+- Habit reminders: local iOS notifications.
+- Friend reminders: server-triggered push in later Supabase/Edge stage.
+
+## Localization
+- English default, plus Russian and Kazakh (Cyrillic).
+- UI strings must be localization-key based.

@@ -1,16 +1,27 @@
 import Combine
 import Foundation
 import SwiftUI
+import UIKit
 
 @MainActor
 final class AppRouteState: ObservableObject {
+    private enum LocalStateKeys {
+        static let onboardingCompleted = "sunnad.onboarding.completed"
+    }
+
     @Published var language: AppLanguage = .en {
         didSet {
             L10n.setLanguage(code: language.localeIdentifier)
+            todayViewModel.updateLocale(language.localeIdentifier)
+            Task { await loadTodayData() }
         }
     }
     @Published var appearance: AppAppearance = .system
-    @Published var notificationPreferences = UINotificationPreferences()
+    @Published var notificationPreferences = UINotificationPreferences() {
+        didSet {
+            dependencies.syncHabitReminders(enabled: notificationPreferences.habitReminders)
+        }
+    }
     @Published var showsOnboarding = true
     @Published var onboardingStep: OnboardingStep = .welcome
 
@@ -18,25 +29,85 @@ final class AppRouteState: ObservableObject {
     @Published var rootSheet: RootSheetRoute?
     @Published var fullScreen: FullScreenRoute?
 
-    @Published var user: UIUserState = .guest
-    @Published var habits: [UIHabit] = []
-    @Published var groups: [UIGroup] = []
-    @Published var savedQuotes: [UISavedQuote] = []
+    @Published var user: UIUserState = .guest {
+        didSet {
+            groupsViewModel.user = user
+            profileViewModel.user = user
+        }
+    }
+    @Published var habits: [UIHabit] = [] {
+        didSet {
+            groupsViewModel.habits = habits
+            profileViewModel.habits = habits
+        }
+    }
+    @Published var groups: [UIGroup] = [] {
+        didSet {
+            groupsViewModel.groups = groups
+        }
+    }
+    @Published var savedQuotes: [UISavedQuote] = [] {
+        didSet {
+            profileViewModel.savedQuotes = savedQuotes
+        }
+    }
 
     @Published var selectedTemplateIDs: Set<String> = []
     @Published var pendingSignUpEmail = ""
     @Published var pendingSignUpUsername = ""
+    @Published var todayQuote: UIQuote = UIFixtures.dailyQuote
+    @Published private(set) var todayHabitsData: [UIHabit] = []
+    @Published private(set) var completionMarksByHabit: [UUID: [Bool]] = [:]
 
-    init() {
+    let todayViewModel: TodayViewModel
+    let groupsViewModel: GroupsViewModel
+    let profileViewModel: ProfileViewModel
+
+    private let dependencies: DependencyContainer
+    private let userDefaults: UserDefaults
+    private var cancellables = Set<AnyCancellable>()
+    private var persistTasks: [UUID: Task<Void, Never>] = [:]
+
+    init(dependencies: DependencyContainer) {
+        self.dependencies = dependencies
+        self.userDefaults = .standard
+
+        let initialHabits = UIFixtures.initialHabits
+        let initialSavedQuotes = UIFixtures.initialSavedQuotes
+
+        self.habits = initialHabits
+        self.savedQuotes = initialSavedQuotes
+
+        self.todayViewModel = TodayViewModel(
+            habitsRepository: dependencies.habitsRepository,
+            completionsRepository: dependencies.completionsRepository,
+            quotesRepository: dependencies.quotesRepository,
+            logger: dependencies.analyticsLogger,
+            localeCode: AppLanguage.en.localeIdentifier
+        )
+
+        self.groupsViewModel = GroupsViewModel(groups: [], user: .guest, habits: initialHabits)
+        self.profileViewModel = ProfileViewModel(user: .guest, habits: initialHabits, savedQuotes: initialSavedQuotes)
+
+        self.showsOnboarding = !userDefaults.bool(forKey: LocalStateKeys.onboardingCompleted)
         L10n.setLanguage(code: language.localeIdentifier)
-        habits = UIFixtures.initialHabits
-        savedQuotes = UIFixtures.initialSavedQuotes
+
+        bindTodayViewModel()
+        bindTimeChangeNotifications()
+
         #if DEBUG
         applyDebugLaunchOverrides()
         #endif
+
+        Task {
+            await loadTodayData()
+        }
     }
 
     var todayHabits: [UIHabit] {
+        if !todayHabitsData.isEmpty {
+            return todayHabitsData
+        }
         let today = Date()
         return habits.filter { $0.isScheduled(on: today) }
     }
@@ -56,7 +127,10 @@ final class AppRouteState: ObservableObject {
 
         return Binding(
             get: { self.habits[index] },
-            set: { self.habits[index] = $0 }
+            set: {
+                self.habits[index] = $0
+                self.updateHabit($0)
+            }
         )
     }
 
@@ -104,14 +178,25 @@ final class AppRouteState: ObservableObject {
             }
         }
 
+        replaceLocalHabits(with: habits)
         onboardingStep = .notifications
+    }
+
+    func enableOnboardingNotifications() {
+        dependencies.requestLocalNotificationPermission()
+        onboardingStep = .joinGroups
+    }
+
+    func skipOnboardingNotifications() {
+        onboardingStep = .joinGroups
     }
 
     func completeAsGuest() {
         user = .guest
         groups = []
-        showsOnboarding = false
+        markOnboardingCompleted()
         activeTab = .today
+        Task { await loadTodayData() }
     }
 
     func handleSignIn(username: String, password: String) {
@@ -124,7 +209,7 @@ final class AppRouteState: ObservableObject {
 
         user = UIUserState(isGuest: false, name: username, email: email)
         groups = UIFixtures.groups(user: user, habits: habits)
-        showsOnboarding = false
+        markOnboardingCompleted()
         activeTab = .today
     }
 
@@ -138,50 +223,46 @@ final class AppRouteState: ObservableObject {
 
         user = UIUserState(isGuest: false, name: username.isEmpty ? "User" : username, email: email.isEmpty ? "user@example.com" : email)
         groups = UIFixtures.groups(user: user, habits: habits)
-        showsOnboarding = false
+        markOnboardingCompleted()
         activeTab = .today
     }
 
     func verifyOTP() {
         user = UIUserState(isGuest: false, name: pendingSignUpUsername, email: pendingSignUpEmail)
         groups = UIFixtures.groups(user: user, habits: habits)
-        showsOnboarding = false
+        markOnboardingCompleted()
         activeTab = .today
     }
 
+    func toggleTodayHabit(_ habitID: UUID) {
+        Task {
+            await todayViewModel.toggleHabit(habitID)
+            await reloadAllHabitsFromStorage()
+            refreshGroupProgress()
+        }
+    }
+
     func toggleHabit(_ habitID: UUID) {
-        guard let index = habits.firstIndex(where: { $0.id == habitID }) else {
-            return
-        }
-
-        habits[index].completedToday.toggle()
-
-        if habits[index].completedToday {
-            habits[index].streak += 1
-        } else {
-            habits[index].streak = max(habits[index].streak - 1, 0)
-        }
-
-        refreshGroupProgress()
+        toggleTodayHabit(habitID)
     }
 
     func addTemplateHabits(_ templates: [HabitTemplate]) {
         let existingTemplateKeys = Set(habits.compactMap(\.templateTitleKey))
 
         for template in templates where !existingTemplateKeys.contains(template.titleKey) {
-            habits.append(
-                UIHabit(
-                    templateTitleKey: template.titleKey,
-                    iconSystemName: template.iconSystemName,
-                    category: template.category,
-                    completedToday: false,
-                    streak: 0,
-                    schedule: .daily,
-                    isDhikr: template.isDhikr,
-                    dhikrCount: 0,
-                    dhikrTarget: template.isDhikr ? 33 : 0
-                )
+            let habit = UIHabit(
+                templateTitleKey: template.titleKey,
+                iconSystemName: template.iconSystemName,
+                category: template.category,
+                completedToday: false,
+                streak: 0,
+                schedule: .daily,
+                isDhikr: template.isDhikr,
+                dhikrCount: 0,
+                dhikrTarget: template.isDhikr ? 33 : 0
             )
+            habits.append(habit)
+            persistHabit(habit)
         }
     }
 
@@ -189,26 +270,27 @@ final class AppRouteState: ObservableObject {
         name: String,
         iconSystemName: String,
         category: HabitCategory,
-        schedule: HabitSchedule,
+        schedule: UIHabitSchedule,
         weekdays: Set<Int>,
         reminderTime: Date?,
         hasDhikrCounter: Bool
     ) {
-        habits.append(
-            UIHabit(
-                customTitle: name,
-                iconSystemName: iconSystemName,
-                category: category,
-                completedToday: false,
-                streak: 0,
-                schedule: schedule,
-                weekdays: weekdays,
-                reminderTime: reminderTime,
-                isDhikr: hasDhikrCounter,
-                dhikrCount: 0,
-                dhikrTarget: hasDhikrCounter ? 33 : 0
-            )
+        let habit = UIHabit(
+            customTitle: name,
+            iconSystemName: iconSystemName,
+            category: category,
+            completedToday: false,
+            streak: 0,
+            schedule: schedule,
+            weekdays: weekdays,
+            reminderTime: reminderTime,
+            isDhikr: hasDhikrCounter,
+            dhikrCount: 0,
+            dhikrTarget: hasDhikrCounter ? 33 : 0
         )
+
+        habits.append(habit)
+        persistHabit(habit)
     }
 
     func updateHabit(_ habit: UIHabit) {
@@ -217,6 +299,7 @@ final class AppRouteState: ObservableObject {
         }
 
         habits[index] = habit
+        persistHabit(habit)
         refreshGroupProgress()
     }
 
@@ -225,7 +308,24 @@ final class AppRouteState: ObservableObject {
         for index in groups.indices {
             groups[index].sharedHabitIDs.remove(habitID)
         }
+
+        Task {
+            do {
+                try await dependencies.habitsRepository.deleteHabit(id: habitID)
+                await dependencies.reminderScheduler.removeReminder(habitID: habitID)
+                await loadTodayData()
+            } catch {
+                dependencies.analyticsLogger.log(.storageFailure, metadata: ["scope": "delete_habit", "error": error.localizedDescription])
+            }
+        }
+
         refreshGroupProgress()
+    }
+
+    func saveCurrentQuote() {
+        Task {
+            await todayViewModel.saveCurrentQuote()
+        }
     }
 
     func saveQuote(_ quote: UIQuote) {
@@ -234,8 +334,7 @@ final class AppRouteState: ObservableObject {
     }
 
     func signInFromGroups() {
-        user = UIUserState(isGuest: false, name: "John Doe", email: "john@example.com")
-        groups = UIFixtures.groups(user: user, habits: habits)
+        openProfileSignIn()
     }
 
     func openProfileSignIn() {
@@ -261,12 +360,14 @@ final class AppRouteState: ObservableObject {
 
         user = UIUserState(isGuest: false, name: username.isEmpty ? "User" : username, email: email.isEmpty ? "user@example.com" : email)
         groups = UIFixtures.groups(user: user, habits: habits)
+        markOnboardingCompleted()
         fullScreen = nil
     }
 
     func verifyProfileOTP() {
         user = UIUserState(isGuest: false, name: pendingSignUpUsername, email: pendingSignUpEmail)
         groups = UIFixtures.groups(user: user, habits: habits)
+        markOnboardingCompleted()
         fullScreen = nil
     }
 
@@ -287,6 +388,10 @@ final class AppRouteState: ObservableObject {
         pendingSignUpEmail = ""
         pendingSignUpUsername = ""
         user = .guest
+        userDefaults.set(false, forKey: LocalStateKeys.onboardingCompleted)
+        showsOnboarding = true
+        onboardingStep = .welcome
+        activeTab = .today
     }
 
     func createGroup(name: String) {
@@ -353,6 +458,200 @@ final class AppRouteState: ObservableObject {
         }
 
         groups[groupIndex].members.removeAll { $0.id == memberID }
+    }
+
+    private func bindTodayViewModel() {
+        todayViewModel.$habits
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] habits in
+                self?.todayHabitsData = habits
+            }
+            .store(in: &cancellables)
+
+        todayViewModel.$quote
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] quote in
+                self?.todayQuote = quote
+            }
+            .store(in: &cancellables)
+
+        todayViewModel.$savedQuotes
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] savedQuotes in
+                self?.savedQuotes = savedQuotes
+            }
+            .store(in: &cancellables)
+    }
+
+    func lastSevenCompletionMarks(for habitID: UUID) -> [Bool]? {
+        completionMarksByHabit[habitID]
+    }
+
+    private func bindTimeChangeNotifications() {
+        let dayChanged = NotificationCenter.default.publisher(for: .NSCalendarDayChanged)
+        let significantTimeChanged = NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)
+        let timeZoneChanged = NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)
+        let willEnterForeground = NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)
+
+        Publishers.MergeMany(dayChanged, significantTimeChanged, timeZoneChanged, willEnterForeground)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                Task { await self.loadTodayData() }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func loadTodayData() async {
+        await reloadAllHabitsFromStorage()
+        await todayViewModel.loadToday()
+        dependencies.syncHabitReminders(enabled: notificationPreferences.habitReminders)
+        refreshGroupProgress()
+    }
+
+    private func reloadAllHabitsFromStorage() async {
+        do {
+            let today = Date()
+            let domainHabits = try await dependencies.habitsRepository.fetchHabits(includeArchived: false)
+            var mapped: [UIHabit] = []
+            var marksByHabit: [UUID: [Bool]] = [:]
+            mapped.reserveCapacity(domainHabits.count)
+
+            for habit in domainHabits {
+                let completion = try await dependencies.completionsRepository.fetchCompletion(
+                    habitID: habit.id,
+                    on: today,
+                    calendar: .current,
+                    timeZone: .current
+                ) ?? HabitCompletion(habitID: habit.id, dayDate: today, value: 0)
+
+                let history = try await dependencies.completionsRepository.fetchCompletions(for: habit.id)
+                let streak = StreakCalculator.streak(for: habit, completions: history, asOf: today)
+                marksByHabit[habit.id] = Self.lastSevenMarks(
+                    for: habit,
+                    completions: history,
+                    asOf: today,
+                    calendar: .current,
+                    timeZone: .current
+                )
+
+                mapped.append(
+                    habit.asUIHabit(
+                        completedToday: completion.isCompleted(for: habit),
+                        streak: streak,
+                        completionValue: completion.value
+                    )
+                )
+            }
+
+            habits = mapped
+            completionMarksByHabit = marksByHabit
+        } catch {
+            dependencies.analyticsLogger.log(.storageFailure, metadata: ["scope": "reload_habits", "error": error.localizedDescription])
+        }
+    }
+
+    private func persistHabit(_ habit: UIHabit) {
+        persistTasks[habit.id]?.cancel()
+        persistTasks[habit.id] = Task { @MainActor [weak self] in
+            guard let self else { return }
+            var domain = habit.asDomainHabit()
+
+            if let index = self.habits.firstIndex(where: { $0.id == habit.id }) {
+                domain.sortOrder = index
+            }
+
+            do {
+                try await self.dependencies.habitsRepository.saveHabit(domain)
+
+                if habit.isDhikr {
+                    let now = Date()
+                    let value = min(max(habit.dhikrCount, 0), domain.normalizedTargetCount)
+                    let completion = HabitCompletion(
+                        habitID: habit.id,
+                        dayDate: now,
+                        value: value,
+                        completedAt: value > 0 ? now : nil,
+                        updatedAt: now
+                    )
+                    try await self.dependencies.completionsRepository.upsertCompletion(
+                        completion,
+                        calendar: .current,
+                        timeZone: .current
+                    )
+                }
+
+                if Task.isCancelled {
+                    return
+                }
+
+                await self.loadTodayData()
+            } catch is CancellationError {
+                return
+            } catch {
+                self.dependencies.analyticsLogger.log(.storageFailure, metadata: ["scope": "save_habit", "error": error.localizedDescription])
+            }
+
+            self.persistTasks[habit.id] = nil
+        }
+    }
+
+    private func markOnboardingCompleted() {
+        userDefaults.set(true, forKey: LocalStateKeys.onboardingCompleted)
+        showsOnboarding = false
+    }
+
+    private static func lastSevenMarks(
+        for habit: Habit,
+        completions: [HabitCompletion],
+        asOf date: Date,
+        calendar: Calendar,
+        timeZone: TimeZone
+    ) -> [Bool] {
+        var calendar = calendar
+        calendar.timeZone = timeZone
+
+        let startOfToday = calendar.startOfDay(for: date)
+        let completionByDay = Dictionary(
+            uniqueKeysWithValues: completions.map { (calendar.startOfDay(for: $0.dayDate), $0) }
+        )
+
+        return (-6...0).compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: startOfToday) else {
+                return nil
+            }
+
+            guard habit.isDue(on: day, calendar: calendar, timeZone: timeZone) else {
+                return false
+            }
+
+            guard let completion = completionByDay[day] else {
+                return false
+            }
+
+            return completion.isCompleted(for: habit)
+        }
+    }
+
+    private func replaceLocalHabits(with habits: [UIHabit]) {
+        Task {
+            do {
+                let existing = try await dependencies.habitsRepository.fetchHabits(includeArchived: true)
+                for habit in existing {
+                    try await dependencies.habitsRepository.deleteHabit(id: habit.id)
+                }
+
+                for (index, habit) in habits.enumerated() {
+                    var domain = habit.asDomainHabit()
+                    domain.sortOrder = index
+                    try await dependencies.habitsRepository.saveHabit(domain)
+                }
+
+                await loadTodayData()
+            } catch {
+                dependencies.analyticsLogger.log(.storageFailure, metadata: ["scope": "replace_habits", "error": error.localizedDescription])
+            }
+        }
     }
 
     private func defaultMembers() -> [UIGroupMember] {

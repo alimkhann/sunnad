@@ -104,11 +104,12 @@ struct DhikrCounterView: View {
                     Spacer(minLength: 8)
 
                     HStack(spacing: 0) {
-                        Button {
-                            target = max(1, target - 1)
-                        } label: {
-                            Image(systemName: "minus")
-                                .frame(width: 34, height: 34)
+                Button {
+                    target = max(1, target - 1)
+                    count = min(count, target)
+                } label: {
+                    Image(systemName: "minus")
+                        .frame(width: 34, height: 34)
                         }
                         Divider()
                         Button {
@@ -146,6 +147,6 @@ struct DhikrCounterView: View {
     }
 
     private func increment() {
-        count = min(count + 1, 9_999)
+        count = min(count + 1, max(target, 1))
     }
 }

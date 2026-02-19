@@ -1,10 +1,14 @@
 import SwiftUI
 
 struct SunnadRootView: View {
-    @StateObject private var state = AppRouteState()
+    @StateObject private var state: AppRouteState
+
+    init(dependencies: DependencyContainer) {
+        _state = StateObject(wrappedValue: AppRouteState(dependencies: dependencies))
+    }
 
     var body: some View {
-        Group {
+        SwiftUI.Group {
             if state.showsOnboarding {
                 OnboardingFlowView(
                     step: $state.onboardingStep,
@@ -12,7 +16,8 @@ struct SunnadRootView: View {
                     pendingEmail: state.pendingSignUpEmail,
                     onOpenLanguagePicker: { state.rootSheet = .languagePicker },
                     onCompleteTemplateSelection: { state.completeTemplateSelection() },
-                    onFinishNotifications: { state.onboardingStep = .joinGroups },
+                    onEnableNotifications: state.enableOnboardingNotifications,
+                    onSkipNotifications: state.skipOnboardingNotifications,
                     onCompleteAsGuest: state.completeAsGuest,
                     onOpenSignIn: state.openSignIn,
                     onOpenSignUp: state.openSignUp,
@@ -35,8 +40,8 @@ struct SunnadRootView: View {
             NavigationStack {
                 TodayView(
                     habits: state.todayHabits,
-                    quote: UIFixtures.dailyQuote,
-                    onToggle: state.toggleHabit,
+                    quote: state.todayQuote,
+                    onToggle: state.toggleTodayHabit,
                     onSelectHabit: { state.rootSheet = .habitDetail($0.id) },
                     onManage: { state.fullScreen = .schedule },
                     onAddHabit: { state.rootSheet = .addHabit },
@@ -51,9 +56,9 @@ struct SunnadRootView: View {
 
             NavigationStack {
                 GroupsView(
-                    groups: state.groups,
-                    user: state.user,
-                    habits: state.habits,
+                    groups: state.groupsViewModel.groups,
+                    user: state.groupsViewModel.user,
+                    habits: state.groupsViewModel.habits,
                     onCreateGroup: { state.rootSheet = .createGroup },
                     onJoinGroup: { state.rootSheet = .joinGroup },
                     onSignIn: state.signInFromGroups,
@@ -63,7 +68,7 @@ struct SunnadRootView: View {
                     onDeleteGroup: state.deleteGroup,
                     onKickMember: state.kickMember,
                     currentGroupSharedHabitIDs: { groupID in
-                        state.groups.first(where: { $0.id == groupID })?.sharedHabitIDs
+                        state.groupsViewModel.groups.first(where: { $0.id == groupID })?.sharedHabitIDs
                     }
                 )
             }
@@ -75,9 +80,9 @@ struct SunnadRootView: View {
 
             NavigationStack {
                 ProfileView(
-                    user: state.user,
-                    habits: state.habits,
-                    savedQuotes: state.savedQuotes,
+                    user: state.profileViewModel.user,
+                    habits: state.profileViewModel.habits,
+                    savedQuotes: state.profileViewModel.savedQuotes,
                     selectedLanguage: state.language,
                     selectedAppearance: $state.appearance,
                     notificationPreferences: $state.notificationPreferences,
@@ -130,6 +135,7 @@ struct SunnadRootView: View {
                     habit: binding,
                     user: state.user,
                     groups: state.groups,
+                    lastSevenCompletionMarksOverride: state.lastSevenCompletionMarks(for: habitID),
                     onDelete: state.deleteHabit,
                     onUpdateHabitSharing: state.updateHabitSharing
                 )
@@ -141,9 +147,9 @@ struct SunnadRootView: View {
             }
         case .quoteOfDay:
             QuoteOfDaySheetView(
-                quote: UIFixtures.dailyQuote,
+                quote: state.todayQuote,
                 onSave: {
-                    state.saveQuote(UIFixtures.dailyQuote)
+                    state.saveCurrentQuote()
                 }
             )
         case .createGroup:

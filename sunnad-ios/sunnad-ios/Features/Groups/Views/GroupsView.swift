@@ -17,7 +17,7 @@ struct GroupsView: View {
     let currentGroupSharedHabitIDs: (UUID) -> Set<UUID>?
 
     var body: some View {
-        Group {
+        SwiftUI.Group {
             if user.isGuest {
                 guestState
             } else {

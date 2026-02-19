@@ -149,7 +149,7 @@ enum HabitCategory: String, CaseIterable, Identifiable {
     }
 }
 
-enum HabitSchedule: String, CaseIterable, Identifiable {
+enum UIHabitSchedule: String, CaseIterable, Identifiable {
     case daily
     case weekly
 
@@ -192,7 +192,7 @@ struct UIHabit: Identifiable, Hashable {
     var category: HabitCategory
     var completedToday: Bool
     var streak: Int
-    var schedule: HabitSchedule
+    var schedule: UIHabitSchedule
     var weekdays: Set<Int>
     var reminderTime: Date?
     var isDhikr: Bool
@@ -207,7 +207,7 @@ struct UIHabit: Identifiable, Hashable {
         category: HabitCategory,
         completedToday: Bool = false,
         streak: Int = 0,
-        schedule: HabitSchedule = .daily,
+        schedule: UIHabitSchedule = .daily,
         weekdays: Set<Int> = Set(0...6),
         reminderTime: Date? = nil,
         isDhikr: Bool = false,
@@ -254,11 +254,48 @@ struct UIHabit: Identifiable, Hashable {
 }
 
 struct UIQuote: Equatable {
-    let textKey: String
-    let authorKey: String
+    let textKey: String?
+    let authorKey: String?
+    let rawText: String?
+    let rawAuthor: String?
 
-    var text: String { L10n.t(textKey) }
-    var author: String { L10n.t(authorKey) }
+    init(textKey: String, authorKey: String) {
+        self.textKey = textKey
+        self.authorKey = authorKey
+        self.rawText = nil
+        self.rawAuthor = nil
+    }
+
+    init(rawText: String, rawAuthor: String) {
+        self.textKey = nil
+        self.authorKey = nil
+        self.rawText = rawText
+        self.rawAuthor = rawAuthor
+    }
+
+    var text: String {
+        if let rawText {
+            return rawText
+        }
+
+        guard let textKey else {
+            return ""
+        }
+
+        return L10n.t(textKey)
+    }
+
+    var author: String {
+        if let rawAuthor {
+            return rawAuthor
+        }
+
+        guard let authorKey else {
+            return ""
+        }
+
+        return L10n.t(authorKey)
+    }
 }
 
 struct UISavedQuote: Identifiable, Equatable {

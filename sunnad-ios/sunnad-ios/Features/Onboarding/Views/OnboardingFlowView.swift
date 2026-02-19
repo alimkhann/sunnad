@@ -7,7 +7,8 @@ struct OnboardingFlowView: View {
     let pendingEmail: String
     let onOpenLanguagePicker: () -> Void
     let onCompleteTemplateSelection: () -> Void
-    let onFinishNotifications: () -> Void
+    let onEnableNotifications: () -> Void
+    let onSkipNotifications: () -> Void
     let onCompleteAsGuest: () -> Void
     let onOpenSignIn: () -> Void
     let onOpenSignUp: () -> Void
@@ -31,8 +32,8 @@ struct OnboardingFlowView: View {
         case .notifications:
             NotificationsOnboardingView(
                 onBack: { step = .templates },
-                onContinue: onFinishNotifications,
-                onSkip: onFinishNotifications
+                onContinue: onEnableNotifications,
+                onSkip: onSkipNotifications
             )
         case .joinGroups:
             JoinGroupsOnboardingView(

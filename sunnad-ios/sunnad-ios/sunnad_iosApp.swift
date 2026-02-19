@@ -1,8 +1,11 @@
 import SwiftUI
 import UIKit
+import SwiftData
 
 @main
 struct sunnad_iosApp: App {
+    private let dependencies = DependencyContainer()
+
     init() {
         let tabAppearance = UITabBarAppearance()
         tabAppearance.configureWithOpaqueBackground()
@@ -23,8 +26,9 @@ struct sunnad_iosApp: App {
 
     var body: some Scene {
         WindowGroup {
-            SunnadRootView()
+            SunnadRootView(dependencies: dependencies)
                 .tint(SunnadTheme.primary)
         }
+        .modelContainer(dependencies.modelContainer)
     }
 }

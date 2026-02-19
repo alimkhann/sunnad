@@ -106,7 +106,7 @@ struct ScheduleScreenView: View {
     }
 
     private var allHabitsSection: some View {
-        Group {
+        SwiftUI.Group {
             if filteredHabits.isEmpty {
                 Card {
                     Text(L10n.t("schedule.empty"))

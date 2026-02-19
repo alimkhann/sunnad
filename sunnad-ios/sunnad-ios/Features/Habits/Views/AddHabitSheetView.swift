@@ -11,7 +11,7 @@ struct AddHabitSheetView: View {
 
     let existingHabits: [UIHabit]
     let onAddTemplates: ([HabitTemplate]) -> Void
-    let onAddCustomHabit: (String, String, HabitCategory, HabitSchedule, Set<Int>, Date?, Bool) -> Void
+    let onAddCustomHabit: (String, String, HabitCategory, UIHabitSchedule, Set<Int>, Date?, Bool) -> Void
 
     @State private var step: AddHabitStep = .choice
     @State private var selectedTemplateIDs: Set<String> = []
@@ -20,7 +20,7 @@ struct AddHabitSheetView: View {
     @State private var customName = ""
     @State private var customIcon = "star.fill"
     @State private var customCategory: HabitCategory = .spiritual
-    @State private var customSchedule: HabitSchedule = .daily
+    @State private var customSchedule: UIHabitSchedule = .daily
     @State private var customWeekdays: Set<Int> = Set(0...6)
     @State private var reminderEnabled = false
     @State private var reminderTime = Date()
@@ -227,13 +227,13 @@ struct AddHabitSheetView: View {
             SectionHeader(title: L10n.t("habit.schedule"))
             Card(contentPadding: 0) {
                 VStack(spacing: 0) {
-                    scheduleChoiceRow(title: L10n.t(HabitSchedule.daily.titleKey), selected: customSchedule == .daily) {
+                    scheduleChoiceRow(title: L10n.t(UIHabitSchedule.daily.titleKey), selected: customSchedule == .daily) {
                         customSchedule = .daily
                     }
 
                     Divider().padding(.leading, 16)
 
-                    scheduleChoiceRow(title: L10n.t(HabitSchedule.weekly.titleKey), selected: customSchedule == .weekly) {
+                    scheduleChoiceRow(title: L10n.t(UIHabitSchedule.weekly.titleKey), selected: customSchedule == .weekly) {
                         customSchedule = .weekly
                     }
 
