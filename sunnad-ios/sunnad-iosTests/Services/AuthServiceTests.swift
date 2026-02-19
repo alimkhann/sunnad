@@ -5,9 +5,9 @@ import Testing
 struct AuthServiceTests {
     @Test
     func unconfiguredAuthServiceThrowsUnavailable() async {
-        let service = UnconfiguredAuthService()
+        let service = await UnconfiguredAuthService()
 
-        #expect(throws: AuthServiceError.self) {
+        await #expect(throws: AuthServiceError.self) {
             _ = try await service.signIn(email: "user@example.com", password: "password")
         }
 
@@ -17,9 +17,8 @@ struct AuthServiceTests {
 
     @Test
     func noOpDeviceTokenSyncServiceIsSafe() async {
-        let service = NoOpDeviceTokenSyncService()
+        let service = await NoOpDeviceTokenSyncService()
         await service.syncCurrentDeviceToken(for: UUID())
-        #expect(true)
     }
 
     @Test
