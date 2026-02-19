@@ -23,15 +23,7 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
                 return mapUser(session.user)
             }
 
-            if let user = response.user {
-                return mapUser(user)
-            }
-
-            if let current = client.auth.currentUser {
-                return mapUser(current)
-            }
-
-            throw AuthServiceError.unknown("Sign up succeeded but no user payload was returned.")
+            return mapUser(response.user)
         } catch {
             throw mapAuthError(error)
         }
