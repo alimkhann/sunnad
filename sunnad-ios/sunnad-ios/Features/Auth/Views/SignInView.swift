@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SignInView: View {
     @Environment(\.colorScheme) private var colorScheme
-    @State private var username = ""
+    @State private var email = ""
     @State private var password = ""
 
     let onBack: () -> Void
@@ -11,12 +11,12 @@ struct SignInView: View {
     var showsBackButton: Bool = true
     var onClose: (() -> Void)? = nil
 
-    private var trimmedUsername: String {
-        username.trimmingCharacters(in: .whitespacesAndNewlines)
+    private var trimmedEmail: String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var canSubmit: Bool {
-        !trimmedUsername.isEmpty && !password.isEmpty
+        !trimmedEmail.isEmpty && !password.isEmpty
     }
 
     var body: some View {
@@ -48,7 +48,7 @@ struct SignInView: View {
 
                 fieldsCard
                 PrimaryButton(title: L10n.t("auth.sign_in"), isEnabled: canSubmit) {
-                    onSubmit(trimmedUsername, password)
+                    onSubmit(trimmedEmail, password)
                 }
                 .padding(.top, 2)
 
@@ -81,9 +81,10 @@ struct SignInView: View {
         Card(contentPadding: 0) {
             VStack(spacing: 0) {
                 LabeledTextFieldRow(
-                    label: L10n.t("auth.username"),
-                    placeholder: L10n.t("auth.username.placeholder"),
-                    value: $username
+                    label: L10n.t("auth.email"),
+                    placeholder: L10n.t("auth.email.placeholder"),
+                    value: $email,
+                    keyboardType: .emailAddress
                 )
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
