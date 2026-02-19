@@ -10,6 +10,14 @@
 - Remote dev/prod dump:
   - `supabase db dump --db-url "$SUPABASE_DB_URL" --file backups/remote-$(date +%Y%m%d-%H%M%S).sql`
 
+## Scripted workflow
+- Local backup script:
+  - `scripts/db/backup_local.sh [output_dir]`
+- Remote backup script:
+  - `SUPABASE_DB_URL=... scripts/db/backup_remote.sh [env_name] [output_dir]`
+- Optional encryption:
+  - Set `BACKUP_ENCRYPTION_PASSPHRASE` to encrypt generated `.sql` backups.
+
 ## Recommended schedule
 - Local: daily snapshot during active development.
 - Hosted dev: daily snapshot.
@@ -30,6 +38,16 @@
 4. Verify table counts, indexes, and RLS behavior.
 5. Run smoke tests for sign-in, habits CRUD, and quotes.
 
+## Scripted restore verification
+- `scripts/db/restore_verify.sh <target_db_url> <dump_file.sql>`
+- This script restores the dump and runs baseline table-count checks.
+
 ## Recovery drill
 - Perform a full restore test at least once per month.
 - Document restore duration and issues after each drill.
+
+## Promotion helper
+- `scripts/db/promote_checklist.sh` prints the required local->dev->prod checklist.
+- `scripts/db/promote_checklist.sh execute` runs `supabase db push` for both:
+  - `DEV_DB_URL`
+  - `PROD_DB_URL`
