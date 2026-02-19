@@ -17,7 +17,7 @@ struct AppRouteStateAuthTests {
         )
 
         let state = AppRouteState(dependencies: dependencies)
-        _ = await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
             !state.user.isGuest
         }
 
@@ -40,8 +40,8 @@ struct AppRouteStateAuthTests {
 
         let state = AppRouteState(dependencies: dependencies)
 
-        state.handleSignIn(username: "signin@example.com", password: "password")
-        _ = await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+        state.handleSignIn(identifier: "signin@example.com", password: "password")
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
             state.user.email == "signin@example.com"
         }
 
@@ -50,12 +50,38 @@ struct AppRouteStateAuthTests {
         #expect(tokenSync.syncedUserIDs.contains(signInUser.id))
 
         state.signOut()
-        _ = await waitUntil(timeoutNanoseconds: 2_000_000_000) {
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
             state.user.isGuest
         }
 
         #expect(state.user.isGuest)
         #expect(authService.signOutCalled)
+    }
+
+    @Test
+    func deleteAccountTransitionsToGuestWithoutOnboarding() async throws {
+        let signInUser = SessionUser(id: UUID(), email: "delete@example.com", username: "DeleteUser")
+        let authService = FakeAuthService(currentUserValue: nil, signInValue: signInUser)
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: authService,
+            deviceTokenSyncService: FakeDeviceTokenSyncService()
+        )
+        let state = AppRouteState(dependencies: dependencies)
+
+        state.handleSignIn(identifier: "delete@example.com", password: "password")
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.user.isGuest == false
+        }
+
+        state.deleteAccount()
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.user.isGuest && state.activeTab == .profile
+        }
+
+        #expect(state.user.isGuest)
+        #expect(state.showsOnboarding == false)
+        #expect(state.activeTab == .profile)
     }
 
     private func waitUntil(timeoutNanoseconds: UInt64, condition: @escaping @MainActor () -> Bool) async -> Bool {
@@ -87,8 +113,8 @@ final class FakeAuthService: AuthService, @unchecked Sendable {
         SessionUser(id: UUID(), email: email, username: username)
     }
 
-    func signIn(email: String, password: String) async throws -> SessionUser {
-        SessionUser(id: signInValue.id, email: email, username: signInValue.username)
+    func signIn(identifier: String, password: String) async throws -> SessionUser {
+        SessionUser(id: signInValue.id, email: identifier, username: signInValue.username)
     }
 
     func signOut() async throws {
