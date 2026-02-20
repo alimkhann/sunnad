@@ -517,6 +517,11 @@ final class AppRouteState: ObservableObject {
 
     func submitPasswordResetRequest(email: String) {
         let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalizedEmail.contains("@") else {
+            authSuccessMessage = nil
+            authErrorMessage = AuthServiceError.invalidCredentials.localizedDescription
+            return
+        }
         pendingPasswordResetEmail = normalizedEmail
 
         Task {
@@ -581,11 +586,20 @@ final class AppRouteState: ObservableObject {
             return
         }
 
-        let recoveryPending = userDefaults.bool(forKey: LocalStateKeys.pendingPasswordRecovery)
-        let shouldOpenRecoveryPassword = Self.isRecoveryCallbackURL(url) || recoveryPending
-        if shouldOpenRecoveryPassword {
-            fullScreen = .changePassword
+        let hasAuthPayload = Self.hasCallbackAuthPayload(url)
+        guard hasAuthPayload else {
+            authSuccessMessage = nil
+            authErrorMessage = AuthServiceError.invalidRecoveryLink.localizedDescription
+            dependencies.analyticsLogger.log(
+                .storageFailure,
+                metadata: ["scope": "auth_callback_missing_payload", "reason": "missing_auth_payload"]
+            )
+            return
         }
+
+        let recoveryPending = userDefaults.bool(forKey: LocalStateKeys.pendingPasswordRecovery)
+        let isRecoveryCallback = Self.isRecoveryCallbackURL(url)
+        let shouldOpenRecoveryPassword = isRecoveryCallback || (recoveryPending && hasAuthPayload)
 
         Task {
             do {
@@ -602,12 +616,20 @@ final class AppRouteState: ObservableObject {
 
                 if shouldOpenRecoveryPassword {
                     userDefaults.set(false, forKey: LocalStateKeys.pendingPasswordRecovery)
+                    pendingPasswordResetEmail = sessionUser.email ?? pendingPasswordResetEmail
+                    otpFlowMode = .recovery
+                    fullScreen = .changePassword
                 } else {
                     fullScreen = nil
                 }
             } catch {
                 authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
+                if shouldOpenRecoveryPassword {
+                    fullScreen = passwordRecoverySource == .profile
+                        ? .forgotPasswordOTPProfile
+                        : .forgotPasswordOTPOnboarding
+                }
                 dependencies.analyticsLogger.log(
                     .storageFailure,
                     metadata: ["scope": "auth_callback", "error": error.localizedDescription]
@@ -901,6 +923,9 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = L10n.t("auth.otp.resent")
             } catch {
+                if case AuthServiceError.rateLimited = error {
+                    activateOTPCooldown(flow: otpFlowMode, email: email)
+                }
                 authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
                 dependencies.analyticsLogger.log(
@@ -932,7 +957,7 @@ final class AppRouteState: ObservableObject {
         }
 
         let key = "\(flow.rawValue):\(normalizedEmail)"
-        let deadline = otpResendCooldownsByKey[key] ?? Date().addingTimeInterval(60)
+        let deadline = Date().addingTimeInterval(TimeInterval(dependencies.environment.otpResendCooldownSeconds))
         otpResendCooldownsByKey[key] = deadline
         activeOTPResendKey = key
         updateOTPResendCountdown()
@@ -1170,6 +1195,9 @@ final class AppRouteState: ObservableObject {
             user = sessionUser.asUIUserState
             await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
             markOnboardingCompleted()
+            dependencies.analyticsLogger.log(.syncFinished, metadata: ["scope": "auth_restore", "status": "restored"])
+        } else {
+            dependencies.analyticsLogger.log(.syncFinished, metadata: ["scope": "auth_restore", "status": "no_session"])
         }
     }
 

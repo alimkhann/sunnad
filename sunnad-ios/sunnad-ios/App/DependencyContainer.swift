@@ -102,6 +102,18 @@ final class DependencyContainer {
             return config
         }
 
+        guard shouldUseCachedSupabaseConfig else {
+            #if DEBUG
+            if
+                let cachedURL = userDefaults.string(forKey: CachedSupabaseKeys.url),
+                !cachedURL.isEmpty
+            {
+                NSLog("Sunnad auth ignored cached Supabase config because SUNNAD_ALLOW_CACHED_SUPABASE_CONFIG is not enabled.")
+            }
+            #endif
+            return nil
+        }
+
         if
             let urlString = userDefaults.string(forKey: CachedSupabaseKeys.url),
             let key = userDefaults.string(forKey: CachedSupabaseKeys.key),
@@ -115,6 +127,19 @@ final class DependencyContainer {
         }
 
         return nil
+    }
+
+    private static var shouldUseCachedSupabaseConfig: Bool {
+        #if DEBUG
+        guard let raw = ProcessInfo.processInfo.environment["SUNNAD_ALLOW_CACHED_SUPABASE_CONFIG"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() else {
+            return false
+        }
+        return raw == "1" || raw == "true" || raw == "yes"
+        #else
+        return false
+        #endif
     }
 
     func seedLocalDataIfNeeded() {
