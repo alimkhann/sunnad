@@ -313,7 +313,7 @@ final class AppRouteState: ObservableObject {
     func handleSignUp(email: String, username: String, password: String, method: String = "email") {
         Task {
             let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-            let normalizedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             do {
                 let sessionUser = try await dependencies.authService.signUp(
                     email: normalizedEmail,
@@ -476,9 +476,80 @@ final class AppRouteState: ObservableObject {
         fullScreen = .profileSignUp
     }
 
+    func openProfileEditor() {
+        guard !user.isGuest else {
+            return
+        }
+        clearAuthError()
+        fullScreen = .editProfile
+    }
+
     func clearAuthError() {
         authErrorMessage = nil
         authSuccessMessage = nil
+    }
+
+    func submitProfileUsername(_ username: String) {
+        Task {
+            do {
+                let sessionUser = try await dependencies.authService.updateUsername(username)
+                user = sessionUser.asUIUserState
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("profile.edit.saved")
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "profile_update_username", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func uploadProfileAvatar(data: Data, mimeType: String) {
+        Task {
+            guard let compressed = compressedAvatarPayload(from: data, preferredMimeType: mimeType) else {
+                authSuccessMessage = nil
+                authErrorMessage = L10n.t("profile.edit.avatar.invalid")
+                return
+            }
+
+            do {
+                let sessionUser = try await dependencies.authService.uploadAvatar(
+                    data: compressed.data,
+                    mimeType: compressed.mimeType
+                )
+                user = sessionUser.asUIUserState
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("profile.edit.avatar.updated")
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "profile_upload_avatar", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func removeProfileAvatar() {
+        Task {
+            do {
+                let sessionUser = try await dependencies.authService.removeAvatar()
+                user = sessionUser.asUIUserState
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("profile.edit.avatar.removed")
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "profile_remove_avatar", "error": error.localizedDescription]
+                )
+            }
+        }
     }
 
     func openOnboardingForgotPassword(prefill identifier: String) {
@@ -665,7 +736,7 @@ final class AppRouteState: ObservableObject {
     func handleProfileSignUp(email: String, username: String, password: String, method: String = "email") {
         Task {
             let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-            let normalizedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             do {
                 let sessionUser = try await dependencies.authService.signUp(
                     email: normalizedEmail,
@@ -1186,6 +1257,21 @@ final class AppRouteState: ObservableObject {
         showsOnboarding = false
     }
 
+    private func compressedAvatarPayload(
+        from data: Data,
+        preferredMimeType: String
+    ) -> (data: Data, mimeType: String)? {
+        guard let image = UIImage(data: data) else {
+            return nil
+        }
+
+        if let jpegData = image.jpegData(compressionQuality: 0.82) {
+            return (jpegData, "image/jpeg")
+        }
+
+        return (data, preferredMimeType)
+    }
+
     private func restoreAuthSessionIfNeeded() async {
         if let sessionUser = await dependencies.authService.currentUser() {
             authErrorMessage = nil
@@ -1431,6 +1517,6 @@ final class AppRouteState: ObservableObject {
 
 private extension SessionUser {
     var asUIUserState: UIUserState {
-        UIUserState(isGuest: false, name: displayName, email: email)
+        UIUserState(isGuest: false, name: displayName, email: email, avatarURL: avatarURL)
     }
 }

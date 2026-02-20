@@ -175,6 +175,63 @@ struct AppRouteStateAuthTests {
     }
 
     @Test
+    func profileUsernameUpdateRefreshesUserState() async throws {
+        let signInUser = SessionUser(id: UUID(), email: "profile@example.com", username: "profile_old")
+        let authService = FakeAuthService(currentUserValue: nil, signInValue: signInUser)
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: authService,
+            deviceTokenSyncService: FakeDeviceTokenSyncService()
+        )
+        let state = AppRouteState(dependencies: dependencies)
+
+        state.handleSignIn(identifier: "profile@example.com", password: "password")
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.user.isGuest == false
+        }
+
+        state.submitProfileUsername("profile_new")
+
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.user.name == "profile_new"
+        }
+
+        #expect(state.user.name == "profile_new")
+        #expect(state.authSuccessMessage == L10n.t("profile.edit.saved"))
+    }
+
+    @Test
+    func profileAvatarRemoveRefreshesUserState() async throws {
+        let signInUser = SessionUser(
+            id: UUID(),
+            email: "avatar@example.com",
+            username: "avatar_user",
+            avatarURL: URL(string: "https://example.com/original.jpg")
+        )
+        let authService = FakeAuthService(currentUserValue: nil, signInValue: signInUser)
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: authService,
+            deviceTokenSyncService: FakeDeviceTokenSyncService()
+        )
+        let state = AppRouteState(dependencies: dependencies)
+
+        state.handleSignIn(identifier: "avatar@example.com", password: "password")
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.user.isGuest == false && state.user.avatarURL != nil
+        }
+
+        state.removeProfileAvatar()
+
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.user.avatarURL == nil
+        }
+
+        #expect(state.user.avatarURL == nil)
+        #expect(state.authSuccessMessage == L10n.t("profile.edit.avatar.removed"))
+    }
+
+    @Test
     func passwordResetRequestPublishesSuccessMessage() async throws {
         let authService = FakeAuthService(currentUserValue: nil)
         let dependencies = DependencyContainer(
@@ -525,6 +582,45 @@ actor FakeAuthService: AuthService {
     func deleteAccount() async throws {
         deleteAccountCalled = true
         currentUserValue = nil
+    }
+
+    func fetchProfile() async throws -> SessionUser {
+        if let currentUserValue {
+            return currentUserValue
+        }
+        return signInValue
+    }
+
+    func updateUsername(_ username: String) async throws -> SessionUser {
+        let updated = SessionUser(
+            id: currentUserValue?.id ?? signInValue.id,
+            email: currentUserValue?.email ?? signInValue.email,
+            username: username
+        )
+        currentUserValue = updated
+        return updated
+    }
+
+    func uploadAvatar(data: Data, mimeType: String) async throws -> SessionUser {
+        let updated = SessionUser(
+            id: currentUserValue?.id ?? signInValue.id,
+            email: currentUserValue?.email ?? signInValue.email,
+            username: currentUserValue?.username ?? signInValue.username,
+            avatarURL: URL(string: "https://example.com/avatar.jpg")
+        )
+        currentUserValue = updated
+        return updated
+    }
+
+    func removeAvatar() async throws -> SessionUser {
+        let updated = SessionUser(
+            id: currentUserValue?.id ?? signInValue.id,
+            email: currentUserValue?.email ?? signInValue.email,
+            username: currentUserValue?.username ?? signInValue.username,
+            avatarURL: nil
+        )
+        currentUserValue = updated
+        return updated
     }
 
     func requestPasswordReset(email: String, redirectTo: URL?) async throws {

@@ -109,6 +109,7 @@ struct SunnadRootView: View {
                     onOpenInsights: { state.fullScreen = .insightsPlaceholder },
                     onSignIn: state.openProfileSignIn,
                     onSignOut: state.signOut,
+                    onEditProfile: state.openProfileEditor,
                     onChangePassword: state.openChangePassword,
                     onDeleteData: state.deleteData,
                     onDeleteAccount: state.deleteAccount,
@@ -272,6 +273,17 @@ struct SunnadRootView: View {
                 onBack: { state.fullScreen = nil },
                 onSubmit: state.submitChangePassword,
                 authErrorMessage: state.authErrorMessage,
+                onClearMessage: state.clearAuthError
+            )
+        case .editProfile:
+            EditProfileView(
+                user: state.user,
+                authErrorMessage: state.authErrorMessage,
+                authSuccessMessage: state.authSuccessMessage,
+                onBack: { state.fullScreen = nil },
+                onSaveUsername: state.submitProfileUsername,
+                onUploadAvatar: state.uploadProfileAvatar,
+                onRemoveAvatar: state.removeProfileAvatar,
                 onClearMessage: state.clearAuthError
             )
         case .profileOTP:
