@@ -625,17 +625,20 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Sendable {
     private enum Keys {
         static let deviceToken = "sunnad.device.push-token"
+        static let oneSignalSubscriptionID = "sunnad.device.onesignal-subscription-id"
     }
 
     private struct DeviceTokenRow: Encodable {
         let userID: UUID
         let platform: String
         let token: String
+        let oneSignalSubscriptionID: String?
 
         enum CodingKeys: String, CodingKey {
             case userID = "user_id"
             case platform
             case token
+            case oneSignalSubscriptionID = "onesignal_subscription_id"
         }
     }
 
@@ -655,12 +658,29 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
 
     func syncCurrentDeviceToken(for userID: UUID) async {
         let token = resolveDeviceToken()
-        guard let token, !token.isEmpty else {
+        let oneSignalSubscriptionID = resolveOneSignalSubscriptionID()
+
+        let resolvedToken: String?
+        if let token, !token.isEmpty {
+            resolvedToken = token
+        } else if let oneSignalSubscriptionID, !oneSignalSubscriptionID.isEmpty {
+            // Keep a stable PK row for users where only OneSignal subscription ID is available.
+            resolvedToken = "onesignal-subscription:\(oneSignalSubscriptionID)"
+        } else {
+            resolvedToken = nil
+        }
+
+        guard let resolvedToken, !resolvedToken.isEmpty else {
             logger.log(.syncFinished, metadata: ["scope": "device_token", "status": "skipped_no_token"])
             return
         }
 
-        let row = DeviceTokenRow(userID: userID, platform: "ios", token: token)
+        let row = DeviceTokenRow(
+            userID: userID,
+            platform: "ios",
+            token: resolvedToken,
+            oneSignalSubscriptionID: oneSignalSubscriptionID
+        )
 
         do {
             try await client
@@ -668,7 +688,14 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
                 .upsert(row, onConflict: "user_id,token")
                 .execute()
 
-            logger.log(.syncFinished, metadata: ["scope": "device_token", "status": "upserted"])
+            logger.log(
+                .syncFinished,
+                metadata: [
+                    "scope": "device_token",
+                    "status": "upserted",
+                    "onesignal": oneSignalSubscriptionID == nil ? "none" : "present"
+                ]
+            )
         } catch {
             logger.log(
                 .storageFailure,
@@ -686,5 +713,18 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
         }
 
         return userDefaults.string(forKey: Keys.deviceToken)
+    }
+
+    private func resolveOneSignalSubscriptionID() -> String? {
+        if let override = ProcessInfo.processInfo.environment["SUNNAD_DEBUG_ONESIGNAL_SUBSCRIPTION_ID"], !override.isEmpty {
+            return override
+        }
+        if let value = ProcessInfo.processInfo.environment["SUNNAD_ONESIGNAL_SUBSCRIPTION_ID"], !value.isEmpty {
+            return value
+        }
+        if let value = userDefaults.string(forKey: Keys.oneSignalSubscriptionID), !value.isEmpty {
+            return value
+        }
+        return nil
     }
 }
