@@ -14,6 +14,7 @@ struct SunnadRootView: View {
                     step: $state.onboardingStep,
                     selectedTemplateIDs: $state.selectedTemplateIDs,
                     pendingEmail: state.pendingSignUpEmail,
+                    authErrorMessage: state.authErrorMessage,
                     onOpenLanguagePicker: { state.rootSheet = .languagePicker },
                     onCompleteTemplateSelection: { state.completeTemplateSelection() },
                     onEnableNotifications: state.enableOnboardingNotifications,
@@ -23,7 +24,8 @@ struct SunnadRootView: View {
                     onOpenSignUp: state.openSignUp,
                     onSignIn: state.handleSignIn,
                     onSignUp: state.handleSignUp,
-                    onOTPVerify: state.verifyOTP
+                    onOTPVerify: state.verifyOTP,
+                    onClearAuthError: state.clearAuthError
                 )
             } else {
                 mainTabs
@@ -209,6 +211,8 @@ struct SunnadRootView: View {
                 onBack: {},
                 onSwitchToSignUp: state.openProfileSignUp,
                 onSubmit: state.handleProfileSignIn,
+                authErrorMessage: state.authErrorMessage,
+                onClearError: state.clearAuthError,
                 showsBackButton: false,
                 onClose: { state.fullScreen = nil }
             )
@@ -217,6 +221,8 @@ struct SunnadRootView: View {
                 onBack: state.openProfileSignIn,
                 onSwitchToSignIn: state.openProfileSignIn,
                 onSubmit: state.handleProfileSignUp,
+                authErrorMessage: state.authErrorMessage,
+                onClearError: state.clearAuthError,
                 showsBackButton: false,
                 onClose: { state.fullScreen = nil }
             )

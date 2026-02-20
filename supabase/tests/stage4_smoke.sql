@@ -173,6 +173,17 @@ begin
       null;
   end;
 
+  -- Account deletion RPC removes the authenticated user account row.
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claim.sub', v_member_id::text, true);
+  perform public.delete_own_account();
+
+  execute 'set local role postgres';
+  if exists (select 1 from auth.users where id = v_member_id) then
+    raise exception 'delete_own_account did not remove auth user';
+  end if;
+
   execute 'reset role';
 end $$;
 

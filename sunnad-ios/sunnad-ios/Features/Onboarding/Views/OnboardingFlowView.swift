@@ -5,6 +5,7 @@ struct OnboardingFlowView: View {
     @Binding var selectedTemplateIDs: Set<String>
 
     let pendingEmail: String
+    let authErrorMessage: String?
     let onOpenLanguagePicker: () -> Void
     let onCompleteTemplateSelection: () -> Void
     let onEnableNotifications: () -> Void
@@ -15,6 +16,7 @@ struct OnboardingFlowView: View {
     let onSignIn: (String, String) -> Void
     let onSignUp: (String, String, String, String) -> Void
     let onOTPVerify: () -> Void
+    let onClearAuthError: () -> Void
 
     var body: some View {
         switch step {
@@ -46,13 +48,17 @@ struct OnboardingFlowView: View {
             SignInView(
                 onBack: { step = .joinGroups },
                 onSwitchToSignUp: onOpenSignUp,
-                onSubmit: onSignIn
+                onSubmit: onSignIn,
+                authErrorMessage: authErrorMessage,
+                onClearError: onClearAuthError
             )
         case .signUp:
             SignUpView(
                 onBack: { step = .joinGroups },
                 onSwitchToSignIn: onOpenSignIn,
-                onSubmit: onSignUp
+                onSubmit: onSignUp,
+                authErrorMessage: authErrorMessage,
+                onClearError: onClearAuthError
             )
         case .otp:
             OTPVerificationView(

@@ -180,10 +180,12 @@ final class AppRouteState: ObservableObject {
     }
 
     func openSignIn() {
+        authErrorMessage = nil
         onboardingStep = .signIn
     }
 
     func openSignUp() {
+        authErrorMessage = nil
         onboardingStep = .signUp
     }
 
@@ -397,11 +399,17 @@ final class AppRouteState: ObservableObject {
     }
 
     func openProfileSignIn() {
+        authErrorMessage = nil
         fullScreen = .profileSignIn
     }
 
     func openProfileSignUp() {
+        authErrorMessage = nil
         fullScreen = .profileSignUp
+    }
+
+    func clearAuthError() {
+        authErrorMessage = nil
     }
 
     func handleProfileSignIn(identifier: String, password: String) {
@@ -489,12 +497,14 @@ final class AppRouteState: ObservableObject {
     func deleteAccount() {
         Task {
             do {
-                try await dependencies.authService.signOut()
+                try await dependencies.authService.deleteAccount()
             } catch {
+                authErrorMessage = error.localizedDescription
                 dependencies.analyticsLogger.log(
                     .storageFailure,
-                    metadata: ["scope": "auth_delete_account_sign_out", "error": error.localizedDescription]
+                    metadata: ["scope": "auth_delete_account", "error": error.localizedDescription]
                 )
+                return
             }
 
             await clearLocalData()

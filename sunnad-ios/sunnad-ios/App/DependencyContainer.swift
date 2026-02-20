@@ -4,6 +4,11 @@ import SwiftData
 import Supabase
 
 final class DependencyContainer {
+    private enum CachedSupabaseKeys {
+        static let url = "sunnad.cached.supabase.url"
+        static let key = "sunnad.cached.supabase.key"
+    }
+
     let environment: AppEnvironment
     let modelContainer: ModelContainer
 
@@ -15,6 +20,7 @@ final class DependencyContainer {
     let reminderScheduler: LocalReminderScheduling
     let authService: AuthService
     let deviceTokenSyncService: DeviceTokenSyncing
+    private let userDefaults: UserDefaults
 
     init(
         environment: AppEnvironment = .current,
@@ -23,6 +29,7 @@ final class DependencyContainer {
         deviceTokenSyncService: DeviceTokenSyncing? = nil
     ) {
         self.environment = environment
+        self.userDefaults = .standard
 
         if let modelContainer {
             self.modelContainer = modelContainer
@@ -51,18 +58,29 @@ final class DependencyContainer {
         groupsRepository = GroupsLocalRepository()
         reminderScheduler = UserNotificationReminderScheduler(logger: logger)
 
+        let resolvedSupabase = Self.resolvedSupabaseConfig(
+            environment: environment,
+            userDefaults: userDefaults
+        )
+
         if let authService {
             self.authService = authService
-        } else if let config = environment.supabaseConfig {
+        } else if let config = resolvedSupabase {
             let client = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
             self.authService = SupabaseAuthService(client: client)
+            #if DEBUG
+            NSLog("Sunnad auth configured with Supabase URL: \(config.url.absoluteString)")
+            #endif
         } else {
             self.authService = UnconfiguredAuthService()
+            #if DEBUG
+            NSLog("Sunnad auth is UNCONFIGURED. Set SUNNAD_SUPABASE_URL and SUNNAD_SUPABASE_PUBLISHABLE_KEY (or SUNNAD_SUPABASE_ANON_KEY).")
+            #endif
         }
 
         if let deviceTokenSyncService {
             self.deviceTokenSyncService = deviceTokenSyncService
-        } else if let config = environment.supabaseConfig {
+        } else if let config = resolvedSupabase {
             let client = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
             self.deviceTokenSyncService = SupabaseDeviceTokenSyncService(client: client, logger: logger)
         } else {
@@ -70,6 +88,31 @@ final class DependencyContainer {
         }
 
         seedLocalDataIfNeeded()
+    }
+
+    private static func resolvedSupabaseConfig(
+        environment: AppEnvironment,
+        userDefaults: UserDefaults
+    ) -> AppEnvironment.SupabaseConfig? {
+        if let config = environment.supabaseConfig {
+            userDefaults.set(config.url.absoluteString, forKey: CachedSupabaseKeys.url)
+            userDefaults.set(config.anonKey, forKey: CachedSupabaseKeys.key)
+            return config
+        }
+
+        if
+            let urlString = userDefaults.string(forKey: CachedSupabaseKeys.url),
+            let key = userDefaults.string(forKey: CachedSupabaseKeys.key),
+            let url = URL(string: urlString),
+            !key.isEmpty
+        {
+            #if DEBUG
+            NSLog("Sunnad auth configured from cached Supabase config: \(url.absoluteString)")
+            #endif
+            return .init(url: url, anonKey: key)
+        }
+
+        return nil
     }
 
     func seedLocalDataIfNeeded() {

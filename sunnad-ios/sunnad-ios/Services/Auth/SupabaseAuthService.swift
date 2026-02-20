@@ -57,6 +57,16 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         }
     }
 
+    func deleteAccount() async throws {
+        do {
+            try await client
+                .rpc("delete_own_account")
+                .execute()
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
     func currentUser() async -> SessionUser? {
         if let user = client.auth.currentUser {
             return await sessionUser(from: user)
@@ -149,7 +159,34 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 
     private func mapAuthError(_ error: Error) -> AuthServiceError {
         let message = error.localizedDescription.lowercased()
-        if message.contains("invalid login") || message.contains("invalid") {
+        if message.contains("already registered")
+            || message.contains("email address already in use")
+            || message.contains("user already exists")
+        {
+            return .emailAlreadyInUse
+        }
+        if message.contains("profiles_username_lower_uidx")
+            || (message.contains("username") && message.contains("already"))
+            || (message.contains("username") && message.contains("duplicate"))
+        {
+            return .usernameAlreadyInUse
+        }
+        if message.contains("password should be at least")
+            || message.contains("password is too weak")
+            || message.contains("password does not meet the strength requirements")
+            || message.contains("weak password")
+        {
+            return .weakPassword
+        }
+        if message.contains("email not confirmed")
+            || message.contains("email address not authorized")
+        {
+            return .emailNotConfirmed
+        }
+        if message.contains("invalid login")
+            || message.contains("invalid email or password")
+            || message.contains("invalid credentials")
+        {
             return .invalidCredentials
         }
         return .unknown(error.localizedDescription)

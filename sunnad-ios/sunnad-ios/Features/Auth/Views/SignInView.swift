@@ -8,6 +8,8 @@ struct SignInView: View {
     let onBack: () -> Void
     let onSwitchToSignUp: () -> Void
     let onSubmit: (String, String) -> Void
+    var authErrorMessage: String? = nil
+    var onClearError: (() -> Void)? = nil
     var showsBackButton: Bool = true
     var onClose: (() -> Void)? = nil
 
@@ -46,6 +48,11 @@ struct SignInView: View {
                 Spacer()
                     .frame(height: 32)
 
+                if let authErrorMessage, !authErrorMessage.isEmpty {
+                    AuthMessageToast(message: authErrorMessage)
+                        .padding(.bottom, 6)
+                }
+
                 fieldsCard
                 PrimaryButton(title: L10n.t("auth.sign_in"), isEnabled: canSubmit) {
                     onSubmit(trimmedIdentifier, password)
@@ -74,6 +81,12 @@ struct SignInView: View {
             .padding(.top, 8)
             .padding(.bottom, max(10, proxy.safeAreaInsets.bottom + 4))
             .background(SunnadTheme.background.ignoresSafeArea())
+            .onChange(of: identifier) { _, _ in
+                onClearError?()
+            }
+            .onChange(of: password) { _, _ in
+                onClearError?()
+            }
         }
     }
 
@@ -165,4 +178,29 @@ struct SignInView: View {
         }
     }
 
+}
+
+private struct AuthMessageToast: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.primary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.red.opacity(0.25), lineWidth: 1)
+        )
+    }
 }

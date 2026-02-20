@@ -10,6 +10,8 @@ struct SignUpView: View {
     let onBack: () -> Void
     let onSwitchToSignIn: () -> Void
     let onSubmit: (String, String, String, String) -> Void
+    var authErrorMessage: String? = nil
+    var onClearError: (() -> Void)? = nil
     var showsBackButton: Bool = true
     var onClose: (() -> Void)? = nil
 
@@ -21,10 +23,14 @@ struct SignUpView: View {
         username.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var passwordStrength: SignUpPasswordStrength {
+        SignUpPasswordStrength(password: password)
+    }
+
     private var isValid: Bool {
         !trimmedEmail.isEmpty &&
         !trimmedUsername.isEmpty &&
-        !password.isEmpty &&
+        password.count >= 8 &&
         password == repeatPassword
     }
 
@@ -54,6 +60,11 @@ struct SignUpView: View {
 
                 Spacer()
                     .frame(height: 32)
+
+                if let authErrorMessage, !authErrorMessage.isEmpty {
+                    AuthSignUpMessageToast(message: authErrorMessage)
+                        .padding(.bottom, 6)
+                }
 
                 fieldsCard
                 PrimaryButton(title: L10n.t("auth.sign_up"), isEnabled: isValid) {
@@ -85,6 +96,18 @@ struct SignUpView: View {
             .padding(.top, 8)
             .padding(.bottom, max(10, proxy.safeAreaInsets.bottom + 4))
             .background(SunnadTheme.background.ignoresSafeArea())
+            .onChange(of: email) { _, _ in
+                onClearError?()
+            }
+            .onChange(of: username) { _, _ in
+                onClearError?()
+            }
+            .onChange(of: password) { _, _ in
+                onClearError?()
+            }
+            .onChange(of: repeatPassword) { _, _ in
+                onClearError?()
+            }
         }
     }
 
@@ -120,6 +143,16 @@ struct SignUpView: View {
                 )
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
+
+                HStack(spacing: 6) {
+                    ForEach(0..<4, id: \.self) { index in
+                        Capsule(style: .continuous)
+                            .fill(index < passwordStrength.level ? passwordStrength.color : Color(.systemGray5))
+                            .frame(height: 4)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
 
                 Divider().padding(.leading, 14)
 
@@ -218,6 +251,63 @@ struct SignUpView: View {
             }
             .font(.footnote)
             .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+}
+
+private struct AuthSignUpMessageToast: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.primary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.red.opacity(0.25), lineWidth: 1)
+        )
+    }
+}
+
+private struct SignUpPasswordStrength {
+    let level: Int
+    let color: Color
+
+    init(password: String) {
+        let hasLower = password.range(of: "[a-z]", options: .regularExpression) != nil
+        let hasUpper = password.range(of: "[A-Z]", options: .regularExpression) != nil
+        let hasDigit = password.range(of: "[0-9]", options: .regularExpression) != nil
+        let hasSymbol = password.range(of: "[^A-Za-z0-9]", options: .regularExpression) != nil
+
+        var score = 0
+        if password.count >= 8 { score += 1 }
+        if hasLower && hasUpper { score += 1 }
+        if hasDigit { score += 1 }
+        if hasSymbol { score += 1 }
+        if password.count >= 12 && score > 0 { score += 1 }
+
+        level = min(max(score, 0), 4)
+
+        switch level {
+        case 0...1:
+            color = .red
+        case 2:
+            color = .orange
+        case 3:
+            color = .yellow
+        default:
+            color = .green
         }
     }
 }
