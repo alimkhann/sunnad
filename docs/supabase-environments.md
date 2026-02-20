@@ -55,6 +55,7 @@ Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
 - `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
 - `SUNNAD_AUTH_GOOGLE_ENABLED=1`
 - `SUNNAD_AUTH_APPLE_ENABLED=0`
+- `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=120`
 - `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1`
 
 ### Hosted dev project
@@ -63,6 +64,7 @@ Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
 - `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
 - `SUNNAD_AUTH_GOOGLE_ENABLED=1`
 - `SUNNAD_AUTH_APPLE_ENABLED=0`
+- `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=120`
 - `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1`
 
 ### Hosted prod project
@@ -71,6 +73,7 @@ Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
 - `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
 - `SUNNAD_AUTH_GOOGLE_ENABLED=1`
 - `SUNNAD_AUTH_APPLE_ENABLED=0`
+- `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=180`
 - `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1`
 
 Notes:
@@ -85,6 +88,21 @@ Notes:
 - Auth -> URL Configuration:
   - Add redirect URL: `sunnad://auth-callback`
 - Recovery and signup confirmations now use `sunnad://auth-callback` so no web domain is required for mobile auth flows.
+
+## Auth resend/rate-limit baseline by environment
+Use these as baseline values so users can retry without getting blocked too aggressively:
+
+- local (`supabase/config.toml`):
+  - `auth.email.max_frequency = "120s"`
+  - `auth.rate_limit.email_sent = 30`
+- dev (Dashboard -> Auth -> Rate Limits):
+  - minimum resend interval: `120s`
+- prod (Dashboard -> Auth -> Rate Limits):
+  - minimum resend interval: `180s`
+
+App-side resend cooldown should match environment:
+- local/dev: `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=120`
+- prod: `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=180`
 
 ## Email template parity checklist (local/dev/prod)
 Use the same content in local template files and hosted dashboard templates:

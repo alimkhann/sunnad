@@ -51,6 +51,18 @@ enum AppEnvironment: String {
         )
     }
 
+    var otpResendCooldownSeconds: Int {
+        guard
+            let raw = ProcessInfo.processInfo.environment["SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS"],
+            let value = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+            value >= 30
+        else {
+            return 120
+        }
+
+        return value
+    }
+
     var supabaseConfig: SupabaseConfig? {
         func resolveEnv(_ names: [String]) -> String? {
             for name in names {
