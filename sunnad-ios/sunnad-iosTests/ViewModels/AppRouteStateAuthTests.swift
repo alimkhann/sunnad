@@ -122,6 +122,30 @@ struct AppRouteStateAuthTests {
     }
 
     @Test
+    func resendOTPRateLimitStartsCooldownAndShowsError() async throws {
+        let authService = FakeAuthService(
+            currentUserValue: nil,
+            shouldRateLimitResend: true
+        )
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: authService,
+            deviceTokenSyncService: FakeDeviceTokenSyncService()
+        )
+        let state = AppRouteState(dependencies: dependencies)
+        state.pendingSignUpEmail = "otp@example.com"
+
+        state.resendOTP()
+
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.authErrorMessage == AuthServiceError.rateLimited.localizedDescription
+        }
+
+        #expect(state.authErrorMessage == AuthServiceError.rateLimited.localizedDescription)
+        #expect(state.otpResendSecondsRemaining > 0)
+    }
+
+    @Test
     func deleteAccountTransitionsToGuestWithoutOnboarding() async throws {
         let signInUser = SessionUser(id: UUID(), email: "delete@example.com", username: "DeleteUser")
         let authService = FakeAuthService(currentUserValue: nil, signInValue: signInUser)
@@ -274,6 +298,23 @@ struct AppRouteStateAuthTests {
     }
 
     @Test
+    func callbackWithoutPayloadShowsRecoverableError() async throws {
+        let authService = FakeAuthService(currentUserValue: nil)
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: authService,
+            deviceTokenSyncService: FakeDeviceTokenSyncService()
+        )
+        let state = AppRouteState(dependencies: dependencies)
+        let callbackURL = URL(string: "sunnad://auth-callback")!
+
+        state.handleIncomingURL(callbackURL)
+
+        #expect(state.authErrorMessage == AuthServiceError.invalidRecoveryLink.localizedDescription)
+        #expect(state.user.isGuest)
+    }
+
+    @Test
     func pendingRecoveryWithCodeOnlyCallbackOpensChangePasswordFlow() async throws {
         let callbackUser = SessionUser(id: UUID(), email: "recover-pending@example.com", username: "RecoverPendingUser")
         let authService = FakeAuthService(currentUserValue: nil, callbackUser: callbackUser)
@@ -304,7 +345,7 @@ struct AppRouteStateAuthTests {
     }
 
     @Test
-    func pendingRecoveryWithBareCallbackURLStillOpensChangePasswordFlow() async throws {
+    func pendingRecoveryWithBareCallbackURLIsIgnored() async throws {
         let callbackUser = SessionUser(id: UUID(), email: "recover-bare@example.com", username: "RecoverBareUser")
         let authService = FakeAuthService(currentUserValue: nil, callbackUser: callbackUser)
         let tokenSync = FakeDeviceTokenSyncService()
@@ -324,13 +365,10 @@ struct AppRouteStateAuthTests {
         let callbackURL = URL(string: "sunnad://auth-callback")!
         state.handleIncomingURL(callbackURL)
 
-        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
-            state.fullScreen == .changePassword && state.user.email == "recover-bare@example.com"
-        }
-
-        #expect(state.fullScreen == .changePassword)
-        #expect(state.user.email == "recover-bare@example.com")
-        #expect(await tokenSync.containsSyncedUserID(callbackUser.id))
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        #expect(state.fullScreen != .changePassword)
+        #expect(state.user.isGuest)
+        #expect(await tokenSync.containsSyncedUserID(callbackUser.id) == false)
     }
 
     @Test
@@ -404,6 +442,7 @@ actor FakeAuthService: AuthService {
     var lastRecoveryOTPCode: String?
     var lastRecoveryResendEmail: String?
     var lastRecoveryResendRedirect: URL?
+    let shouldRateLimitResend: Bool
 
     init(
         currentUserValue: SessionUser?,
@@ -411,7 +450,8 @@ actor FakeAuthService: AuthService {
         signUpRequiresEmailConfirmation: Bool = false,
         otpVerifiedUser: SessionUser? = nil,
         callbackUser: SessionUser? = nil,
-        passwordUpdateValue: SessionUser? = nil
+        passwordUpdateValue: SessionUser? = nil,
+        shouldRateLimitResend: Bool = false
     ) {
         self.currentUserValue = currentUserValue
         self.signInValue = signInValue
@@ -419,6 +459,7 @@ actor FakeAuthService: AuthService {
         self.otpVerifiedUser = otpVerifiedUser ?? signInValue
         self.callbackUser = callbackUser
         self.passwordUpdateValue = passwordUpdateValue ?? signInValue
+        self.shouldRateLimitResend = shouldRateLimitResend
     }
 
     func signUp(email: String, password: String, username: String?) async throws -> SessionUser {
@@ -459,11 +500,17 @@ actor FakeAuthService: AuthService {
     }
 
     func resendSignUpOTP(email: String, redirectTo: URL?) async throws {
+        if shouldRateLimitResend {
+            throw AuthServiceError.rateLimited
+        }
         lastResendOTPEmail = email
         lastResendOTPRedirect = redirectTo
     }
 
     func resendRecoveryCode(email: String, redirectTo: URL?) async throws {
+        if shouldRateLimitResend {
+            throw AuthServiceError.rateLimited
+        }
         lastRecoveryResendEmail = email
         lastRecoveryResendRedirect = redirectTo
     }
