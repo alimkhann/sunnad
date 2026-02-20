@@ -59,6 +59,7 @@ Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
 - `SUNNAD_AUTH_APPLE_ENABLED=0`
 - `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=120`
 - `SUNNAD_ENABLE_LOCAL_SUPABASE_FALLBACK=1` (optional; only for local convenience)
+- `SUNNAD_DEBUG_ONESIGNAL_SUBSCRIPTION_ID=<optional debug subscription id>`
 
 ### Hosted dev project
 - `SUNNAD_SUPABASE_URL=https://wejnrzlxnesqhbtvgdga.supabase.co`
@@ -67,6 +68,7 @@ Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
 - `SUNNAD_AUTH_GOOGLE_ENABLED=1`
 - `SUNNAD_AUTH_APPLE_ENABLED=0`
 - `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=120`
+- `SUNNAD_DEBUG_ONESIGNAL_SUBSCRIPTION_ID=<optional debug subscription id>`
 
 ### Hosted prod project
 - `SUNNAD_SUPABASE_URL=https://artwfvypcdacdpqhciqt.supabase.co`
@@ -75,6 +77,7 @@ Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
 - `SUNNAD_AUTH_GOOGLE_ENABLED=1`
 - `SUNNAD_AUTH_APPLE_ENABLED=0`
 - `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=180`
+- `SUNNAD_DEBUG_ONESIGNAL_SUBSCRIPTION_ID=<optional debug subscription id>`
 
 Notes:
 - `SUNNAD_SUPABASE_PUBLISHABLE_KEY` is also supported; `SUNNAD_SUPABASE_ANON_KEY` is preferred in app setup.
@@ -153,6 +156,25 @@ Hosted dev/prod parity steps:
 - Deploy manually:
   - `supabase functions deploy delete-account --project-ref <ref>`
   - `supabase functions deploy send-nudge-push --project-ref <ref>`
+
+## Sync engine (Stage 7)
+- Local SwiftData remains source-of-truth.
+- Signed-in mode enables outbox + pull cursors for:
+  - `habits`
+  - `habit_completions` (rolling 40-day window)
+  - `saved_quotes`
+  - `quotes`
+  - `groups`, `group_members`, `group_shared_habits` snapshots
+- Conflict strategy is last-write-wins by `updated_at`.
+- Sync triggers:
+  - auth sign-in / auth restore
+  - foreground refresh cycle
+  - background refresh via `BGTaskScheduler` identifier: `com.arystan.almasuly.sunnad-ios.sync.refresh`
+- Required iOS config:
+  - `Info.plist` includes `BGTaskSchedulerPermittedIdentifiers`
+  - `Info.plist` includes `UIBackgroundModes = fetch`
+- Diagnostics:
+  - `OSLog` category `sync` records cycle start/finish/failures.
 
 ## Local email testing (Mailpit)
 - Supabase local runs Mailpit at `http://127.0.0.1:54324`.

@@ -89,3 +89,10 @@ Run sections 1-9 in:
 - prod on iPhone 17 Pro simulator
 - dev on real device
 - prod on real device
+
+## 11) Groups + refresh regression
+1. Sign in and open Groups tab.
+2. Pull down to refresh group list.
+3. Open a group detail and pull down to refresh detail.
+4. Verify group rename/lock/rotate actions still work.
+5. Verify bell nudge action shows recoverable status (sent/duplicate/forbidden/error).
