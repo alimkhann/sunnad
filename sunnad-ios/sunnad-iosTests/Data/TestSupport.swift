@@ -19,6 +19,8 @@ func makeInMemoryContainer() throws -> ModelContainer {
         QuoteEntity.self,
         SavedQuoteEntity.self,
         DiagnosticEventEntity.self,
+        LocalOutboxEventEntity.self,
+        LocalSyncCursorEntity.self,
         configurations: configuration
     )
 }

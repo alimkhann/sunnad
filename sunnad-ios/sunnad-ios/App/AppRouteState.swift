@@ -280,7 +280,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                await syncSignedInSession(sessionUser, trigger: .auth)
                 markOnboardingCompleted()
                 activeTab = .today
             } catch {
@@ -323,7 +323,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                await syncSignedInSession(sessionUser, trigger: .auth)
                 markOnboardingCompleted()
                 activeTab = .today
                 onboardingStep = .joinGroups
@@ -639,7 +639,7 @@ final class AppRouteState: ObservableObject {
                 fullScreen = nil
                 activeTab = .today
                 userDefaults.set(false, forKey: LocalStateKeys.pendingPasswordRecovery)
-                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                await syncSignedInSession(sessionUser, trigger: .auth)
                 await profileViewModel.load()
             } catch {
                 authSuccessMessage = nil
@@ -681,7 +681,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                await syncSignedInSession(sessionUser, trigger: .auth)
                 markOnboardingCompleted()
                 activeTab = .today
 
@@ -719,7 +719,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                await syncSignedInSession(sessionUser, trigger: .auth)
                 markOnboardingCompleted()
                 fullScreen = nil
             } catch {
@@ -746,7 +746,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                await syncSignedInSession(sessionUser, trigger: .auth)
                 markOnboardingCompleted()
                 fullScreen = nil
             } catch {
@@ -792,6 +792,7 @@ final class AppRouteState: ObservableObject {
             authErrorMessage = nil
             authSuccessMessage = nil
             user = .guest
+            await dependencies.syncCoordinator.setSignedInUserID(nil)
         }
     }
 
@@ -827,6 +828,7 @@ final class AppRouteState: ObservableObject {
             rootSheet = nil
             fullScreen = nil
             activeTab = .profile
+            await dependencies.syncCoordinator.setSignedInUserID(nil)
             await profileViewModel.load()
         }
     }
@@ -927,7 +929,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                await syncSignedInSession(sessionUser, trigger: .auth)
                 markOnboardingCompleted()
                 activeTab = .today
                 if fromProfileSurface {
@@ -977,7 +979,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                await syncSignedInSession(sessionUser, trigger: .auth)
             } catch {
                 authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
@@ -1306,12 +1308,20 @@ final class AppRouteState: ObservableObject {
             authErrorMessage = nil
             authSuccessMessage = nil
             user = sessionUser.asUIUserState
-            await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+            await syncSignedInSession(sessionUser, trigger: .restore)
             markOnboardingCompleted()
             dependencies.analyticsLogger.log(.syncFinished, metadata: ["scope": "auth_restore", "status": "restored"])
         } else {
+            await dependencies.syncCoordinator.setSignedInUserID(nil)
             dependencies.analyticsLogger.log(.syncFinished, metadata: ["scope": "auth_restore", "status": "no_session"])
         }
+    }
+
+    private func syncSignedInSession(_ sessionUser: SessionUser, trigger: SyncTrigger) async {
+        await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+        await dependencies.syncCoordinator.setSignedInUserID(sessionUser.id)
+        await dependencies.syncCoordinator.promoteLocalDataIfNeeded()
+        await dependencies.syncCoordinator.runSyncCycle(trigger: trigger)
     }
 
     private func resolveEmailFromIdentifier(_ identifier: String) -> String {

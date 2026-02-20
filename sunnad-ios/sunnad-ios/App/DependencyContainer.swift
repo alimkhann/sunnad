@@ -13,20 +13,23 @@ final class DependencyContainer {
     let modelContainer: ModelContainer
 
     let analyticsLogger: AnalyticsLogging
-    let habitsRepository: HabitsLocalRepository
-    let completionsRepository: CompletionsLocalRepository
-    let quotesRepository: QuotesLocalRepository
+    let habitsRepository: HabitsRepository
+    let completionsRepository: CompletionsRepository
+    let quotesRepository: QuotesRepository
     let groupsRepository: GroupsRepository
+    let syncCoordinator: SyncCoordinating
     let reminderScheduler: LocalReminderScheduling
     let authService: AuthService
     let deviceTokenSyncService: DeviceTokenSyncing
+    private let localQuotesRepository: QuotesLocalRepository
     private let userDefaults: UserDefaults
 
     init(
         environment: AppEnvironment = .current,
         modelContainer: ModelContainer? = nil,
         authService: AuthService? = nil,
-        deviceTokenSyncService: DeviceTokenSyncing? = nil
+        deviceTokenSyncService: DeviceTokenSyncing? = nil,
+        syncCoordinator: SyncCoordinating? = nil
     ) {
         self.environment = environment
         self.userDefaults = .standard
@@ -40,7 +43,9 @@ final class DependencyContainer {
                     CompletionEntity.self,
                     QuoteEntity.self,
                     SavedQuoteEntity.self,
-                    DiagnosticEventEntity.self
+                    DiagnosticEventEntity.self,
+                    LocalOutboxEventEntity.self,
+                    LocalSyncCursorEntity.self
                 )
             } catch {
                 fatalError("Failed to initialize SwiftData container: \(error)")
@@ -54,9 +59,9 @@ final class DependencyContainer {
         let logger = OSLogAnalyticsLogger(diagnosticsStore: diagnosticsStore)
 
         analyticsLogger = logger
-        habitsRepository = HabitsLocalRepository(modelContext: modelContext, logger: logger)
-        completionsRepository = CompletionsLocalRepository(modelContext: modelContext, logger: logger)
-        quotesRepository = QuotesLocalRepository(modelContext: modelContext, logger: logger)
+        let localHabitsRepository = HabitsLocalRepository(modelContext: modelContext, logger: logger)
+        let localCompletionsRepository = CompletionsLocalRepository(modelContext: modelContext, logger: logger)
+        localQuotesRepository = QuotesLocalRepository(modelContext: modelContext, logger: logger)
         reminderScheduler = UserNotificationReminderScheduler(logger: logger)
 
         let resolvedSupabase = Self.resolvedSupabaseConfig(
@@ -76,6 +81,32 @@ final class DependencyContainer {
         } else {
             groupsRepository = GroupsLocalRepository()
         }
+
+        if let syncCoordinator {
+            self.syncCoordinator = syncCoordinator
+        } else if let client = supabaseClient {
+            self.syncCoordinator = SupabaseSyncCoordinator(
+                client: client,
+                modelContext: modelContext,
+                logger: logger,
+                userDefaults: userDefaults
+            )
+        } else {
+            self.syncCoordinator = NoOpSyncCoordinator()
+        }
+
+        habitsRepository = SyncingHabitsRepository(
+            base: localHabitsRepository,
+            syncCoordinator: self.syncCoordinator
+        )
+        completionsRepository = SyncingCompletionsRepository(
+            base: localCompletionsRepository,
+            syncCoordinator: self.syncCoordinator
+        )
+        quotesRepository = SyncingQuotesRepository(
+            base: localQuotesRepository,
+            syncCoordinator: self.syncCoordinator
+        )
 
         if let authService {
             self.authService = authService
@@ -217,7 +248,7 @@ final class DependencyContainer {
 
             let existingQuotes = try modelContext.fetch(FetchDescriptor<QuoteEntity>())
             if existingQuotes.isEmpty {
-                try quotesRepository.upsertQuotes(Self.seedQuotes)
+                try localQuotesRepository.upsertQuotes(Self.seedQuotes)
             }
         } catch {
             analyticsLogger.log(.storageFailure, metadata: ["scope": "seed", "error": error.localizedDescription])
