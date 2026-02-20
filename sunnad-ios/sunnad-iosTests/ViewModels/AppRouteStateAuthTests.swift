@@ -168,6 +168,63 @@ struct AppRouteStateAuthTests {
         #expect(await authService.recordedPasswordResetRedirect() != nil)
         #expect(state.authErrorMessage == nil)
         #expect(state.authSuccessMessage == L10n.t("auth.forgot_password.sent"))
+        #expect(state.fullScreen == .forgotPasswordOTPOnboarding)
+        #expect(state.otpFlowMode == .recovery)
+        #expect(state.otpResendSecondsRemaining > 0)
+    }
+
+    @Test
+    func recoveryOTPVerificationOpensChangePassword() async throws {
+        let verifiedUser = SessionUser(id: UUID(), email: "recover-code@example.com", username: "RecoverCode")
+        let authService = FakeAuthService(
+            currentUserValue: nil,
+            signUpRequiresEmailConfirmation: false,
+            otpVerifiedUser: verifiedUser
+        )
+        let tokenSync = FakeDeviceTokenSyncService()
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: authService,
+            deviceTokenSyncService: tokenSync
+        )
+        let state = AppRouteState(dependencies: dependencies)
+
+        state.submitPasswordResetRequest(email: "recover-code@example.com")
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.fullScreen == .forgotPasswordOTPOnboarding
+        }
+
+        state.verifyOTP(code: "654321")
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.fullScreen == .changePassword && state.user.email == "recover-code@example.com"
+        }
+
+        #expect(await authService.recordedRecoveryOTPEmail() == "recover-code@example.com")
+        #expect(await authService.recordedRecoveryOTPCode() == "654321")
+        #expect(state.fullScreen == .changePassword)
+        #expect(await tokenSync.containsSyncedUserID(verifiedUser.id))
+    }
+
+    @Test
+    func signupCallbackRoutesToTodayTab() async throws {
+        let callbackUser = SessionUser(id: UUID(), email: "signup-callback@example.com", username: "SignupCallback")
+        let authService = FakeAuthService(currentUserValue: nil, callbackUser: callbackUser)
+        let defaults = makeIsolatedUserDefaults()
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: authService,
+            deviceTokenSyncService: FakeDeviceTokenSyncService()
+        )
+        let state = AppRouteState(dependencies: dependencies, userDefaults: defaults)
+        let callbackURL = URL(string: "sunnad://auth-callback#access_token=fake&type=signup")!
+
+        state.handleIncomingURL(callbackURL)
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.user.email == "signup-callback@example.com" && state.activeTab == .today
+        }
+
+        #expect(state.activeTab == .today)
+        #expect(state.fullScreen == nil)
     }
 
     @Test
@@ -329,11 +386,11 @@ struct AppRouteStateAuthTests {
 
 actor FakeAuthService: AuthService {
     var currentUserValue: SessionUser?
-    var signInValue: SessionUser
-    var signUpRequiresEmailConfirmation: Bool
-    var otpVerifiedUser: SessionUser
-    var callbackUser: SessionUser?
-    var passwordUpdateValue: SessionUser
+    let signInValue: SessionUser
+    let signUpRequiresEmailConfirmation: Bool
+    let otpVerifiedUser: SessionUser
+    let callbackUser: SessionUser?
+    let passwordUpdateValue: SessionUser
     var signOutCalled = false
     var deleteAccountCalled = false
     var lastPasswordResetEmail: String?
@@ -343,6 +400,10 @@ actor FakeAuthService: AuthService {
     var lastOTPCode: String?
     var lastResendOTPEmail: String?
     var lastResendOTPRedirect: URL?
+    var lastRecoveryOTPEmail: String?
+    var lastRecoveryOTPCode: String?
+    var lastRecoveryResendEmail: String?
+    var lastRecoveryResendRedirect: URL?
 
     init(
         currentUserValue: SessionUser?,
@@ -370,8 +431,17 @@ actor FakeAuthService: AuthService {
     }
 
     func signIn(identifier: String, password: String) async throws -> SessionUser {
-        let user = signInValue
-        return SessionUser(id: user.id, email: identifier, username: user.username)
+        currentUserValue = signInValue
+        return signInValue
+    }
+
+    func signInWithGoogle() async throws -> SessionUser {
+        currentUserValue = signInValue
+        return signInValue
+    }
+
+    func signInWithApple() async throws -> SessionUser {
+        throw AuthServiceError.providerUnavailable("Apple")
     }
 
     func verifyEmailOTP(email: String, code: String) async throws -> SessionUser {
@@ -381,9 +451,21 @@ actor FakeAuthService: AuthService {
         return otpVerifiedUser
     }
 
+    func verifyRecoveryCode(email: String, code: String) async throws -> SessionUser {
+        lastRecoveryOTPEmail = email
+        lastRecoveryOTPCode = code
+        currentUserValue = otpVerifiedUser
+        return otpVerifiedUser
+    }
+
     func resendSignUpOTP(email: String, redirectTo: URL?) async throws {
         lastResendOTPEmail = email
         lastResendOTPRedirect = redirectTo
+    }
+
+    func resendRecoveryCode(email: String, redirectTo: URL?) async throws {
+        lastRecoveryResendEmail = email
+        lastRecoveryResendRedirect = redirectTo
     }
 
     func signOut() async throws {
@@ -450,6 +532,22 @@ actor FakeAuthService: AuthService {
 
     func recordedResendOTPRedirect() -> URL? {
         lastResendOTPRedirect
+    }
+
+    func recordedRecoveryOTPEmail() -> String? {
+        lastRecoveryOTPEmail
+    }
+
+    func recordedRecoveryOTPCode() -> String? {
+        lastRecoveryOTPCode
+    }
+
+    func recordedRecoveryResendEmail() -> String? {
+        lastRecoveryResendEmail
+    }
+
+    func recordedRecoveryResendRedirect() -> URL? {
+        lastRecoveryResendRedirect
     }
 }
 

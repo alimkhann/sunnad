@@ -4,10 +4,13 @@ enum AuthServiceError: Error, LocalizedError {
     case unavailable
     case invalidCredentials
     case invalidRecoveryLink
+    case invalidOTPCode
     case emailAlreadyInUse
     case usernameAlreadyInUse
     case weakPassword
     case emailNotConfirmed
+    case rateLimited
+    case providerUnavailable(String)
     case unknown(String)
 
     var errorDescription: String? {
@@ -18,6 +21,8 @@ enum AuthServiceError: Error, LocalizedError {
             return "Invalid email/username or password."
         case .invalidRecoveryLink:
             return "Password recovery link is invalid or expired."
+        case .invalidOTPCode:
+            return "Verification code is invalid or expired."
         case .emailAlreadyInUse:
             return "An account with this email already exists."
         case .usernameAlreadyInUse:
@@ -26,6 +31,10 @@ enum AuthServiceError: Error, LocalizedError {
             return "Password is too weak. Use at least 8 characters with mixed character types."
         case .emailNotConfirmed:
             return "Please verify your email before signing in."
+        case .rateLimited:
+            return "Too many attempts. Please wait and try again."
+        case .providerUnavailable(let provider):
+            return "\(provider) sign in is not available yet."
         case .unknown(let message):
             return message
         }
@@ -35,8 +44,12 @@ enum AuthServiceError: Error, LocalizedError {
 protocol AuthService: Sendable {
     func signUp(email: String, password: String, username: String?) async throws -> SessionUser
     func signIn(identifier: String, password: String) async throws -> SessionUser
+    func signInWithGoogle() async throws -> SessionUser
+    func signInWithApple() async throws -> SessionUser
     func verifyEmailOTP(email: String, code: String) async throws -> SessionUser
+    func verifyRecoveryCode(email: String, code: String) async throws -> SessionUser
     func resendSignUpOTP(email: String, redirectTo: URL?) async throws
+    func resendRecoveryCode(email: String, redirectTo: URL?) async throws
     func signOut() async throws
     func deleteAccount() async throws
     func requestPasswordReset(email: String, redirectTo: URL?) async throws
@@ -58,11 +71,27 @@ struct UnconfiguredAuthService: AuthService {
         throw AuthServiceError.unavailable
     }
 
+    func signInWithGoogle() async throws -> SessionUser {
+        throw AuthServiceError.unavailable
+    }
+
+    func signInWithApple() async throws -> SessionUser {
+        throw AuthServiceError.unavailable
+    }
+
     func verifyEmailOTP(email: String, code: String) async throws -> SessionUser {
         throw AuthServiceError.unavailable
     }
 
+    func verifyRecoveryCode(email: String, code: String) async throws -> SessionUser {
+        throw AuthServiceError.unavailable
+    }
+
     func resendSignUpOTP(email: String, redirectTo: URL?) async throws {
+        throw AuthServiceError.unavailable
+    }
+
+    func resendRecoveryCode(email: String, redirectTo: URL?) async throws {
         throw AuthServiceError.unavailable
     }
 

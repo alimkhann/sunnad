@@ -19,4 +19,9 @@ enum L10n {
 
         return NSLocalizedString(key, comment: "")
     }
+
+    static func t(_ key: String, _ arguments: CVarArg...) -> String {
+        let format = t(key)
+        return String(format: format, locale: Locale.current, arguments: arguments)
+    }
 }

@@ -39,6 +39,18 @@ enum AppEnvironment: String {
         let anonKey: String
     }
 
+    struct OAuthConfig {
+        let googleEnabled: Bool
+        let appleEnabled: Bool
+    }
+
+    var oauthConfig: OAuthConfig {
+        OAuthConfig(
+            googleEnabled: resolveBoolEnv("SUNNAD_AUTH_GOOGLE_ENABLED", defaultValue: true),
+            appleEnabled: resolveBoolEnv("SUNNAD_AUTH_APPLE_ENABLED", defaultValue: false)
+        )
+    }
+
     var supabaseConfig: SupabaseConfig? {
         func resolveEnv(_ names: [String]) -> String? {
             for name in names {
@@ -99,5 +111,21 @@ enum AppEnvironment: String {
         #else
         return .production
         #endif
+    }
+
+    private func resolveBoolEnv(_ key: String, defaultValue: Bool) -> Bool {
+        guard let raw = ProcessInfo.processInfo.environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else {
+            return defaultValue
+        }
+
+        switch raw.lowercased() {
+        case "1", "true", "yes":
+            return true
+        case "0", "false", "no":
+            return false
+        default:
+            return defaultValue
+        }
     }
 }

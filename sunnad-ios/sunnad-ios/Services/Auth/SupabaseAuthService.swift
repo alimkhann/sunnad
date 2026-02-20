@@ -55,6 +55,22 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         }
     }
 
+    func signInWithGoogle() async throws -> SessionUser {
+        do {
+            let session = try await client.auth.signInWithOAuth(
+                provider: .google,
+                redirectTo: authRedirectURL
+            )
+            return await sessionUser(from: session.user)
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
+    func signInWithApple() async throws -> SessionUser {
+        throw AuthServiceError.providerUnavailable("Apple")
+    }
+
     func verifyEmailOTP(email: String, code: String) async throws -> SessionUser {
         do {
             let response = try await client.auth.verifyOTP(
@@ -69,12 +85,37 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         }
     }
 
+    func verifyRecoveryCode(email: String, code: String) async throws -> SessionUser {
+        do {
+            let response = try await client.auth.verifyOTP(
+                email: email,
+                token: code,
+                type: .recovery,
+                redirectTo: authRedirectURL
+            )
+            return await sessionUser(from: response.user)
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
     func resendSignUpOTP(email: String, redirectTo: URL?) async throws {
         do {
             try await client.auth.resend(
                 email: email,
                 type: .signup,
                 emailRedirectTo: redirectTo ?? authRedirectURL
+            )
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
+    func resendRecoveryCode(email: String, redirectTo: URL?) async throws {
+        do {
+            try await client.auth.resetPasswordForEmail(
+                email,
+                redirectTo: redirectTo ?? authRedirectURL
             )
         } catch {
             throw mapAuthError(error)
@@ -245,6 +286,33 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             || message.contains("email address not authorized")
         {
             return .emailNotConfirmed
+        }
+        if message.contains("too many requests")
+            || message.contains("rate limit")
+            || message.contains("over email send rate limit")
+            || message.contains("request rate limit reached")
+            || message.contains("for security purposes")
+        {
+            return .rateLimited
+        }
+        if message.contains("provider is not enabled")
+            || message.contains("unsupported provider")
+            || message.contains("oauth provider")
+        {
+            if message.contains("google") {
+                return .providerUnavailable("Google")
+            }
+            if message.contains("apple") {
+                return .providerUnavailable("Apple")
+            }
+            return .providerUnavailable("OAuth")
+        }
+        if message.contains("invalid otp")
+            || message.contains("token not found")
+            || message.contains("otp code")
+            || message.contains("invalid token")
+        {
+            return .invalidOTPCode
         }
         if message.contains("invalid login")
             || message.contains("invalid email or password")

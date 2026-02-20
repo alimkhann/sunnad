@@ -73,6 +73,11 @@ enum OnboardingStep: String {
     case otp
 }
 
+enum OTPFlowMode: String {
+    case signup
+    case recovery
+}
+
 enum RootSheetRoute: Identifiable, Equatable {
     case addHabit
     case habitDetail(UUID)
@@ -113,6 +118,8 @@ enum FullScreenRoute: Identifiable, Equatable {
     case profileSignIn
     case profileSignUp
     case profileOTP
+    case forgotPasswordOTPOnboarding
+    case forgotPasswordOTPProfile
     case forgotPasswordOnboarding
     case forgotPasswordProfile
     case changePassword
@@ -133,6 +140,10 @@ enum FullScreenRoute: Identifiable, Equatable {
             return "profileSignUp"
         case .profileOTP:
             return "profileOTP"
+        case .forgotPasswordOTPOnboarding:
+            return "forgotPasswordOTPOnboarding"
+        case .forgotPasswordOTPProfile:
+            return "forgotPasswordOTPProfile"
         case .forgotPasswordOnboarding:
             return "forgotPasswordOnboarding"
         case .forgotPasswordProfile:

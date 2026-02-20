@@ -2,6 +2,8 @@ import SwiftUI
 
 struct OTPVerificationView: View {
     let email: String
+    let flowMode: OTPFlowMode
+    let resendSecondsRemaining: Int
     let onBack: () -> Void
     let onVerify: (String) -> Void
     let onResend: () -> Void
@@ -12,6 +14,27 @@ struct OTPVerificationView: View {
 
     @State private var code = ""
     @FocusState private var isCodeFieldFocused: Bool
+
+    private var resendEnabled: Bool {
+        resendSecondsRemaining <= 0
+    }
+
+    private var subtitlePrefix: String {
+        switch flowMode {
+        case .signup:
+            return L10n.t("auth.otp.subtitle_prefix.signup")
+        case .recovery:
+            return L10n.t("auth.otp.subtitle_prefix.recovery")
+        }
+    }
+
+    private var resendLabel: String {
+        if resendEnabled {
+            return L10n.t("auth.otp.resend")
+        }
+
+        return L10n.t("auth.otp.resend_in", resendSecondsRemaining)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -57,7 +80,7 @@ struct OTPVerificationView: View {
                         }
 
                         VStack(spacing: 4) {
-                            Text(L10n.t("auth.otp.subtitle_prefix"))
+                            Text(subtitlePrefix)
                                 .font(.title3)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
@@ -73,9 +96,11 @@ struct OTPVerificationView: View {
                             placeholder: L10n.t("auth.otp.placeholder")
                         )
 
-                        Button(L10n.t("auth.otp.resend"), action: onResend)
+                        Button(resendLabel, action: onResend)
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(SunnadTheme.primary)
+                            .disabled(!resendEnabled)
+                            .opacity(resendEnabled ? 1 : 0.55)
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 34)
