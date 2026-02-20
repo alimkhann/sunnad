@@ -6,7 +6,6 @@ struct OTPVerificationView: View {
     let onVerify: (String) -> Void
     let onResend: () -> Void
     var authErrorMessage: String? = nil
-    var authSuccessMessage: String? = nil
     var onClearMessage: (() -> Void)? = nil
     var showsBackButton: Bool = true
     var onClose: (() -> Void)? = nil
@@ -53,13 +52,6 @@ struct OTPVerificationView: View {
                                 message: authErrorMessage,
                                 icon: "exclamationmark.triangle.fill",
                                 accent: .red
-                            )
-                            .padding(.horizontal, 24)
-                        } else if let authSuccessMessage, !authSuccessMessage.isEmpty {
-                            OTPStatusToast(
-                                message: authSuccessMessage,
-                                icon: "checkmark.circle.fill",
-                                accent: .green
                             )
                             .padding(.horizontal, 24)
                         }

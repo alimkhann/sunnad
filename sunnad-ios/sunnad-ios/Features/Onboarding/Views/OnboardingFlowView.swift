@@ -72,7 +72,6 @@ struct OnboardingFlowView: View {
                 onVerify: onOTPVerify,
                 onResend: onResendOTP,
                 authErrorMessage: authErrorMessage,
-                authSuccessMessage: authSuccessMessage,
                 onClearMessage: onClearAuthError
             )
         }

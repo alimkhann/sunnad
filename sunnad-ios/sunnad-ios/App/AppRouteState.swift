@@ -997,6 +997,7 @@ final class AppRouteState: ObservableObject {
         let raw = url.absoluteString.lowercased()
         return raw.contains("access_token=")
             || raw.contains("refresh_token=")
+            || raw.contains("code=")
             || raw.contains("type=recovery")
             || raw.contains("type=signup")
     }
