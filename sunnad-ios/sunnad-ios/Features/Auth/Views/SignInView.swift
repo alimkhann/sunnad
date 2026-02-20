@@ -9,7 +9,9 @@ struct SignInView: View {
     let onSwitchToSignUp: () -> Void
     let onSubmit: (String, String) -> Void
     var authErrorMessage: String? = nil
+    var authSuccessMessage: String? = nil
     var onClearError: (() -> Void)? = nil
+    var onForgotPassword: ((String) -> Void)? = nil
     var showsBackButton: Bool = true
     var onClose: (() -> Void)? = nil
 
@@ -49,11 +51,31 @@ struct SignInView: View {
                     .frame(height: 32)
 
                 if let authErrorMessage, !authErrorMessage.isEmpty {
-                    AuthMessageToast(message: authErrorMessage)
+                    AuthStatusToast(
+                        message: authErrorMessage,
+                        icon: "exclamationmark.triangle.fill",
+                        accent: .red
+                    )
                         .padding(.bottom, 6)
+                } else if let authSuccessMessage, !authSuccessMessage.isEmpty {
+                    AuthStatusToast(
+                        message: authSuccessMessage,
+                        icon: "checkmark.circle.fill",
+                        accent: .green
+                    )
+                    .padding(.bottom, 6)
                 }
 
                 fieldsCard
+                if let onForgotPassword {
+                    Button(L10n.t("auth.forgot_password")) {
+                        onForgotPassword(trimmedIdentifier)
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(SunnadTheme.primary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.top, 4)
+                }
                 PrimaryButton(title: L10n.t("auth.sign_in"), isEnabled: canSubmit) {
                     onSubmit(trimmedIdentifier, password)
                 }
@@ -180,13 +202,15 @@ struct SignInView: View {
 
 }
 
-private struct AuthMessageToast: View {
+private struct AuthStatusToast: View {
     let message: String
+    let icon: String
+    let accent: Color
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
+            Image(systemName: icon)
+                .foregroundStyle(accent)
             Text(message)
                 .font(.footnote)
                 .foregroundStyle(.primary)
@@ -200,7 +224,7 @@ private struct AuthMessageToast: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.red.opacity(0.25), lineWidth: 1)
+                .stroke(accent.opacity(0.25), lineWidth: 1)
         )
     }
 }

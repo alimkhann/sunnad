@@ -49,8 +49,10 @@ final class AppRouteState: ObservableObject {
     @Published var selectedTemplateIDs: Set<String> = []
     @Published var pendingSignUpEmail = ""
     @Published var pendingSignUpUsername = ""
+    @Published var pendingPasswordResetEmail = ""
     @Published var todayQuote: UIQuote = UIFixtures.dailyQuote
     @Published private(set) var authErrorMessage: String?
+    @Published private(set) var authSuccessMessage: String?
     @Published private(set) var todayHabitsData: [UIHabit] = []
     @Published private(set) var completionMarksByHabit: [UUID: [Bool]] = [:]
     @Published private(set) var debugPendingReminderCount = 0
@@ -180,12 +182,12 @@ final class AppRouteState: ObservableObject {
     }
 
     func openSignIn() {
-        authErrorMessage = nil
+        clearAuthError()
         onboardingStep = .signIn
     }
 
     func openSignUp() {
-        authErrorMessage = nil
+        clearAuthError()
         onboardingStep = .signUp
     }
 
@@ -238,11 +240,13 @@ final class AppRouteState: ObservableObject {
                     password: password
                 )
                 authErrorMessage = nil
+                authSuccessMessage = nil
                 user = sessionUser.asUIUserState
                 await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
                 markOnboardingCompleted()
                 activeTab = .today
             } catch {
+                authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
                 dependencies.analyticsLogger.log(
                     .storageFailure,
@@ -267,12 +271,14 @@ final class AppRouteState: ObservableObject {
                     username: username.trimmingCharacters(in: .whitespacesAndNewlines)
                 )
                 authErrorMessage = nil
+                authSuccessMessage = nil
                 user = sessionUser.asUIUserState
                 await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
                 markOnboardingCompleted()
                 activeTab = .today
                 onboardingStep = .joinGroups
             } catch {
+                authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
                 dependencies.analyticsLogger.log(
                     .storageFailure,
@@ -283,6 +289,7 @@ final class AppRouteState: ObservableObject {
     }
 
     func verifyOTP() {
+        authSuccessMessage = nil
         user = UIUserState(isGuest: false, name: pendingSignUpUsername, email: pendingSignUpEmail)
         markOnboardingCompleted()
         activeTab = .today
@@ -399,17 +406,125 @@ final class AppRouteState: ObservableObject {
     }
 
     func openProfileSignIn() {
-        authErrorMessage = nil
+        clearAuthError()
         fullScreen = .profileSignIn
     }
 
     func openProfileSignUp() {
-        authErrorMessage = nil
+        clearAuthError()
         fullScreen = .profileSignUp
     }
 
     func clearAuthError() {
         authErrorMessage = nil
+        authSuccessMessage = nil
+    }
+
+    func openOnboardingForgotPassword(prefill identifier: String) {
+        pendingPasswordResetEmail = resolveEmailFromIdentifier(identifier)
+        clearAuthError()
+        fullScreen = .forgotPasswordOnboarding
+    }
+
+    func openProfileForgotPassword(prefill identifier: String) {
+        pendingPasswordResetEmail = resolveEmailFromIdentifier(identifier)
+        clearAuthError()
+        fullScreen = .forgotPasswordProfile
+    }
+
+    func closeOnboardingForgotPassword() {
+        clearAuthError()
+        fullScreen = nil
+    }
+
+    func closeProfileForgotPassword() {
+        clearAuthError()
+        fullScreen = .profileSignIn
+    }
+
+    func submitPasswordResetRequest(email: String) {
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        pendingPasswordResetEmail = normalizedEmail
+
+        Task {
+            do {
+                try await dependencies.authService.requestPasswordReset(
+                    email: normalizedEmail,
+                    redirectTo: dependencies.environment.authRedirectURL
+                )
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("auth.forgot_password.sent")
+                dependencies.analyticsLogger.log(
+                    .syncFinished,
+                    metadata: ["scope": "auth_password_reset", "status": "email_sent"]
+                )
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_password_reset", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func openChangePassword() {
+        clearAuthError()
+        fullScreen = .changePassword
+    }
+
+    func submitChangePassword(newPassword: String) {
+        Task {
+            do {
+                let sessionUser = try await dependencies.authService.updatePassword(newPassword: newPassword)
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("auth.change_password.updated")
+                user = sessionUser.asUIUserState
+                fullScreen = nil
+                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                await profileViewModel.load()
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_change_password", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func handleIncomingURL(_ url: URL) {
+        guard Self.isPotentialAuthCallbackURL(url) else {
+            return
+        }
+
+        Task {
+            do {
+                guard let sessionUser = try await dependencies.authService.handleAuthCallback(url: url) else {
+                    return
+                }
+
+                authErrorMessage = nil
+                authSuccessMessage = nil
+                user = sessionUser.asUIUserState
+                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                markOnboardingCompleted()
+                activeTab = .profile
+
+                if Self.isRecoveryCallbackURL(url) {
+                    fullScreen = .changePassword
+                }
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_callback", "error": error.localizedDescription]
+                )
+            }
+        }
     }
 
     func handleProfileSignIn(identifier: String, password: String) {
@@ -420,11 +535,13 @@ final class AppRouteState: ObservableObject {
                     password: password
                 )
                 authErrorMessage = nil
+                authSuccessMessage = nil
                 user = sessionUser.asUIUserState
                 await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
                 markOnboardingCompleted()
                 fullScreen = nil
             } catch {
+                authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
                 dependencies.analyticsLogger.log(
                     .storageFailure,
@@ -449,11 +566,13 @@ final class AppRouteState: ObservableObject {
                     username: username.trimmingCharacters(in: .whitespacesAndNewlines)
                 )
                 authErrorMessage = nil
+                authSuccessMessage = nil
                 user = sessionUser.asUIUserState
                 await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
                 markOnboardingCompleted()
                 fullScreen = nil
             } catch {
+                authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
                 dependencies.analyticsLogger.log(
                     .storageFailure,
@@ -464,6 +583,7 @@ final class AppRouteState: ObservableObject {
     }
 
     func verifyProfileOTP() {
+        authSuccessMessage = nil
         user = UIUserState(isGuest: false, name: pendingSignUpUsername, email: pendingSignUpEmail)
         markOnboardingCompleted()
         fullScreen = nil
@@ -480,6 +600,8 @@ final class AppRouteState: ObservableObject {
                 )
             }
 
+            authErrorMessage = nil
+            authSuccessMessage = nil
             user = .guest
         }
     }
@@ -513,6 +635,7 @@ final class AppRouteState: ObservableObject {
             pendingSignUpUsername = ""
             user = .guest
             authErrorMessage = nil
+            authSuccessMessage = nil
             markOnboardingCompleted()
             rootSheet = nil
             fullScreen = nil
@@ -759,10 +882,29 @@ final class AppRouteState: ObservableObject {
     private func restoreAuthSessionIfNeeded() async {
         if let sessionUser = await dependencies.authService.currentUser() {
             authErrorMessage = nil
+            authSuccessMessage = nil
             user = sessionUser.asUIUserState
             await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
             markOnboardingCompleted()
         }
+    }
+
+    private func resolveEmailFromIdentifier(_ identifier: String) -> String {
+        let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.contains("@") ? trimmed : ""
+    }
+
+    private static func isPotentialAuthCallbackURL(_ url: URL) -> Bool {
+        let raw = url.absoluteString.lowercased()
+        return raw.contains("access_token=")
+            || raw.contains("refresh_token=")
+            || raw.contains("type=recovery")
+            || raw.contains("type=signup")
+    }
+
+    private static func isRecoveryCallbackURL(_ url: URL) -> Bool {
+        let raw = url.absoluteString.lowercased()
+        return raw.contains("type=recovery")
     }
 
     private static func lastSevenMarks(

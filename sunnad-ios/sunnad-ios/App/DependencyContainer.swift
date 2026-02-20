@@ -48,7 +48,9 @@ final class DependencyContainer {
         }
 
         let modelContext = self.modelContainer.mainContext
-        let diagnosticsStore = LocalDiagnosticsStore(modelContext: modelContext)
+        let diagnosticsStore: LocalDiagnosticsStore? = Self.isRunningUnitTests
+            ? nil
+            : LocalDiagnosticsStore(modelContext: modelContext)
         let logger = OSLogAnalyticsLogger(diagnosticsStore: diagnosticsStore)
 
         analyticsLogger = logger
@@ -229,5 +231,9 @@ final class DependencyContainer {
             Quote(locale: "kk", text: "Ең жақсы амалдар - аз болса да, тұрақты жасалатындар.", source: "Мұхаммад Пайғамбар ﷺ (Бұхари және Мүслім)", sortOrder: 0, active: true),
             Quote(locale: "kk", text: "Қиыншылықпен бірге жеңілдік бар.", source: "Құран 94:6", sortOrder: 1, active: true)
         ]
+    }
+
+    private static var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 }
