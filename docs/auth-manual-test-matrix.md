@@ -23,6 +23,7 @@
 3. Sign out.
 4. Sign in with username + password.
 5. Confirm both succeed and session is restored after relaunch.
+6. Enter wrong password once and confirm localized invalid-credentials error is shown.
 
 ## 3) Forgot password
 1. From Sign In, open Forgot Password.
@@ -65,3 +66,26 @@
 2. Prod scheme uses prod URL/key only.
 3. User created in dev does not exist in prod.
 4. Email template behavior (link + code) is identical in local/dev/prod.
+
+## 8) Profile editing (signed-in users)
+1. Open Profile tab and tap account card.
+2. Change username to a valid lowercase value (`[a-z0-9_]{3,20}`) and save.
+3. Confirm success toast appears and account card updates immediately.
+4. Try invalid username (uppercase/spaces/symbols/too short) and confirm save remains disabled or fails with validation.
+5. Upload avatar image and confirm card updates.
+6. Remove avatar and confirm default icon restores.
+
+## 9) Delete account semantics
+1. While signed in, use `Delete Account`.
+2. Confirm copy states remote account/data deletion and local on-device data retention.
+3. Confirm app transitions to guest mode without onboarding reset.
+4. Confirm local habits/quotes still exist on device.
+5. Confirm old credentials no longer authenticate against that environment.
+
+## 10) Execution matrix
+Run sections 1-9 in:
+- local on iPhone 17 Pro simulator
+- dev on iPhone 17 Pro simulator
+- prod on iPhone 17 Pro simulator
+- dev on real device
+- prod on real device
