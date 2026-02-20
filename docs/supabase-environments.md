@@ -56,7 +56,7 @@ Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
 - `SUNNAD_AUTH_GOOGLE_ENABLED=1`
 - `SUNNAD_AUTH_APPLE_ENABLED=0`
 - `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=120`
-- `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1`
+- `SUNNAD_ENABLE_LOCAL_SUPABASE_FALLBACK=1` (optional; only for local convenience)
 
 ### Hosted dev project
 - `SUNNAD_SUPABASE_URL=https://wejnrzlxnesqhbtvgdga.supabase.co`
@@ -65,7 +65,6 @@ Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
 - `SUNNAD_AUTH_GOOGLE_ENABLED=1`
 - `SUNNAD_AUTH_APPLE_ENABLED=0`
 - `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=120`
-- `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1`
 
 ### Hosted prod project
 - `SUNNAD_SUPABASE_URL=https://artwfvypcdacdpqhciqt.supabase.co`
@@ -74,12 +73,12 @@ Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
 - `SUNNAD_AUTH_GOOGLE_ENABLED=1`
 - `SUNNAD_AUTH_APPLE_ENABLED=0`
 - `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=180`
-- `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1`
 
 Notes:
 - `SUNNAD_SUPABASE_PUBLISHABLE_KEY` is also supported; `SUNNAD_SUPABASE_ANON_KEY` is preferred in app setup.
 - Do not wrap values in quotes in Xcode env rows.
-- Keep `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1` enabled when validating a specific env so missing/wrong keys fail fast.
+- Hosted env validation now fails fast by default if URL/key are missing.
+- Set `SUNNAD_ENABLE_LOCAL_SUPABASE_FALLBACK=1` only when you intentionally want automatic local fallback in debug.
 
 ## Auth settings required for OTP/recovery (all envs)
 - Auth -> Sign In / Providers:
