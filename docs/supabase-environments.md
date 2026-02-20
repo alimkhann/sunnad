@@ -45,6 +45,8 @@ Create `dev` and `prod` GitHub environments with:
 - `SUPABASE_ACCESS_TOKEN`
 - `SUPABASE_DB_URL`
 - `SUPABASE_PROJECT_REF`
+- `SUPABASE_FUNCTIONS_ONESIGNAL_APP_ID` (only if deploying `send-nudge-push`)
+- `SUPABASE_FUNCTIONS_ONESIGNAL_REST_API_KEY` (only if deploying `send-nudge-push`)
 
 ## iOS Xcode env vars (Run/Test scheme)
 Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
@@ -136,6 +138,21 @@ Hosted dev/prod parity steps:
 - Apple (prewired only):
   - Keep disabled until Apple Developer credentials are ready.
   - App shows Apple button disabled via `SUNNAD_AUTH_APPLE_ENABLED=0`.
+
+## Edge Functions (delete-account + send-nudge-push)
+- Current function paths:
+  - `supabase/functions/delete-account/index.ts`
+  - `supabase/functions/send-nudge-push/index.ts`
+- Required runtime secrets:
+  - `SUPABASE_SERVICE_ROLE_KEY` (both functions)
+  - `ONESIGNAL_APP_ID` (`send-nudge-push`)
+  - `ONESIGNAL_REST_API_KEY` (`send-nudge-push`)
+- Set secrets per project (dev/prod) before deploy:
+  - `supabase secrets set SUPABASE_SERVICE_ROLE_KEY=... --project-ref <ref>`
+  - `supabase secrets set ONESIGNAL_APP_ID=... ONESIGNAL_REST_API_KEY=... --project-ref <ref>`
+- Deploy manually:
+  - `supabase functions deploy delete-account --project-ref <ref>`
+  - `supabase functions deploy send-nudge-push --project-ref <ref>`
 
 ## Local email testing (Mailpit)
 - Supabase local runs Mailpit at `http://127.0.0.1:54324`.

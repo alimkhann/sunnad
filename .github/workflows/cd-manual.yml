@@ -53,7 +53,7 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           shopt -s nullglob
-          functions=(functions/*)
+          functions=(supabase/functions/*)
           if [ ${#functions[@]} -eq 0 ]; then
             echo "No functions directory entries found."
             exit 0
