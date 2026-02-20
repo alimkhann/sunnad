@@ -4258,19 +4258,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This will clear your local data and return to guest mode in this UI scaffold."
+            "value": "This deletes your account and remote data. Local data on this device stays unless you use Delete Data."
           }
         },
         "kk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Бұл жергілікті деректерді тазартып, осы UI нұсқасында қонақ режиміне қайтарады."
+            "value": "Бұл тіркелгіңіз бен қашықтағы деректерді жояды. Осы құрылғыдағы жергілікті деректер Delete Data батырмасын баспайынша сақталады."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Это очистит локальные данные и вернет приложение в гостевой режим в этом UI-макете."
+            "value": "Это удалит ваш аккаунт и удаленные данные. Локальные данные на устройстве останутся, пока вы не нажмете Delete Data."
           }
         }
       }
