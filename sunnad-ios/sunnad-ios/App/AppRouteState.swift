@@ -873,6 +873,36 @@ final class AppRouteState: ObservableObject {
         }
     }
 
+    func renameGroup(groupID: UUID, name: String) {
+        Task {
+            await groupsViewModel.renameGroup(groupID: groupID, name: name)
+        }
+    }
+
+    func setGroupJoinLock(groupID: UUID, locked: Bool) {
+        Task {
+            await groupsViewModel.setGroupJoinLock(groupID: groupID, locked: locked)
+        }
+    }
+
+    func rotateGroupInviteCode(groupID: UUID) {
+        Task {
+            await groupsViewModel.rotateInviteCode(groupID: groupID)
+        }
+    }
+
+    func refreshGroups() async {
+        await groupsViewModel.refresh()
+    }
+
+    func refreshGroup(_ groupID: UUID) async {
+        await groupsViewModel.refreshGroup(groupID: groupID)
+    }
+
+    func sendGroupNudge(groupID: UUID, memberID: UUID, habitID: UUID) async -> GroupNudgeStatus {
+        await groupsViewModel.sendNudge(groupID: groupID, memberID: memberID, habitID: habitID)
+    }
+
     private func handleOAuthSignIn(using provider: OAuthProvider, fromProfileSurface: Bool) {
         switch provider {
         case .google where !dependencies.environment.oauthConfig.googleEnabled:
@@ -1193,7 +1223,6 @@ final class AppRouteState: ObservableObject {
             }
 
             try await dependencies.quotesRepository.deleteAllSavedQuotes()
-            try await dependencies.groupsRepository.replaceGroups([])
 
             habits = []
             todayHabitsData = []

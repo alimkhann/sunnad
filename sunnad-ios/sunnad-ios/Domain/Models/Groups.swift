@@ -1,6 +1,13 @@
 import Combine
 import Foundation
 
+enum GroupNudgeStatus: String, Codable, Hashable, Sendable {
+    case sent
+    case duplicate
+    case forbidden
+    case error
+}
+
 struct SharedHabit: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     var habitID: UUID
@@ -52,6 +59,7 @@ struct Group: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     var name: String
     var code: String
+    var joinLocked: Bool
     var members: [GroupMember]
     var sharedHabitIDs: Set<UUID>
     var ownerMemberID: UUID
@@ -61,6 +69,7 @@ struct Group: Identifiable, Codable, Hashable, Sendable {
         id: UUID = UUID(),
         name: String,
         code: String,
+        joinLocked: Bool = false,
         members: [GroupMember],
         sharedHabitIDs: Set<UUID>,
         ownerMemberID: UUID? = nil,
@@ -69,6 +78,7 @@ struct Group: Identifiable, Codable, Hashable, Sendable {
         self.id = id
         self.name = name
         self.code = code
+        self.joinLocked = joinLocked
         self.members = members
         self.sharedHabitIDs = sharedHabitIDs
         self.ownerMemberID = ownerMemberID ?? members.first?.id ?? UUID()

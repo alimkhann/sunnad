@@ -74,3 +74,45 @@ struct JoinGroupSheet: View {
         }
     }
 }
+
+struct RenameGroupSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+
+    let onSave: (String) -> Void
+
+    init(initialName: String, onSave: @escaping (String) -> Void) {
+        _name = State(initialValue: initialName)
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScreenScaffold(title: nil, titleDisplayMode: .inline, contentTopPadding: 8) {
+                Card {
+                    TextField(L10n.t("groups.group_name_placeholder"), text: $name)
+                        .textFieldStyle(.plain)
+                        .padding(.vertical, 6)
+                }
+            }
+            .navigationTitle(L10n.t("common.edit"))
+            .navigationBarTitleDisplayMode(.inline)
+            .sunnadSolidBars()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L10n.t("common.cancel")) { dismiss() }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L10n.t("common.save")) {
+                        onSave(name.trimmingCharacters(in: .whitespacesAndNewlines))
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .presentationDetents([.height(230)])
+            .presentationDragIndicator(.visible)
+        }
+    }
+}

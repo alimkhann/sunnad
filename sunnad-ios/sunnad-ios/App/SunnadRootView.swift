@@ -73,14 +73,20 @@ struct SunnadRootView: View {
                     groups: state.groupsViewModel.groups,
                     user: state.groupsViewModel.user,
                     habits: state.groupsViewModel.habits,
+                    onRefresh: state.refreshGroups,
                     onCreateGroup: { state.rootSheet = .createGroup },
                     onJoinGroup: { state.rootSheet = .joinGroup },
                     onSignIn: state.signInFromGroups,
                     onUpdateGroupSharing: state.updateGroupSharing,
                     onToggleOwnHabit: state.toggleHabit,
+                    onSendReminder: state.sendGroupNudge,
                     onLeaveGroup: state.leaveGroup,
                     onDeleteGroup: state.deleteGroup,
                     onKickMember: state.kickMember,
+                    onRenameGroup: state.renameGroup,
+                    onSetJoinLock: state.setGroupJoinLock,
+                    onRotateInviteCode: state.rotateGroupInviteCode,
+                    onRefreshGroup: state.refreshGroup,
                     currentGroupSharedHabitIDs: { groupID in
                         state.groupsViewModel.currentGroupSharedHabitIDs(for: groupID)
                     }

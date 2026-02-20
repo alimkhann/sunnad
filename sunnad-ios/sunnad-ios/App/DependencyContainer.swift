@@ -16,7 +16,7 @@ final class DependencyContainer {
     let habitsRepository: HabitsLocalRepository
     let completionsRepository: CompletionsLocalRepository
     let quotesRepository: QuotesLocalRepository
-    let groupsRepository: GroupsLocalRepository
+    let groupsRepository: GroupsRepository
     let reminderScheduler: LocalReminderScheduling
     let authService: AuthService
     let deviceTokenSyncService: DeviceTokenSyncing
@@ -57,7 +57,6 @@ final class DependencyContainer {
         habitsRepository = HabitsLocalRepository(modelContext: modelContext, logger: logger)
         completionsRepository = CompletionsLocalRepository(modelContext: modelContext, logger: logger)
         quotesRepository = QuotesLocalRepository(modelContext: modelContext, logger: logger)
-        groupsRepository = GroupsLocalRepository()
         reminderScheduler = UserNotificationReminderScheduler(logger: logger)
 
         let resolvedSupabase = Self.resolvedSupabaseConfig(
@@ -65,10 +64,22 @@ final class DependencyContainer {
             userDefaults: userDefaults
         )
 
+        let supabaseClient: SupabaseClient?
+        if let config = resolvedSupabase {
+            supabaseClient = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
+        } else {
+            supabaseClient = nil
+        }
+
+        if let client = supabaseClient {
+            groupsRepository = SupabaseGroupsRepository(client: client, logger: logger)
+        } else {
+            groupsRepository = GroupsLocalRepository()
+        }
+
         if let authService {
             self.authService = authService
-        } else if let config = resolvedSupabase {
-            let client = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
+        } else if let config = resolvedSupabase, let client = supabaseClient {
             self.authService = SupabaseAuthService(
                 client: client,
                 supabaseURL: config.url,
@@ -86,8 +97,7 @@ final class DependencyContainer {
 
         if let deviceTokenSyncService {
             self.deviceTokenSyncService = deviceTokenSyncService
-        } else if let config = resolvedSupabase {
-            let client = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
+        } else if let client = supabaseClient {
             self.deviceTokenSyncService = SupabaseDeviceTokenSyncService(client: client, logger: logger)
         } else {
             self.deviceTokenSyncService = NoOpDeviceTokenSyncService()
