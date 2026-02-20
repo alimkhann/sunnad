@@ -3,7 +3,11 @@ import SwiftUI
 struct OTPVerificationView: View {
     let email: String
     let onBack: () -> Void
-    let onVerify: () -> Void
+    let onVerify: (String) -> Void
+    let onResend: () -> Void
+    var authErrorMessage: String? = nil
+    var authSuccessMessage: String? = nil
+    var onClearMessage: (() -> Void)? = nil
     var showsBackButton: Bool = true
     var onClose: (() -> Void)? = nil
 
@@ -44,6 +48,22 @@ struct OTPVerificationView: View {
 
                 VStack(spacing: 0) {
                     VStack(spacing: 24) {
+                        if let authErrorMessage, !authErrorMessage.isEmpty {
+                            OTPStatusToast(
+                                message: authErrorMessage,
+                                icon: "exclamationmark.triangle.fill",
+                                accent: .red
+                            )
+                            .padding(.horizontal, 24)
+                        } else if let authSuccessMessage, !authSuccessMessage.isEmpty {
+                            OTPStatusToast(
+                                message: authSuccessMessage,
+                                icon: "checkmark.circle.fill",
+                                accent: .green
+                            )
+                            .padding(.horizontal, 24)
+                        }
+
                         VStack(spacing: 4) {
                             Text(L10n.t("auth.otp.subtitle_prefix"))
                                 .font(.title3)
@@ -61,7 +81,7 @@ struct OTPVerificationView: View {
                             placeholder: L10n.t("auth.otp.placeholder")
                         )
 
-                        Button(L10n.t("auth.otp.resend")) {}
+                        Button(L10n.t("auth.otp.resend"), action: onResend)
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(SunnadTheme.primary)
                     }
@@ -70,7 +90,12 @@ struct OTPVerificationView: View {
 
                     Spacer(minLength: 20)
 
-                    PrimaryButton(title: L10n.t("auth.otp.verify"), action: onVerify)
+                    PrimaryButton(
+                        title: L10n.t("auth.otp.verify"),
+                        isEnabled: code.count == 6
+                    ) {
+                        onVerify(code)
+                    }
                         .padding(.horizontal, 24)
                         .padding(.bottom, max(16, proxy.safeAreaInsets.bottom + 8))
                 }
@@ -83,6 +108,9 @@ struct OTPVerificationView: View {
                 }
                 #endif
                 isCodeFieldFocused = true
+            }
+            .onChange(of: code) { _, _ in
+                onClearMessage?()
             }
         }
     }
@@ -150,5 +178,32 @@ private struct OTPCodeBoxesView: View {
             return nil
         }
         return code.count
+    }
+}
+
+private struct OTPStatusToast: View {
+    let message: String
+    let icon: String
+    let accent: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(accent)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.primary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(accent.opacity(0.25), lineWidth: 1)
+        )
     }
 }

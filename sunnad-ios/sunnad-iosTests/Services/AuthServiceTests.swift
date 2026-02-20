@@ -20,6 +20,14 @@ struct AuthServiceTests {
         }
 
         await #expect(throws: AuthServiceError.self) {
+            _ = try await service.verifyEmailOTP(email: "user@example.com", code: "123456")
+        }
+
+        await #expect(throws: AuthServiceError.self) {
+            try await service.resendSignUpOTP(email: "user@example.com", redirectTo: nil)
+        }
+
+        await #expect(throws: AuthServiceError.self) {
             _ = try await service.updatePassword(newPassword: "NewPassword123!")
         }
 

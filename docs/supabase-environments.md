@@ -45,3 +45,37 @@ Create `dev` and `prod` GitHub environments with:
 - `SUPABASE_ACCESS_TOKEN`
 - `SUPABASE_DB_URL`
 - `SUPABASE_PROJECT_REF`
+
+## iOS Xcode env vars (Run/Test scheme)
+Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
+
+### Local Supabase
+- `SUNNAD_SUPABASE_URL=http://127.0.0.1:55421`
+- `SUNNAD_SUPABASE_ANON_KEY=<local publishable/anon key from supabase start>`
+- `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
+- `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1`
+
+### Hosted dev project
+- `SUNNAD_SUPABASE_URL=https://wejnrzlxnesqhbtvgdga.supabase.co`
+- `SUNNAD_SUPABASE_ANON_KEY=<sunnad-dev anon/publishable key>`
+- `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
+- `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1`
+
+### Hosted prod project
+- `SUNNAD_SUPABASE_URL=https://artwfvypcdacdpqhciqt.supabase.co`
+- `SUNNAD_SUPABASE_ANON_KEY=<sunnad-prod anon/publishable key>`
+- `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
+- `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1`
+
+Notes:
+- `SUNNAD_SUPABASE_PUBLISHABLE_KEY` is also supported; `SUNNAD_SUPABASE_ANON_KEY` is preferred in app setup.
+- Do not wrap values in quotes in Xcode env rows.
+- Keep `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1` enabled when validating a specific env so missing/wrong keys fail fast.
+
+## Auth settings required for OTP/recovery (all envs)
+- Auth -> Sign In / Providers:
+  - `Allow new users to sign up`: enabled
+  - `Confirm email`: enabled
+- Auth -> URL Configuration:
+  - Add redirect URL: `sunnad://auth-callback`
+- Recovery and signup confirmations now use `sunnad://auth-callback` so no web domain is required for mobile auth flows.

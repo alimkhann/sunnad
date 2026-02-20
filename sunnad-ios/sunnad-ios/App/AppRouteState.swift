@@ -264,11 +264,53 @@ final class AppRouteState: ObservableObject {
         }
 
         Task {
+            let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
             do {
                 let sessionUser = try await dependencies.authService.signUp(
-                    email: email.trimmingCharacters(in: .whitespacesAndNewlines),
+                    email: normalizedEmail,
                     password: password,
-                    username: username.trimmingCharacters(in: .whitespacesAndNewlines)
+                    username: normalizedUsername
+                )
+                authErrorMessage = nil
+                authSuccessMessage = nil
+                user = sessionUser.asUIUserState
+                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                markOnboardingCompleted()
+                activeTab = .today
+                onboardingStep = .joinGroups
+            } catch {
+                if case AuthServiceError.emailNotConfirmed = error {
+                    pendingSignUpEmail = normalizedEmail
+                    pendingSignUpUsername = normalizedUsername
+                    authErrorMessage = nil
+                    authSuccessMessage = L10n.t("auth.otp.sent")
+                    onboardingStep = .otp
+                    return
+                }
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_sign_up", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func verifyOTP(code: String) {
+        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = pendingSignUpEmail
+        guard !email.isEmpty else {
+            authErrorMessage = AuthServiceError.invalidCredentials.localizedDescription
+            return
+        }
+
+        Task {
+            do {
+                let sessionUser = try await dependencies.authService.verifyEmailOTP(
+                    email: email,
+                    code: normalizedCode
                 )
                 authErrorMessage = nil
                 authSuccessMessage = nil
@@ -282,17 +324,36 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = error.localizedDescription
                 dependencies.analyticsLogger.log(
                     .storageFailure,
-                    metadata: ["scope": "auth_sign_up", "error": error.localizedDescription]
+                    metadata: ["scope": "auth_verify_otp", "error": error.localizedDescription]
                 )
             }
         }
     }
 
-    func verifyOTP() {
-        authSuccessMessage = nil
-        user = UIUserState(isGuest: false, name: pendingSignUpUsername, email: pendingSignUpEmail)
-        markOnboardingCompleted()
-        activeTab = .today
+    func resendOTP() {
+        let email = pendingSignUpEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !email.isEmpty else {
+            authErrorMessage = AuthServiceError.invalidCredentials.localizedDescription
+            return
+        }
+
+        Task {
+            do {
+                try await dependencies.authService.resendSignUpOTP(
+                    email: email,
+                    redirectTo: dependencies.environment.authRedirectURL
+                )
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("auth.otp.resent")
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_resend_otp", "error": error.localizedDescription]
+                )
+            }
+        }
     }
 
     func toggleTodayHabit(_ habitID: UUID) {
@@ -559,11 +620,52 @@ final class AppRouteState: ObservableObject {
         }
 
         Task {
+            let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
             do {
                 let sessionUser = try await dependencies.authService.signUp(
-                    email: email.trimmingCharacters(in: .whitespacesAndNewlines),
+                    email: normalizedEmail,
                     password: password,
-                    username: username.trimmingCharacters(in: .whitespacesAndNewlines)
+                    username: normalizedUsername
+                )
+                authErrorMessage = nil
+                authSuccessMessage = nil
+                user = sessionUser.asUIUserState
+                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                markOnboardingCompleted()
+                fullScreen = nil
+            } catch {
+                if case AuthServiceError.emailNotConfirmed = error {
+                    pendingSignUpEmail = normalizedEmail
+                    pendingSignUpUsername = normalizedUsername
+                    authErrorMessage = nil
+                    authSuccessMessage = L10n.t("auth.otp.sent")
+                    fullScreen = .profileOTP
+                    return
+                }
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_profile_sign_up", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func verifyProfileOTP(code: String) {
+        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = pendingSignUpEmail
+        guard !email.isEmpty else {
+            authErrorMessage = AuthServiceError.invalidCredentials.localizedDescription
+            return
+        }
+
+        Task {
+            do {
+                let sessionUser = try await dependencies.authService.verifyEmailOTP(
+                    email: email,
+                    code: normalizedCode
                 )
                 authErrorMessage = nil
                 authSuccessMessage = nil
@@ -576,17 +678,14 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = error.localizedDescription
                 dependencies.analyticsLogger.log(
                     .storageFailure,
-                    metadata: ["scope": "auth_profile_sign_up", "error": error.localizedDescription]
+                    metadata: ["scope": "auth_profile_verify_otp", "error": error.localizedDescription]
                 )
             }
         }
     }
 
-    func verifyProfileOTP() {
-        authSuccessMessage = nil
-        user = UIUserState(isGuest: false, name: pendingSignUpUsername, email: pendingSignUpEmail)
-        markOnboardingCompleted()
-        fullScreen = nil
+    func resendProfileOTP() {
+        resendOTP()
     }
 
     func signOut() {
