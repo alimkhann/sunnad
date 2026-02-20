@@ -82,6 +82,7 @@ struct AppRouteStateAuthTests {
         #expect(state.user.isGuest)
         #expect(state.showsOnboarding == false)
         #expect(state.activeTab == .profile)
+        #expect(authService.deleteAccountCalled)
     }
 
     private func waitUntil(timeoutNanoseconds: UInt64, condition: @escaping @MainActor () -> Bool) async -> Bool {
@@ -100,6 +101,7 @@ final class FakeAuthService: AuthService, @unchecked Sendable {
     var currentUserValue: SessionUser?
     var signInValue: SessionUser
     var signOutCalled = false
+    var deleteAccountCalled = false
 
     init(
         currentUserValue: SessionUser?,
@@ -119,6 +121,11 @@ final class FakeAuthService: AuthService, @unchecked Sendable {
 
     func signOut() async throws {
         signOutCalled = true
+        currentUserValue = nil
+    }
+
+    func deleteAccount() async throws {
+        deleteAccountCalled = true
         currentUserValue = nil
     }
 

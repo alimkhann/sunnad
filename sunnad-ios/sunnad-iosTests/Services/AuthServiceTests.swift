@@ -11,6 +11,10 @@ struct AuthServiceTests {
             _ = try await service.signIn(identifier: "user@example.com", password: "password")
         }
 
+        await #expect(throws: AuthServiceError.self) {
+            try await service.deleteAccount()
+        }
+
         let currentUser = await service.currentUser()
         #expect(currentUser == nil)
     }
