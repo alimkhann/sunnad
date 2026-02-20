@@ -6,6 +6,7 @@ struct OnboardingFlowView: View {
 
     let pendingEmail: String
     let authErrorMessage: String?
+    let authSuccessMessage: String?
     let onOpenLanguagePicker: () -> Void
     let onCompleteTemplateSelection: () -> Void
     let onEnableNotifications: () -> Void
@@ -16,6 +17,7 @@ struct OnboardingFlowView: View {
     let onSignIn: (String, String) -> Void
     let onSignUp: (String, String, String, String) -> Void
     let onOTPVerify: () -> Void
+    let onOpenForgotPassword: (String) -> Void
     let onClearAuthError: () -> Void
 
     var body: some View {
@@ -50,7 +52,9 @@ struct OnboardingFlowView: View {
                 onSwitchToSignUp: onOpenSignUp,
                 onSubmit: onSignIn,
                 authErrorMessage: authErrorMessage,
-                onClearError: onClearAuthError
+                authSuccessMessage: authSuccessMessage,
+                onClearError: onClearAuthError,
+                onForgotPassword: onOpenForgotPassword
             )
         case .signUp:
             SignUpView(

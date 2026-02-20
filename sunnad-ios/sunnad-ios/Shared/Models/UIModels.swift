@@ -113,6 +113,9 @@ enum FullScreenRoute: Identifiable, Equatable {
     case profileSignIn
     case profileSignUp
     case profileOTP
+    case forgotPasswordOnboarding
+    case forgotPasswordProfile
+    case changePassword
 
     var id: String {
         switch self {
@@ -130,6 +133,12 @@ enum FullScreenRoute: Identifiable, Equatable {
             return "profileSignUp"
         case .profileOTP:
             return "profileOTP"
+        case .forgotPasswordOnboarding:
+            return "forgotPasswordOnboarding"
+        case .forgotPasswordProfile:
+            return "forgotPasswordProfile"
+        case .changePassword:
+            return "changePassword"
         }
     }
 }

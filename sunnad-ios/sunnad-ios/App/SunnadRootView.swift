@@ -15,6 +15,7 @@ struct SunnadRootView: View {
                     selectedTemplateIDs: $state.selectedTemplateIDs,
                     pendingEmail: state.pendingSignUpEmail,
                     authErrorMessage: state.authErrorMessage,
+                    authSuccessMessage: state.authSuccessMessage,
                     onOpenLanguagePicker: { state.rootSheet = .languagePicker },
                     onCompleteTemplateSelection: { state.completeTemplateSelection() },
                     onEnableNotifications: state.enableOnboardingNotifications,
@@ -25,6 +26,7 @@ struct SunnadRootView: View {
                     onSignIn: state.handleSignIn,
                     onSignUp: state.handleSignUp,
                     onOTPVerify: state.verifyOTP,
+                    onOpenForgotPassword: state.openOnboardingForgotPassword,
                     onClearAuthError: state.clearAuthError
                 )
             } else {
@@ -35,6 +37,7 @@ struct SunnadRootView: View {
         .preferredColorScheme(state.appearance.colorScheme)
         .sheet(item: $state.rootSheet, content: sheetView)
         .fullScreenCover(item: $state.fullScreen, content: fullScreenView)
+        .onOpenURL(perform: state.handleIncomingURL)
     }
 
     private var mainTabs: some View {
@@ -97,6 +100,7 @@ struct SunnadRootView: View {
                     onOpenInsights: { state.fullScreen = .insightsPlaceholder },
                     onSignIn: state.openProfileSignIn,
                     onSignOut: state.signOut,
+                    onChangePassword: state.openChangePassword,
                     onDeleteData: state.deleteData,
                     onDeleteAccount: state.deleteAccount,
                     privacyURL: state.privacyURL,
@@ -212,7 +216,9 @@ struct SunnadRootView: View {
                 onSwitchToSignUp: state.openProfileSignUp,
                 onSubmit: state.handleProfileSignIn,
                 authErrorMessage: state.authErrorMessage,
+                authSuccessMessage: state.authSuccessMessage,
                 onClearError: state.clearAuthError,
+                onForgotPassword: state.openProfileForgotPassword,
                 showsBackButton: false,
                 onClose: { state.fullScreen = nil }
             )
@@ -225,6 +231,31 @@ struct SunnadRootView: View {
                 onClearError: state.clearAuthError,
                 showsBackButton: false,
                 onClose: { state.fullScreen = nil }
+            )
+        case .forgotPasswordOnboarding:
+            ForgotPasswordView(
+                initialEmail: state.pendingPasswordResetEmail,
+                onBack: state.closeOnboardingForgotPassword,
+                onSubmit: state.submitPasswordResetRequest,
+                authErrorMessage: state.authErrorMessage,
+                authSuccessMessage: state.authSuccessMessage,
+                onClearMessage: state.clearAuthError
+            )
+        case .forgotPasswordProfile:
+            ForgotPasswordView(
+                initialEmail: state.pendingPasswordResetEmail,
+                onBack: state.closeProfileForgotPassword,
+                onSubmit: state.submitPasswordResetRequest,
+                authErrorMessage: state.authErrorMessage,
+                authSuccessMessage: state.authSuccessMessage,
+                onClearMessage: state.clearAuthError
+            )
+        case .changePassword:
+            ChangePasswordView(
+                onBack: { state.fullScreen = nil },
+                onSubmit: state.submitChangePassword,
+                authErrorMessage: state.authErrorMessage,
+                onClearMessage: state.clearAuthError
             )
         case .profileOTP:
             OTPVerificationView(

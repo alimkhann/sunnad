@@ -15,6 +15,18 @@ struct AuthServiceTests {
             try await service.deleteAccount()
         }
 
+        await #expect(throws: AuthServiceError.self) {
+            try await service.requestPasswordReset(email: "user@example.com", redirectTo: nil)
+        }
+
+        await #expect(throws: AuthServiceError.self) {
+            _ = try await service.updatePassword(newPassword: "NewPassword123!")
+        }
+
+        await #expect(throws: AuthServiceError.self) {
+            _ = try await service.handleAuthCallback(url: URL(string: "sunnad://auth-callback")!)
+        }
+
         let currentUser = await service.currentUser()
         #expect(currentUser == nil)
     }

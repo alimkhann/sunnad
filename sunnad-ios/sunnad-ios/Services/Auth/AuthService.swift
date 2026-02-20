@@ -3,6 +3,7 @@ import Foundation
 enum AuthServiceError: Error, LocalizedError {
     case unavailable
     case invalidCredentials
+    case invalidRecoveryLink
     case emailAlreadyInUse
     case usernameAlreadyInUse
     case weakPassword
@@ -15,6 +16,8 @@ enum AuthServiceError: Error, LocalizedError {
             return "Authentication is not configured."
         case .invalidCredentials:
             return "Invalid email/username or password."
+        case .invalidRecoveryLink:
+            return "Password recovery link is invalid or expired."
         case .emailAlreadyInUse:
             return "An account with this email already exists."
         case .usernameAlreadyInUse:
@@ -34,6 +37,9 @@ protocol AuthService: Sendable {
     func signIn(identifier: String, password: String) async throws -> SessionUser
     func signOut() async throws
     func deleteAccount() async throws
+    func requestPasswordReset(email: String, redirectTo: URL?) async throws
+    func updatePassword(newPassword: String) async throws -> SessionUser
+    func handleAuthCallback(url: URL) async throws -> SessionUser?
     func currentUser() async -> SessionUser?
 }
 
@@ -53,6 +59,18 @@ struct UnconfiguredAuthService: AuthService {
     func signOut() async throws {}
 
     func deleteAccount() async throws {
+        throw AuthServiceError.unavailable
+    }
+
+    func requestPasswordReset(email: String, redirectTo: URL?) async throws {
+        throw AuthServiceError.unavailable
+    }
+
+    func updatePassword(newPassword: String) async throws -> SessionUser {
+        throw AuthServiceError.unavailable
+    }
+
+    func handleAuthCallback(url: URL) async throws -> SessionUser? {
         throw AuthServiceError.unavailable
     }
 

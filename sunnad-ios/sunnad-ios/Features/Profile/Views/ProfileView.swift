@@ -16,6 +16,7 @@ struct ProfileView: View {
     let onOpenInsights: () -> Void
     let onSignIn: () -> Void
     let onSignOut: () -> Void
+    let onChangePassword: () -> Void
     let onDeleteData: () -> Void
     let onDeleteAccount: () -> Void
     let privacyURL: URL
@@ -104,6 +105,13 @@ struct ProfileView: View {
                         title: L10n.t("profile.notifications"),
                         action: { showsNotificationSettings = true }
                     )
+                    if !user.isGuest {
+                        Divider().padding(.leading, 16)
+                        profileLinkRow(
+                            title: L10n.t("profile.change_password"),
+                            action: onChangePassword
+                        )
+                    }
                     Divider().padding(.leading, 16)
                     externalLinkRow(
                         title: L10n.t("profile.privacy"),

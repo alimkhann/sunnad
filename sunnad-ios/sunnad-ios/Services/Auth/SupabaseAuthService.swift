@@ -67,6 +67,37 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         }
     }
 
+    func requestPasswordReset(email: String, redirectTo: URL?) async throws {
+        do {
+            try await client.auth.resetPasswordForEmail(
+                email,
+                redirectTo: redirectTo
+            )
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
+    func updatePassword(newPassword: String) async throws -> SessionUser {
+        do {
+            let user = try await client.auth.update(
+                user: UserAttributes(password: newPassword)
+            )
+            return await sessionUser(from: user)
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
+    func handleAuthCallback(url: URL) async throws -> SessionUser? {
+        do {
+            let session = try await client.auth.session(from: url)
+            return await sessionUser(from: session.user)
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
     func currentUser() async -> SessionUser? {
         if let user = client.auth.currentUser {
             return await sessionUser(from: user)
@@ -188,6 +219,14 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             || message.contains("invalid credentials")
         {
             return .invalidCredentials
+        }
+        if message.contains("otp_expired")
+            || message.contains("flow state")
+            || message.contains("invalid flow state")
+            || message.contains("expired")
+            || message.contains("token has expired")
+        {
+            return .invalidRecoveryLink
         }
         return .unknown(error.localizedDescription)
     }
