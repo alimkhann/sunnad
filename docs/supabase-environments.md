@@ -53,18 +53,24 @@ Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
 - `SUNNAD_SUPABASE_URL=http://127.0.0.1:55421`
 - `SUNNAD_SUPABASE_ANON_KEY=<local publishable/anon key from supabase start>`
 - `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
+- `SUNNAD_AUTH_GOOGLE_ENABLED=1`
+- `SUNNAD_AUTH_APPLE_ENABLED=0`
 - `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1`
 
 ### Hosted dev project
 - `SUNNAD_SUPABASE_URL=https://wejnrzlxnesqhbtvgdga.supabase.co`
 - `SUNNAD_SUPABASE_ANON_KEY=<sunnad-dev anon/publishable key>`
 - `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
+- `SUNNAD_AUTH_GOOGLE_ENABLED=1`
+- `SUNNAD_AUTH_APPLE_ENABLED=0`
 - `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1`
 
 ### Hosted prod project
 - `SUNNAD_SUPABASE_URL=https://artwfvypcdacdpqhciqt.supabase.co`
 - `SUNNAD_SUPABASE_ANON_KEY=<sunnad-prod anon/publishable key>`
 - `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
+- `SUNNAD_AUTH_GOOGLE_ENABLED=1`
+- `SUNNAD_AUTH_APPLE_ENABLED=0`
 - `SUNNAD_DISABLE_LOCAL_SUPABASE_FALLBACK=1`
 
 Notes:
@@ -80,6 +86,40 @@ Notes:
   - Add redirect URL: `sunnad://auth-callback`
 - Recovery and signup confirmations now use `sunnad://auth-callback` so no web domain is required for mobile auth flows.
 
+## Email template parity checklist (local/dev/prod)
+Use the same content in local template files and hosted dashboard templates:
+- Confirmation email includes:
+  - `{{ .ConfirmationURL }}`
+  - `{{ .Token }}`
+- Recovery email includes:
+  - `{{ .ConfirmationURL }}`
+  - `{{ .Token }}`
+
+Local source-of-truth files:
+- `supabase/templates/auth/confirmation.html`
+- `supabase/templates/auth/recovery.html`
+
+Local CLI config references:
+- `supabase/config.toml`:
+  - `[auth.email.template.confirmation]`
+  - `[auth.email.template.recovery]`
+
+Hosted dev/prod parity steps:
+1. Open Supabase Dashboard -> Auth -> Email Templates.
+2. Update `Confirm signup` with confirmation template content.
+3. Update `Reset password` with recovery template content.
+4. Save in both `sunnad-dev` and `sunnad-prod`.
+
+## OAuth provider checklist
+- Google (enabled now):
+  - Auth -> Sign In / Providers -> Google: enabled.
+  - Use provider credentials from Google Cloud OAuth app.
+  - Callback URL in Google console:
+    - `https://<project-ref>.supabase.co/auth/v1/callback`
+- Apple (prewired only):
+  - Keep disabled until Apple Developer credentials are ready.
+  - App shows Apple button disabled via `SUNNAD_AUTH_APPLE_ENABLED=0`.
+
 ## Local email testing (Mailpit)
 - Supabase local runs Mailpit at `http://127.0.0.1:54324`.
 - Inbox UI: open `http://127.0.0.1:54324`.
@@ -92,4 +132,6 @@ Notes:
   - `scripts/dev/mailpit_open_latest_link_sim.sh confirm`
   - `scripts/dev/mailpit_open_latest_link_sim.sh reset`
 - The helper prints recipient, subject, extracted `sunnad://auth-callback...` deep link, and OTP code (if present).
-- Recovery flow is link-first: open the reset link in simulator Safari and it should redirect into app to the Change Password screen.
+- Recovery flow supports both:
+  - link-first: open reset link in simulator Safari -> app opens Change Password flow.
+  - code-first: copy OTP code and verify in app recovery OTP screen.

@@ -5,8 +5,12 @@ struct OnboardingFlowView: View {
     @Binding var selectedTemplateIDs: Set<String>
 
     let pendingEmail: String
+    let otpFlowMode: OTPFlowMode
+    let otpResendSecondsRemaining: Int
     let authErrorMessage: String?
     let authSuccessMessage: String?
+    let googleAuthEnabled: Bool
+    let appleAuthEnabled: Bool
     let onOpenLanguagePicker: () -> Void
     let onCompleteTemplateSelection: () -> Void
     let onEnableNotifications: () -> Void
@@ -16,6 +20,10 @@ struct OnboardingFlowView: View {
     let onOpenSignUp: () -> Void
     let onSignIn: (String, String) -> Void
     let onSignUp: (String, String, String, String) -> Void
+    let onGoogleSignIn: () -> Void
+    let onGoogleSignUp: () -> Void
+    let onAppleSignIn: () -> Void
+    let onAppleSignUp: () -> Void
     let onOTPVerify: (String) -> Void
     let onResendOTP: () -> Void
     let onOpenForgotPassword: (String) -> Void
@@ -52,6 +60,10 @@ struct OnboardingFlowView: View {
                 onBack: { step = .joinGroups },
                 onSwitchToSignUp: onOpenSignUp,
                 onSubmit: onSignIn,
+                onGoogle: onGoogleSignIn,
+                onApple: onAppleSignIn,
+                isGoogleEnabled: googleAuthEnabled,
+                isAppleEnabled: appleAuthEnabled,
                 authErrorMessage: authErrorMessage,
                 authSuccessMessage: authSuccessMessage,
                 onClearError: onClearAuthError,
@@ -62,12 +74,18 @@ struct OnboardingFlowView: View {
                 onBack: { step = .joinGroups },
                 onSwitchToSignIn: onOpenSignIn,
                 onSubmit: onSignUp,
+                onGoogle: onGoogleSignUp,
+                onApple: onAppleSignUp,
+                isGoogleEnabled: googleAuthEnabled,
+                isAppleEnabled: appleAuthEnabled,
                 authErrorMessage: authErrorMessage,
                 onClearError: onClearAuthError
             )
         case .otp:
             OTPVerificationView(
                 email: pendingEmail,
+                flowMode: otpFlowMode,
+                resendSecondsRemaining: otpResendSecondsRemaining,
                 onBack: { step = .signUp },
                 onVerify: onOTPVerify,
                 onResend: onResendOTP,

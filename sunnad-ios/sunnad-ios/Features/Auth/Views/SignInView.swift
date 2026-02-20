@@ -8,6 +8,10 @@ struct SignInView: View {
     let onBack: () -> Void
     let onSwitchToSignUp: () -> Void
     let onSubmit: (String, String) -> Void
+    let onGoogle: () -> Void
+    let onApple: () -> Void
+    var isGoogleEnabled: Bool = true
+    var isAppleEnabled: Bool = false
     var authErrorMessage: String? = nil
     var authSuccessMessage: String? = nil
     var onClearError: (() -> Void)? = nil
@@ -155,7 +159,7 @@ struct SignInView: View {
     private var socialButtons: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                onSubmit("apple_user", "apple")
+                onApple()
             } label: {
                 HStack(spacing: 8) {
                     Spacer()
@@ -174,9 +178,11 @@ struct SignInView: View {
                 )
             }
             .buttonStyle(.plain)
+            .disabled(!isAppleEnabled)
+            .opacity(isAppleEnabled ? 1 : 0.55)
 
             Button {
-                onSubmit("google_user", "google")
+                onGoogle()
             } label: {
                 HStack(spacing: 8) {
                     Spacer()
@@ -197,6 +203,16 @@ struct SignInView: View {
                 )
             }
             .buttonStyle(.plain)
+            .disabled(!isGoogleEnabled)
+            .opacity(isGoogleEnabled ? 1 : 0.55)
+
+            if !isAppleEnabled {
+                Text(L10n.t("auth.apple_coming_soon"))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 4)
+            }
         }
     }
 

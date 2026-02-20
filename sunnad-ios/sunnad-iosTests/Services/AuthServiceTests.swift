@@ -12,6 +12,14 @@ struct AuthServiceTests {
         }
 
         await #expect(throws: AuthServiceError.self) {
+            _ = try await service.signInWithGoogle()
+        }
+
+        await #expect(throws: AuthServiceError.self) {
+            _ = try await service.signInWithApple()
+        }
+
+        await #expect(throws: AuthServiceError.self) {
             try await service.deleteAccount()
         }
 
@@ -24,7 +32,15 @@ struct AuthServiceTests {
         }
 
         await #expect(throws: AuthServiceError.self) {
+            _ = try await service.verifyRecoveryCode(email: "user@example.com", code: "123456")
+        }
+
+        await #expect(throws: AuthServiceError.self) {
             try await service.resendSignUpOTP(email: "user@example.com", redirectTo: nil)
+        }
+
+        await #expect(throws: AuthServiceError.self) {
+            try await service.resendRecoveryCode(email: "user@example.com", redirectTo: nil)
         }
 
         await #expect(throws: AuthServiceError.self) {

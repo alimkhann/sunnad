@@ -19,10 +19,13 @@ message_id="$(
   echo "$messages_json" | jq -r --arg mode "$MODE" '
     .messages
     | map(
+        . + {subjectLower: ((.Subject // "") | ascii_downcase)}
+      )
+    | map(
         if $mode == "confirm" then
-          select(.Subject == "Confirm Your Email")
+          select(.subjectLower | contains("confirm"))
         elif $mode == "reset" then
-          select(.Subject == "Reset Your Password")
+          select(.subjectLower | contains("reset"))
         else
           .
         end
