@@ -104,3 +104,70 @@ final class SyncingQuotesRepository: QuotesRepository {
         }
     }
 }
+
+@MainActor
+final class SyncingGroupsRepository: GroupsRepository {
+    private let base: GroupsRepository
+    private let syncCoordinator: SyncCoordinating
+
+    init(base: GroupsRepository, syncCoordinator: SyncCoordinating) {
+        self.base = base
+        self.syncCoordinator = syncCoordinator
+    }
+
+    func fetchGroups() async throws -> [Group] {
+        try await base.fetchGroups()
+    }
+
+    func createGroup(name: String) async throws -> Group {
+        try await base.createGroup(name: name)
+    }
+
+    func joinGroup(code: String) async throws -> Group {
+        try await base.joinGroup(code: code)
+    }
+
+    func renameGroup(groupID: UUID, name: String) async throws {
+        try await base.renameGroup(groupID: groupID, name: name)
+    }
+
+    func setJoinLock(groupID: UUID, locked: Bool) async throws {
+        try await base.setJoinLock(groupID: groupID, locked: locked)
+    }
+
+    func rotateInviteCode(groupID: UUID) async throws -> String {
+        try await base.rotateInviteCode(groupID: groupID)
+    }
+
+    func updateSharing(groupID: UUID, habitIDs: Set<UUID>) async throws {
+        let before = try await base.refreshGroup(groupID: groupID)?.sharedHabitIDs ?? []
+        try await base.updateSharing(groupID: groupID, habitIDs: habitIDs)
+
+        for habitID in habitIDs.subtracting(before) {
+            await syncCoordinator.enqueueGroupSharedHabitUpsert(groupID: groupID, habitID: habitID, shared: true)
+        }
+        for habitID in before.subtracting(habitIDs) {
+            await syncCoordinator.enqueueGroupSharedHabitUpsert(groupID: groupID, habitID: habitID, shared: false)
+        }
+    }
+
+    func leaveGroup(groupID: UUID) async throws {
+        try await base.leaveGroup(groupID: groupID)
+    }
+
+    func deleteGroup(groupID: UUID) async throws {
+        try await base.deleteGroup(groupID: groupID)
+    }
+
+    func kickMember(groupID: UUID, memberUserID: UUID) async throws {
+        try await base.kickMember(groupID: groupID, memberUserID: memberUserID)
+    }
+
+    func refreshGroup(groupID: UUID) async throws -> Group? {
+        try await base.refreshGroup(groupID: groupID)
+    }
+
+    func sendNudge(groupID: UUID, toUserID: UUID, habitID: UUID) async throws -> GroupNudgeStatus {
+        try await base.sendNudge(groupID: groupID, toUserID: toUserID, habitID: habitID)
+    }
+}

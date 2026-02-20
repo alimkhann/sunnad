@@ -21,6 +21,9 @@ func makeInMemoryContainer() throws -> ModelContainer {
         DiagnosticEventEntity.self,
         LocalOutboxEventEntity.self,
         LocalSyncCursorEntity.self,
+        LocalGroupSyncEntity.self,
+        LocalGroupMemberSyncEntity.self,
+        LocalGroupSharedHabitSyncEntity.self,
         configurations: configuration
     )
 }

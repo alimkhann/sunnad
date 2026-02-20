@@ -1160,6 +1160,10 @@ final class AppRouteState: ObservableObject {
         await todayViewModel.loadToday()
         await profileViewModel.load()
         dependencies.syncHabitReminders(enabled: notificationPreferences.habitReminders)
+        if !user.isGuest {
+            await dependencies.syncCoordinator.runSyncCycle(trigger: .foreground)
+            await groupsViewModel.refresh()
+        }
         await refreshDebugReminderCountIfNeeded()
     }
 

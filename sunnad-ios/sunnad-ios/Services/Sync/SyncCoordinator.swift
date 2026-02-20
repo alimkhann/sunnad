@@ -68,6 +68,9 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         case completions
         case savedQuotes = "saved_quotes"
         case quotes
+        case groups
+        case groupMembers = "group_members"
+        case groupSharedHabits = "group_shared_habits"
     }
 
     private enum EventType: String {
@@ -275,6 +278,56 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             case sortOrder = "sort_order"
             case active
             case createdAt = "created_at"
+            case updatedAt = "updated_at"
+        }
+    }
+
+    private struct GroupPullRow: Decodable {
+        let id: UUID
+        let ownerID: UUID
+        let name: String
+        let code: String
+        let joinLocked: Bool?
+        let createdAt: String?
+        let updatedAt: String
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case ownerID = "owner_id"
+            case name
+            case code
+            case joinLocked = "join_locked"
+            case createdAt = "created_at"
+            case updatedAt = "updated_at"
+        }
+    }
+
+    private struct GroupMemberPullRow: Decodable {
+        let groupID: UUID
+        let userID: UUID
+        let role: String?
+        let updatedAt: String
+
+        enum CodingKeys: String, CodingKey {
+            case groupID = "group_id"
+            case userID = "user_id"
+            case role
+            case updatedAt = "updated_at"
+        }
+    }
+
+    private struct GroupSharedHabitPullRow: Decodable {
+        let groupID: UUID
+        let userID: UUID
+        let habitID: UUID
+        let shared: Bool?
+        let updatedAt: String
+
+        enum CodingKeys: String, CodingKey {
+            case groupID = "group_id"
+            case userID = "user_id"
+            case habitID = "habit_id"
+            case shared
             case updatedAt = "updated_at"
         }
     }
@@ -567,6 +620,12 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 try await pullSavedQuotes(activeUserID: activeUserID, cursorString: cursorString)
             case .quotes:
                 try await pullQuotes(cursorString: cursorString)
+            case .groups:
+                try await pullGroups(activeUserID: activeUserID, cursorString: cursorString)
+            case .groupMembers:
+                try await pullGroupMembers(activeUserID: activeUserID, cursorString: cursorString)
+            case .groupSharedHabits:
+                try await pullGroupSharedHabits(activeUserID: activeUserID, cursorString: cursorString)
             }
             try setCursorDate(Date(), for: resource.rawValue)
         }
@@ -783,6 +842,134 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 sortOrder: row.sortOrder ?? 0,
                 active: row.active ?? true,
                 createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+        )
+    }
+
+    private func pullGroups(activeUserID: UUID, cursorString: String) async throws {
+        let response = try await client
+            .from("groups")
+            .select("id,owner_id,name,code,join_locked,created_at,updated_at")
+            .gt("updated_at", value: cursorString)
+            .order("updated_at", ascending: true)
+            .execute()
+
+        let rows = try decoder.decode([GroupPullRow].self, from: response.data)
+        for row in rows {
+            try mergeGroup(row)
+        }
+        if !rows.isEmpty {
+            try modelContext.save()
+        }
+        _ = activeUserID
+    }
+
+    private func mergeGroup(_ row: GroupPullRow) throws {
+        let groupID = row.id
+        let updatedAt = Self.timestamp(from: row.updatedAt) ?? Date()
+        let createdAt = row.createdAt.flatMap(Self.timestamp(from:)) ?? updatedAt
+        let descriptor = FetchDescriptor<LocalGroupSyncEntity>(predicate: #Predicate { $0.id == groupID })
+        if let existing = try modelContext.fetch(descriptor).first {
+            guard updatedAt >= existing.updatedAt else { return }
+            existing.ownerID = row.ownerID
+            existing.name = row.name
+            existing.code = row.code
+            existing.joinLocked = row.joinLocked ?? false
+            existing.createdAt = createdAt
+            existing.updatedAt = updatedAt
+            return
+        }
+
+        modelContext.insert(
+            LocalGroupSyncEntity(
+                id: row.id,
+                ownerID: row.ownerID,
+                name: row.name,
+                code: row.code,
+                joinLocked: row.joinLocked ?? false,
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+        )
+    }
+
+    private func pullGroupMembers(activeUserID: UUID, cursorString: String) async throws {
+        let response = try await client
+            .from("group_members")
+            .select("group_id,user_id,role,updated_at")
+            .gt("updated_at", value: cursorString)
+            .order("updated_at", ascending: true)
+            .execute()
+
+        let rows = try decoder.decode([GroupMemberPullRow].self, from: response.data)
+        for row in rows {
+            try mergeGroupMember(row)
+        }
+        if !rows.isEmpty {
+            try modelContext.save()
+        }
+        _ = activeUserID
+    }
+
+    private func mergeGroupMember(_ row: GroupMemberPullRow) throws {
+        let id = "\(row.groupID.uuidString)-\(row.userID.uuidString)"
+        let updatedAt = Self.timestamp(from: row.updatedAt) ?? Date()
+        let descriptor = FetchDescriptor<LocalGroupMemberSyncEntity>(predicate: #Predicate { $0.id == id })
+        if let existing = try modelContext.fetch(descriptor).first {
+            guard updatedAt >= existing.updatedAt else { return }
+            existing.role = row.role ?? "member"
+            existing.updatedAt = updatedAt
+            return
+        }
+
+        modelContext.insert(
+            LocalGroupMemberSyncEntity(
+                id: id,
+                groupID: row.groupID,
+                userID: row.userID,
+                role: row.role ?? "member",
+                updatedAt: updatedAt
+            )
+        )
+    }
+
+    private func pullGroupSharedHabits(activeUserID: UUID, cursorString: String) async throws {
+        let response = try await client
+            .from("group_shared_habits")
+            .select("group_id,user_id,habit_id,shared,updated_at")
+            .gt("updated_at", value: cursorString)
+            .order("updated_at", ascending: true)
+            .execute()
+
+        let rows = try decoder.decode([GroupSharedHabitPullRow].self, from: response.data)
+        for row in rows {
+            try mergeGroupSharedHabit(row)
+        }
+        if !rows.isEmpty {
+            try modelContext.save()
+        }
+        _ = activeUserID
+    }
+
+    private func mergeGroupSharedHabit(_ row: GroupSharedHabitPullRow) throws {
+        let id = "\(row.groupID.uuidString)-\(row.userID.uuidString)-\(row.habitID.uuidString)"
+        let updatedAt = Self.timestamp(from: row.updatedAt) ?? Date()
+        let descriptor = FetchDescriptor<LocalGroupSharedHabitSyncEntity>(predicate: #Predicate { $0.id == id })
+        if let existing = try modelContext.fetch(descriptor).first {
+            guard updatedAt >= existing.updatedAt else { return }
+            existing.shared = row.shared ?? true
+            existing.updatedAt = updatedAt
+            return
+        }
+
+        modelContext.insert(
+            LocalGroupSharedHabitSyncEntity(
+                id: id,
+                groupID: row.groupID,
+                userID: row.userID,
+                habitID: row.habitID,
+                shared: row.shared ?? true,
                 updatedAt: updatedAt
             )
         )

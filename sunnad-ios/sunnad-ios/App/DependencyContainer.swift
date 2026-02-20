@@ -45,7 +45,10 @@ final class DependencyContainer {
                     SavedQuoteEntity.self,
                     DiagnosticEventEntity.self,
                     LocalOutboxEventEntity.self,
-                    LocalSyncCursorEntity.self
+                    LocalSyncCursorEntity.self,
+                    LocalGroupSyncEntity.self,
+                    LocalGroupMemberSyncEntity.self,
+                    LocalGroupSharedHabitSyncEntity.self
                 )
             } catch {
                 fatalError("Failed to initialize SwiftData container: \(error)")
@@ -76,10 +79,11 @@ final class DependencyContainer {
             supabaseClient = nil
         }
 
+        let resolvedGroupsRepository: GroupsRepository
         if let client = supabaseClient {
-            groupsRepository = SupabaseGroupsRepository(client: client, logger: logger)
+            resolvedGroupsRepository = SupabaseGroupsRepository(client: client, logger: logger)
         } else {
-            groupsRepository = GroupsLocalRepository()
+            resolvedGroupsRepository = GroupsLocalRepository()
         }
 
         if let syncCoordinator {
@@ -105,6 +109,10 @@ final class DependencyContainer {
         )
         quotesRepository = SyncingQuotesRepository(
             base: localQuotesRepository,
+            syncCoordinator: self.syncCoordinator
+        )
+        groupsRepository = SyncingGroupsRepository(
+            base: resolvedGroupsRepository,
             syncCoordinator: self.syncCoordinator
         )
 

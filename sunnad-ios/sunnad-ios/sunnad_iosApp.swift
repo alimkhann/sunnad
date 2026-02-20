@@ -4,9 +4,16 @@ import SwiftData
 
 @main
 struct sunnad_iosApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+
     private let dependencies = DependencyContainer()
+    private let backgroundSyncScheduler: BackgroundSyncScheduler
 
     init() {
+        backgroundSyncScheduler = BackgroundSyncScheduler(
+            syncCoordinator: dependencies.syncCoordinator,
+            logger: dependencies.analyticsLogger
+        )
         let tabAppearance = UITabBarAppearance()
         tabAppearance.configureWithOpaqueBackground()
         tabAppearance.backgroundColor = UIColor.systemGroupedBackground
@@ -28,7 +35,16 @@ struct sunnad_iosApp: App {
         WindowGroup {
             SunnadRootView(dependencies: dependencies)
                 .tint(SunnadTheme.primary)
+                .onAppear {
+                    backgroundSyncScheduler.register()
+                    backgroundSyncScheduler.schedule()
+                }
         }
         .modelContainer(dependencies.modelContainer)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                backgroundSyncScheduler.schedule()
+            }
+        }
     }
 }
