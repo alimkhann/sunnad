@@ -458,6 +458,52 @@
         }
       }
     },
+    "auth.otp.resent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verification code resent."
+          }
+        },
+        "kk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Растау коды қайта жіберілді."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Код подтверждения отправлен повторно."
+          }
+        }
+      }
+    },
+    "auth.otp.sent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verification code sent. Check your inbox."
+          }
+        },
+        "kk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Растау коды жіберілді. Поштаңызды тексеріңіз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Код подтверждения отправлен. Проверьте почту."
+          }
+        }
+      }
+    },
     "auth.otp.subtitle" : {
       "extractionState" : "manual",
       "localizations" : {

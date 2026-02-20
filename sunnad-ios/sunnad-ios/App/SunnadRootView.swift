@@ -26,6 +26,7 @@ struct SunnadRootView: View {
                     onSignIn: state.handleSignIn,
                     onSignUp: state.handleSignUp,
                     onOTPVerify: state.verifyOTP,
+                    onResendOTP: state.resendOTP,
                     onOpenForgotPassword: state.openOnboardingForgotPassword,
                     onClearAuthError: state.clearAuthError
                 )
@@ -262,6 +263,10 @@ struct SunnadRootView: View {
                 email: state.pendingSignUpEmail,
                 onBack: state.openProfileSignUp,
                 onVerify: state.verifyProfileOTP,
+                onResend: state.resendProfileOTP,
+                authErrorMessage: state.authErrorMessage,
+                authSuccessMessage: state.authSuccessMessage,
+                onClearMessage: state.clearAuthError,
                 showsBackButton: false,
                 onClose: { state.fullScreen = nil }
             )

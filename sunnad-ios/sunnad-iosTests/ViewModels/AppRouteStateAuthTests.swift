@@ -59,6 +59,69 @@ struct AppRouteStateAuthTests {
     }
 
     @Test
+    func onboardingSignUpRequiresOTPThenVerifySignsIn() async throws {
+        let verifiedUser = SessionUser(id: UUID(), email: "otp@example.com", username: "OtpUser")
+        let authService = FakeAuthService(
+            currentUserValue: nil,
+            signUpRequiresEmailConfirmation: true,
+            otpVerifiedUser: verifiedUser
+        )
+        let tokenSync = FakeDeviceTokenSyncService()
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: authService,
+            deviceTokenSyncService: tokenSync
+        )
+        let state = AppRouteState(dependencies: dependencies)
+
+        state.handleSignUp(
+            email: "otp@example.com",
+            username: "OtpUser",
+            password: "StrongPass123!",
+            method: "email"
+        )
+
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.onboardingStep == .otp
+        }
+
+        #expect(state.onboardingStep == .otp)
+        #expect(state.authSuccessMessage == L10n.t("auth.otp.sent"))
+
+        state.verifyOTP(code: "123456")
+
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.user.email == "otp@example.com" && state.activeTab == .today
+        }
+
+        #expect(state.user.email == "otp@example.com")
+        #expect(await authService.recordedOTPVerificationEmail() == "otp@example.com")
+        #expect(await authService.recordedOTPVerificationCode() == "123456")
+        #expect(await tokenSync.containsSyncedUserID(verifiedUser.id))
+    }
+
+    @Test
+    func resendOTPUsesPendingEmailAndPublishesSuccess() async throws {
+        let authService = FakeAuthService(currentUserValue: nil)
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: authService,
+            deviceTokenSyncService: FakeDeviceTokenSyncService()
+        )
+        let state = AppRouteState(dependencies: dependencies)
+
+        state.pendingSignUpEmail = "otp@example.com"
+        state.resendOTP()
+
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.authSuccessMessage == L10n.t("auth.otp.resent")
+        }
+
+        #expect(await authService.recordedResendOTPEmail() == "otp@example.com")
+        #expect(await authService.recordedResendOTPRedirect() != nil)
+    }
+
+    @Test
     func deleteAccountTransitionsToGuestWithoutOnboarding() async throws {
         let signInUser = SessionUser(id: UUID(), email: "delete@example.com", username: "DeleteUser")
         let authService = FakeAuthService(currentUserValue: nil, signInValue: signInUser)
@@ -177,6 +240,8 @@ struct AppRouteStateAuthTests {
 actor FakeAuthService: AuthService {
     var currentUserValue: SessionUser?
     var signInValue: SessionUser
+    var signUpRequiresEmailConfirmation: Bool
+    var otpVerifiedUser: SessionUser
     var callbackUser: SessionUser?
     var passwordUpdateValue: SessionUser
     var signOutCalled = false
@@ -184,25 +249,50 @@ actor FakeAuthService: AuthService {
     var lastPasswordResetEmail: String?
     var lastPasswordResetRedirect: URL?
     var lastUpdatedPassword: String?
+    var lastOTPEmail: String?
+    var lastOTPCode: String?
+    var lastResendOTPEmail: String?
+    var lastResendOTPRedirect: URL?
 
     init(
         currentUserValue: SessionUser?,
         signInValue: SessionUser = SessionUser(id: UUID(), email: "user@example.com", username: "User"),
+        signUpRequiresEmailConfirmation: Bool = false,
+        otpVerifiedUser: SessionUser? = nil,
         callbackUser: SessionUser? = nil,
         passwordUpdateValue: SessionUser? = nil
     ) {
         self.currentUserValue = currentUserValue
         self.signInValue = signInValue
+        self.signUpRequiresEmailConfirmation = signUpRequiresEmailConfirmation
+        self.otpVerifiedUser = otpVerifiedUser ?? signInValue
         self.callbackUser = callbackUser
         self.passwordUpdateValue = passwordUpdateValue ?? signInValue
     }
 
     func signUp(email: String, password: String, username: String?) async throws -> SessionUser {
-        SessionUser(id: UUID(), email: email, username: username)
+        if signUpRequiresEmailConfirmation {
+            throw AuthServiceError.emailNotConfirmed
+        }
+        let sessionUser = SessionUser(id: UUID(), email: email, username: username)
+        currentUserValue = sessionUser
+        return sessionUser
     }
 
     func signIn(identifier: String, password: String) async throws -> SessionUser {
         SessionUser(id: signInValue.id, email: identifier, username: signInValue.username)
+    }
+
+    func verifyEmailOTP(email: String, code: String) async throws -> SessionUser {
+        lastOTPEmail = email
+        lastOTPCode = code
+        currentUserValue = otpVerifiedUser
+        return otpVerifiedUser
+    }
+
+    func resendSignUpOTP(email: String, redirectTo: URL?) async throws {
+        lastResendOTPEmail = email
+        lastResendOTPRedirect = redirectTo
     }
 
     func signOut() async throws {
@@ -253,6 +343,22 @@ actor FakeAuthService: AuthService {
 
     func recordedUpdatedPassword() -> String? {
         lastUpdatedPassword
+    }
+
+    func recordedOTPVerificationEmail() -> String? {
+        lastOTPEmail
+    }
+
+    func recordedOTPVerificationCode() -> String? {
+        lastOTPCode
+    }
+
+    func recordedResendOTPEmail() -> String? {
+        lastResendOTPEmail
+    }
+
+    func recordedResendOTPRedirect() -> URL? {
+        lastResendOTPRedirect
     }
 }
 

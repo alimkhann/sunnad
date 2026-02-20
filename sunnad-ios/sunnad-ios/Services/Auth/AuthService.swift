@@ -35,6 +35,8 @@ enum AuthServiceError: Error, LocalizedError {
 protocol AuthService: Sendable {
     func signUp(email: String, password: String, username: String?) async throws -> SessionUser
     func signIn(identifier: String, password: String) async throws -> SessionUser
+    func verifyEmailOTP(email: String, code: String) async throws -> SessionUser
+    func resendSignUpOTP(email: String, redirectTo: URL?) async throws
     func signOut() async throws
     func deleteAccount() async throws
     func requestPasswordReset(email: String, redirectTo: URL?) async throws
@@ -53,6 +55,14 @@ struct UnconfiguredAuthService: AuthService {
     }
 
     func signIn(identifier: String, password: String) async throws -> SessionUser {
+        throw AuthServiceError.unavailable
+    }
+
+    func verifyEmailOTP(email: String, code: String) async throws -> SessionUser {
+        throw AuthServiceError.unavailable
+    }
+
+    func resendSignUpOTP(email: String, redirectTo: URL?) async throws {
         throw AuthServiceError.unavailable
     }
 

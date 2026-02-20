@@ -69,7 +69,7 @@ final class DependencyContainer {
             self.authService = authService
         } else if let config = resolvedSupabase {
             let client = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
-            self.authService = SupabaseAuthService(client: client)
+            self.authService = SupabaseAuthService(client: client, authRedirectURL: environment.authRedirectURL)
             #if DEBUG
             NSLog("Sunnad auth configured with Supabase URL: \(config.url.absoluteString)")
             #endif

@@ -16,7 +16,8 @@ struct OnboardingFlowView: View {
     let onOpenSignUp: () -> Void
     let onSignIn: (String, String) -> Void
     let onSignUp: (String, String, String, String) -> Void
-    let onOTPVerify: () -> Void
+    let onOTPVerify: (String) -> Void
+    let onResendOTP: () -> Void
     let onOpenForgotPassword: (String) -> Void
     let onClearAuthError: () -> Void
 
@@ -68,7 +69,11 @@ struct OnboardingFlowView: View {
             OTPVerificationView(
                 email: pendingEmail,
                 onBack: { step = .signUp },
-                onVerify: onOTPVerify
+                onVerify: onOTPVerify,
+                onResend: onResendOTP,
+                authErrorMessage: authErrorMessage,
+                authSuccessMessage: authSuccessMessage,
+                onClearMessage: onClearAuthError
             )
         }
     }

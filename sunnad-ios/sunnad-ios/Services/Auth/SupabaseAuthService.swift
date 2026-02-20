@@ -7,9 +7,11 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
     }
 
     private let client: SupabaseClient
+    private let authRedirectURL: URL?
 
-    init(client: SupabaseClient) {
+    init(client: SupabaseClient, authRedirectURL: URL?) {
         self.client = client
+        self.authRedirectURL = authRedirectURL
     }
 
     func signUp(email: String, password: String, username: String?) async throws -> SessionUser {
@@ -20,7 +22,8 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
                 password: password,
                 data: cleanedUsername.flatMap { value in
                     ["username": AnyJSON.string(value)]
-                }
+                },
+                redirectTo: authRedirectURL
             )
 
             if let session = response.session {
@@ -33,8 +36,11 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             if let cleanedUsername {
                 try? await persistProfileUsername(cleanedUsername, for: response.user.id)
             }
-            return await sessionUser(from: response.user, fallbackUsername: cleanedUsername)
+            throw AuthServiceError.emailNotConfirmed
         } catch {
+            if let mapped = error as? AuthServiceError {
+                throw mapped
+            }
             throw mapAuthError(error)
         }
     }
@@ -44,6 +50,32 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             let resolvedEmail = await resolveSignInEmail(identifier: identifier)
             let session = try await client.auth.signIn(email: resolvedEmail, password: password)
             return await sessionUser(from: session.user)
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
+    func verifyEmailOTP(email: String, code: String) async throws -> SessionUser {
+        do {
+            let response = try await client.auth.verifyOTP(
+                email: email,
+                token: code,
+                type: .signup,
+                redirectTo: authRedirectURL
+            )
+            return await sessionUser(from: response.user)
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
+    func resendSignUpOTP(email: String, redirectTo: URL?) async throws {
+        do {
+            try await client.auth.resend(
+                email: email,
+                type: .signup,
+                emailRedirectTo: redirectTo ?? authRedirectURL
+            )
         } catch {
             throw mapAuthError(error)
         }
