@@ -217,6 +217,66 @@ struct AppRouteStateAuthTests {
     }
 
     @Test
+    func pendingRecoveryWithCodeOnlyCallbackOpensChangePasswordFlow() async throws {
+        let callbackUser = SessionUser(id: UUID(), email: "recover-pending@example.com", username: "RecoverPendingUser")
+        let authService = FakeAuthService(currentUserValue: nil, callbackUser: callbackUser)
+        let tokenSync = FakeDeviceTokenSyncService()
+        let defaults = makeIsolatedUserDefaults()
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: authService,
+            deviceTokenSyncService: tokenSync
+        )
+        let state = AppRouteState(dependencies: dependencies, userDefaults: defaults)
+
+        state.submitPasswordResetRequest(email: "recover-pending@example.com")
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.authSuccessMessage == L10n.t("auth.forgot_password.sent")
+        }
+
+        let callbackURL = URL(string: "sunnad://auth-callback?code=fakepkcecodeonly")!
+        state.handleIncomingURL(callbackURL)
+
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.fullScreen == .changePassword && state.user.email == "recover-pending@example.com"
+        }
+
+        #expect(state.fullScreen == .changePassword)
+        #expect(state.user.email == "recover-pending@example.com")
+        #expect(await tokenSync.containsSyncedUserID(callbackUser.id))
+    }
+
+    @Test
+    func pendingRecoveryWithBareCallbackURLStillOpensChangePasswordFlow() async throws {
+        let callbackUser = SessionUser(id: UUID(), email: "recover-bare@example.com", username: "RecoverBareUser")
+        let authService = FakeAuthService(currentUserValue: nil, callbackUser: callbackUser)
+        let tokenSync = FakeDeviceTokenSyncService()
+        let defaults = makeIsolatedUserDefaults()
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: authService,
+            deviceTokenSyncService: tokenSync
+        )
+        let state = AppRouteState(dependencies: dependencies, userDefaults: defaults)
+
+        state.submitPasswordResetRequest(email: "recover-bare@example.com")
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.authSuccessMessage == L10n.t("auth.forgot_password.sent")
+        }
+
+        let callbackURL = URL(string: "sunnad://auth-callback")!
+        state.handleIncomingURL(callbackURL)
+
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.fullScreen == .changePassword && state.user.email == "recover-bare@example.com"
+        }
+
+        #expect(state.fullScreen == .changePassword)
+        #expect(state.user.email == "recover-bare@example.com")
+        #expect(await tokenSync.containsSyncedUserID(callbackUser.id))
+    }
+
+    @Test
     func changePasswordUpdatesSessionAndClosesModal() async throws {
         let initialUser = SessionUser(id: UUID(), email: "before@example.com", username: "Before")
         let changedUser = SessionUser(id: initialUser.id, email: "after@example.com", username: "After")
@@ -257,6 +317,13 @@ struct AppRouteStateAuthTests {
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
         return condition()
+    }
+
+    private func makeIsolatedUserDefaults() -> UserDefaults {
+        let suite = "sunnad.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
     }
 }
 
@@ -303,7 +370,8 @@ actor FakeAuthService: AuthService {
     }
 
     func signIn(identifier: String, password: String) async throws -> SessionUser {
-        SessionUser(id: signInValue.id, email: identifier, username: signInValue.username)
+        let user = signInValue
+        return SessionUser(id: user.id, email: identifier, username: user.username)
     }
 
     func verifyEmailOTP(email: String, code: String) async throws -> SessionUser {
