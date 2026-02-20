@@ -2,8 +2,16 @@ import Foundation
 import Supabase
 
 final class SupabaseAuthService: AuthService, @unchecked Sendable {
-    private struct ProfileUsernameRow: Decodable {
+    private struct ProfileRow: Decodable {
         let username: String?
+        let avatarPath: String?
+        let updatedAt: Date?
+
+        enum CodingKeys: String, CodingKey {
+            case username
+            case avatarPath = "avatar_path"
+            case updatedAt = "updated_at"
+        }
     }
 
     private struct DeleteAccountResponse: Decodable {
@@ -13,6 +21,7 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
     private let client: SupabaseClient
     private let supabaseURL: URL
     private let authRedirectURL: URL?
+    private let usernameRegex = try! NSRegularExpression(pattern: "^[a-z0-9_]{3,20}$")
 
     init(client: SupabaseClient, supabaseURL: URL, authRedirectURL: URL?) {
         self.client = client
@@ -22,7 +31,11 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 
     func signUp(email: String, password: String, username: String?) async throws -> SessionUser {
         do {
+            let hasUsernameInput = !(username?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
             let cleanedUsername = sanitizeUsername(username)
+            if hasUsernameInput, cleanedUsername == nil {
+                throw AuthServiceError.invalidUsername
+            }
             let response = try await client.auth.signUp(
                 email: email,
                 password: password,
@@ -161,6 +174,75 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         }
     }
 
+    func fetchProfile() async throws -> SessionUser {
+        guard let user = await currentAuthUser() else {
+            throw AuthServiceError.invalidCredentials
+        }
+        return await sessionUser(from: user)
+    }
+
+    func updateUsername(_ username: String) async throws -> SessionUser {
+        guard let user = await currentAuthUser() else {
+            throw AuthServiceError.invalidCredentials
+        }
+
+        guard let cleanedUsername = sanitizeUsername(username) else {
+            throw AuthServiceError.invalidUsername
+        }
+
+        do {
+            try await persistProfileUsername(cleanedUsername, for: user.id)
+            return await sessionUser(from: user, fallbackUsername: cleanedUsername)
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
+    func uploadAvatar(data: Data, mimeType: String) async throws -> SessionUser {
+        guard let user = await currentAuthUser() else {
+            throw AuthServiceError.invalidCredentials
+        }
+
+        let fileExtension = fileExtension(for: mimeType)
+        let avatarPath = "profiles/\(user.id.uuidString)/avatar.\(fileExtension)"
+
+        do {
+            _ = try await client.storage.from("avatars").upload(
+                avatarPath,
+                data: data,
+                options: FileOptions(
+                    cacheControl: "31536000",
+                    contentType: mimeType,
+                    upsert: true
+                )
+            )
+            try await persistProfileAvatarPath(avatarPath, for: user.id)
+            return await sessionUser(from: user)
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
+    func removeAvatar() async throws -> SessionUser {
+        guard let user = await currentAuthUser() else {
+            throw AuthServiceError.invalidCredentials
+        }
+
+        let profile = await fetchProfileRow(for: user.id)
+        let avatarPath = profile?.avatarPath?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        do {
+            if let avatarPath, !avatarPath.isEmpty, !avatarPath.lowercased().hasPrefix("http") {
+                _ = try await client.storage.from("avatars").remove(paths: [avatarPath])
+            }
+
+            try await persistProfileAvatarPath(nil, for: user.id)
+            return await sessionUser(from: user)
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
     func requestPasswordReset(email: String, redirectTo: URL?) async throws {
         do {
             try await client.auth.resetPasswordForEmail(
@@ -211,16 +293,57 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
     }
 
     private func sessionUser(from user: User, fallbackUsername: String? = nil) async -> SessionUser {
-        let profileUsername = await fetchProfileUsername(for: user.id)
+        let provider = authProvider(from: user)
+        let profile = await fetchProfileRow(for: user.id)
+        var username = sanitizeUsername(profile?.username)
         let metadataUsername = sanitizeUsername(user.userMetadata["username"]?.stringValue)
-        let username = profileUsername ?? metadataUsername ?? sanitizeUsername(fallbackUsername)
-        return SessionUser(id: user.id, email: user.email, username: username)
+
+        if username == nil, let metadataUsername {
+            username = metadataUsername
+            try? await persistProfileUsername(metadataUsername, for: user.id)
+        }
+
+        if username == nil, let fallbackUsername = sanitizeUsername(fallbackUsername) {
+            username = fallbackUsername
+            try? await persistProfileUsername(fallbackUsername, for: user.id)
+        }
+
+        if username == nil, provider == .google || provider == .apple {
+            let base = oauthUsernameBase(from: user) ?? "user"
+            if let claimed = await claimOAuthUsername(base: base) {
+                username = claimed
+            }
+        }
+
+        var avatarPath = profile?.avatarPath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let providerAvatarURL = oauthAvatarURL(from: user)
+        if (avatarPath == nil || avatarPath?.isEmpty == true), let providerAvatarURL {
+            try? await persistProfileAvatarPath(providerAvatarURL.absoluteString, for: user.id)
+            avatarPath = providerAvatarURL.absoluteString
+        }
+
+        let avatarURL = avatarURL(from: avatarPath, updatedAt: profile?.updatedAt)
+        return SessionUser(
+            id: user.id,
+            email: user.email,
+            username: username,
+            avatarURL: avatarURL,
+            provider: provider
+        )
     }
 
     private func sanitizeUsername(_ username: String?) -> String? {
         guard let username else { return nil }
-        let trimmed = username.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        let normalized = username
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalized.isEmpty else { return nil }
+
+        let range = NSRange(location: 0, length: normalized.utf16.count)
+        guard usernameRegex.firstMatch(in: normalized, options: [], range: range) != nil else {
+            return nil
+        }
+        return normalized
     }
 
     private func persistProfileUsername(_ username: String, for userID: UUID) async throws {
@@ -231,19 +354,130 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             .execute()
     }
 
-    private func fetchProfileUsername(for userID: UUID) async -> String? {
+    private func persistProfileAvatarPath(_ avatarPath: String?, for userID: UUID) async throws {
+        try await client
+            .from("profiles")
+            .update(["avatar_path": avatarPath.map(AnyJSON.string) ?? AnyJSON.null])
+            .eq("id", value: userID)
+            .execute()
+    }
+
+    private func fetchProfileRow(for userID: UUID) async -> ProfileRow? {
         do {
             let response = try await client
                 .from("profiles")
-                .select("username")
+                .select("username, avatar_path, updated_at")
                 .eq("id", value: userID)
                 .limit(1)
                 .execute()
 
-            let rows = try JSONDecoder().decode([ProfileUsernameRow].self, from: response.data)
-            return sanitizeUsername(rows.first?.username)
+            let rows = try JSONDecoder().decode([ProfileRow].self, from: response.data)
+            return rows.first
         } catch {
             return nil
+        }
+    }
+
+    private func claimOAuthUsername(base: String) async -> String? {
+        do {
+            let response = try await client
+                .rpc("claim_oauth_username", params: ["base": base])
+                .execute()
+            return decodeResolvedEmail(from: response.data).flatMap(sanitizeUsername)
+        } catch {
+            return nil
+        }
+    }
+
+    private func oauthUsernameBase(from user: User) -> String? {
+        if let candidate = sanitizeUsername(user.userMetadata["preferred_username"]?.stringValue) {
+            return candidate
+        }
+        if let candidate = sanitizeUsername(user.userMetadata["user_name"]?.stringValue) {
+            return candidate
+        }
+        if let candidate = sanitizeUsername(user.userMetadata["name"]?.stringValue) {
+            return candidate
+        }
+        if let candidate = sanitizeUsername(user.userMetadata["full_name"]?.stringValue) {
+            return candidate
+        }
+
+        if let email = user.email?.lowercased(), let at = email.firstIndex(of: "@") {
+            return sanitizeUsername(String(email[..<at]))
+        }
+
+        return nil
+    }
+
+    private func oauthAvatarURL(from user: User) -> URL? {
+        if let avatar = user.userMetadata["avatar_url"]?.stringValue, let url = URL(string: avatar) {
+            return url
+        }
+        if let picture = user.userMetadata["picture"]?.stringValue, let url = URL(string: picture) {
+            return url
+        }
+        return nil
+    }
+
+    private func avatarURL(from avatarPath: String?, updatedAt: Date?) -> URL? {
+        guard let avatarPath, !avatarPath.isEmpty else {
+            return nil
+        }
+
+        if avatarPath.lowercased().hasPrefix("http://") || avatarPath.lowercased().hasPrefix("https://") {
+            return URL(string: avatarPath)
+        }
+
+        guard var publicURL = try? client.storage.from("avatars").getPublicURL(path: avatarPath, download: false) else {
+            return nil
+        }
+
+        if let updatedAt {
+            var components = URLComponents(url: publicURL, resolvingAgainstBaseURL: false)
+            var queryItems = components?.queryItems ?? []
+            queryItems.append(URLQueryItem(name: "v", value: String(Int(updatedAt.timeIntervalSince1970))))
+            components?.queryItems = queryItems
+            if let cacheBusted = components?.url {
+                publicURL = cacheBusted
+            }
+        }
+
+        return publicURL
+    }
+
+    private func currentAuthUser() async -> User? {
+        if let user = client.auth.currentUser {
+            return user
+        }
+        if let session = try? await client.auth.session {
+            return session.user
+        }
+        return nil
+    }
+
+    private func authProvider(from user: User) -> AuthProvider {
+        let rawProvider = user.appMetadata["provider"]?.stringValue?.lowercased() ?? ""
+        switch rawProvider {
+        case "email":
+            return .email
+        case "google":
+            return .google
+        case "apple":
+            return .apple
+        default:
+            return .unknown
+        }
+    }
+
+    private func fileExtension(for mimeType: String) -> String {
+        switch mimeType.lowercased() {
+        case "image/png":
+            return "png"
+        case "image/webp":
+            return "webp"
+        default:
+            return "jpg"
         }
     }
 
@@ -316,6 +550,12 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             || message.contains("user already exists")
         {
             return .emailAlreadyInUse
+        }
+        if message.contains("profiles_username_format_check")
+            || (message.contains("username") && message.contains("must"))
+            || (message.contains("username") && message.contains("invalid"))
+        {
+            return .invalidUsername
         }
         if message.contains("profiles_username_lower_uidx")
             || (message.contains("username") && message.contains("already"))

@@ -27,13 +27,21 @@ struct SignUpView: View {
         username.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var normalizedUsername: String {
+        trimmedUsername.lowercased()
+    }
+
+    private var usernameIsValid: Bool {
+        normalizedUsername.range(of: "^[a-z0-9_]{3,20}$", options: .regularExpression) != nil
+    }
+
     private var passwordStrength: SignUpPasswordStrength {
         SignUpPasswordStrength(password: password)
     }
 
     private var isValid: Bool {
         !trimmedEmail.isEmpty &&
-        !trimmedUsername.isEmpty &&
+        usernameIsValid &&
         password.count >= 8 &&
         password == repeatPassword
     }
@@ -72,7 +80,7 @@ struct SignUpView: View {
 
                 fieldsCard
                 PrimaryButton(title: L10n.t("auth.sign_up"), isEnabled: isValid) {
-                    onSubmit(trimmedEmail, trimmedUsername, password, "email")
+                    onSubmit(trimmedEmail, normalizedUsername, password, "email")
                 }
                 .padding(.top, 2)
 
@@ -136,6 +144,12 @@ struct SignUpView: View {
                 )
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
+
+                Text(L10n.t("profile.edit.username.hint"))
+                    .font(.caption)
+                    .foregroundStyle(username.isEmpty || usernameIsValid ? Color.secondary : Color.red)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 8)
 
                 Divider().padding(.leading, 14)
 

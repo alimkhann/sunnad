@@ -5,6 +5,7 @@ enum AuthServiceError: Error, LocalizedError {
     case invalidCredentials
     case invalidRecoveryLink
     case invalidOTPCode
+    case invalidUsername
     case emailAlreadyInUse
     case usernameAlreadyInUse
     case weakPassword
@@ -23,6 +24,8 @@ enum AuthServiceError: Error, LocalizedError {
             return "Password recovery link is invalid or expired."
         case .invalidOTPCode:
             return "Verification code is invalid or expired."
+        case .invalidUsername:
+            return "Username must be 3-20 characters and use only lowercase letters, numbers, or underscores."
         case .emailAlreadyInUse:
             return "An account with this email already exists."
         case .usernameAlreadyInUse:
@@ -52,6 +55,10 @@ protocol AuthService: Sendable {
     func resendRecoveryCode(email: String, redirectTo: URL?) async throws
     func signOut() async throws
     func deleteAccount() async throws
+    func fetchProfile() async throws -> SessionUser
+    func updateUsername(_ username: String) async throws -> SessionUser
+    func uploadAvatar(data: Data, mimeType: String) async throws -> SessionUser
+    func removeAvatar() async throws -> SessionUser
     func requestPasswordReset(email: String, redirectTo: URL?) async throws
     func updatePassword(newPassword: String) async throws -> SessionUser
     func handleAuthCallback(url: URL) async throws -> SessionUser?
@@ -98,6 +105,22 @@ struct UnconfiguredAuthService: AuthService {
     func signOut() async throws {}
 
     func deleteAccount() async throws {
+        throw AuthServiceError.unavailable
+    }
+
+    func fetchProfile() async throws -> SessionUser {
+        throw AuthServiceError.unavailable
+    }
+
+    func updateUsername(_ username: String) async throws -> SessionUser {
+        throw AuthServiceError.unavailable
+    }
+
+    func uploadAvatar(data: Data, mimeType: String) async throws -> SessionUser {
+        throw AuthServiceError.unavailable
+    }
+
+    func removeAvatar() async throws -> SessionUser {
         throw AuthServiceError.unavailable
     }
 

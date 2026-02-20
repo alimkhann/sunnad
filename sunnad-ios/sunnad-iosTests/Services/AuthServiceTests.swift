@@ -24,6 +24,22 @@ struct AuthServiceTests {
         }
 
         await #expect(throws: AuthServiceError.self) {
+            _ = try await service.fetchProfile()
+        }
+
+        await #expect(throws: AuthServiceError.self) {
+            _ = try await service.updateUsername("user_01")
+        }
+
+        await #expect(throws: AuthServiceError.self) {
+            _ = try await service.uploadAvatar(data: Data(), mimeType: "image/jpeg")
+        }
+
+        await #expect(throws: AuthServiceError.self) {
+            _ = try await service.removeAvatar()
+        }
+
+        await #expect(throws: AuthServiceError.self) {
             try await service.requestPasswordReset(email: "user@example.com", redirectTo: nil)
         }
 

@@ -123,6 +123,7 @@ enum FullScreenRoute: Identifiable, Equatable {
     case forgotPasswordOnboarding
     case forgotPasswordProfile
     case changePassword
+    case editProfile
 
     var id: String {
         switch self {
@@ -150,6 +151,8 @@ enum FullScreenRoute: Identifiable, Equatable {
             return "forgotPasswordProfile"
         case .changePassword:
             return "changePassword"
+        case .editProfile:
+            return "editProfile"
         }
     }
 }
@@ -350,6 +353,7 @@ struct UIUserState: Equatable {
     var isGuest: Bool
     var name: String?
     var email: String?
+    var avatarURL: URL? = nil
 
     static let guest = UIUserState(isGuest: true, name: nil, email: nil)
 }
