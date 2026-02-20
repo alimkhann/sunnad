@@ -7,6 +7,7 @@ import UIKit
 final class AppRouteState: ObservableObject {
     private enum LocalStateKeys {
         static let onboardingCompleted = "sunnad.onboarding.completed"
+        static let pendingPasswordRecovery = "sunnad.auth.pending-password-recovery"
     }
 
     @Published var language: AppLanguage = .en {
@@ -87,9 +88,9 @@ final class AppRouteState: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var persistTasks: [UUID: Task<Void, Never>] = [:]
 
-    init(dependencies: DependencyContainer) {
+    init(dependencies: DependencyContainer, userDefaults: UserDefaults = .standard) {
         self.dependencies = dependencies
-        self.userDefaults = .standard
+        self.userDefaults = userDefaults
 
         let initialHabits = UIFixtures.initialHabits
 
@@ -513,6 +514,7 @@ final class AppRouteState: ObservableObject {
                     email: normalizedEmail,
                     redirectTo: dependencies.environment.authRedirectURL
                 )
+                userDefaults.set(true, forKey: LocalStateKeys.pendingPasswordRecovery)
                 authErrorMessage = nil
                 authSuccessMessage = L10n.t("auth.forgot_password.sent")
                 dependencies.analyticsLogger.log(
@@ -543,6 +545,7 @@ final class AppRouteState: ObservableObject {
                 authSuccessMessage = L10n.t("auth.change_password.updated")
                 user = sessionUser.asUIUserState
                 fullScreen = nil
+                userDefaults.set(false, forKey: LocalStateKeys.pendingPasswordRecovery)
                 await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
                 await profileViewModel.load()
             } catch {
@@ -557,8 +560,14 @@ final class AppRouteState: ObservableObject {
     }
 
     func handleIncomingURL(_ url: URL) {
-        guard Self.isPotentialAuthCallbackURL(url) else {
+        guard isPotentialAuthCallbackURL(url) else {
             return
+        }
+
+        let recoveryPending = userDefaults.bool(forKey: LocalStateKeys.pendingPasswordRecovery)
+        let shouldOpenRecoveryPassword = Self.isRecoveryCallbackURL(url) || recoveryPending
+        if shouldOpenRecoveryPassword {
+            fullScreen = .changePassword
         }
 
         Task {
@@ -574,8 +583,8 @@ final class AppRouteState: ObservableObject {
                 markOnboardingCompleted()
                 activeTab = .profile
 
-                if Self.isRecoveryCallbackURL(url) {
-                    fullScreen = .changePassword
+                if shouldOpenRecoveryPassword {
+                    userDefaults.set(false, forKey: LocalStateKeys.pendingPasswordRecovery)
                 }
             } catch {
                 authSuccessMessage = nil
@@ -993,11 +1002,29 @@ final class AppRouteState: ObservableObject {
         return trimmed.contains("@") ? trimmed : ""
     }
 
-    private static func isPotentialAuthCallbackURL(_ url: URL) -> Bool {
+    private func isPotentialAuthCallbackURL(_ url: URL) -> Bool {
+        if Self.hasCallbackAuthPayload(url) {
+            return true
+        }
+
+        let normalizedPath = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let normalizedHost = (url.host ?? "").lowercased()
+        let expected = dependencies.environment.authRedirectURL
+        let expectedPath = expected.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let expectedHost = (expected.host ?? "").lowercased()
+
+        return (url.scheme ?? "").lowercased() == (expected.scheme ?? "").lowercased()
+            && normalizedHost == expectedHost
+            && normalizedPath == expectedPath
+    }
+
+    private static func hasCallbackAuthPayload(_ url: URL) -> Bool {
         let raw = url.absoluteString.lowercased()
         return raw.contains("access_token=")
             || raw.contains("refresh_token=")
             || raw.contains("code=")
+            || raw.contains("token=")
+            || raw.contains("token_hash=")
             || raw.contains("type=recovery")
             || raw.contains("type=signup")
     }
