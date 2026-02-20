@@ -747,10 +747,8 @@ final class AppRouteState: ObservableObject {
                 return
             }
 
-            await clearLocalData()
-            selectedTemplateIDs = []
-            pendingSignUpEmail = ""
-            pendingSignUpUsername = ""
+            pendingPasswordResetEmail = ""
+            otpFlowMode = .signup
             user = .guest
             authErrorMessage = nil
             authSuccessMessage = nil

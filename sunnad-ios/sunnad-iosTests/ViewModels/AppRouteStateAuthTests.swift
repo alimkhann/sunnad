@@ -160,6 +160,7 @@ struct AppRouteStateAuthTests {
         _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
             state.user.isGuest == false
         }
+        let habitsBeforeDelete = state.habits
 
         state.deleteAccount()
         _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
@@ -169,6 +170,7 @@ struct AppRouteStateAuthTests {
         #expect(state.user.isGuest)
         #expect(state.showsOnboarding == false)
         #expect(state.activeTab == .profile)
+        #expect(state.habits == habitsBeforeDelete)
         #expect(await authService.didCallDeleteAccount())
     }
 

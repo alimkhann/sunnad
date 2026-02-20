@@ -6,11 +6,17 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         let username: String?
     }
 
+    private struct DeleteAccountResponse: Decodable {
+        let ok: Bool?
+    }
+
     private let client: SupabaseClient
+    private let supabaseURL: URL
     private let authRedirectURL: URL?
 
-    init(client: SupabaseClient, authRedirectURL: URL?) {
+    init(client: SupabaseClient, supabaseURL: URL, authRedirectURL: URL?) {
         self.client = client
+        self.supabaseURL = supabaseURL
         self.authRedirectURL = authRedirectURL
     }
 
@@ -132,10 +138,25 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 
     func deleteAccount() async throws {
         do {
-            try await client
-                .rpc("delete_own_account")
-                .execute()
+            let response: DeleteAccountResponse = try await client.functions.invoke(
+                "delete-account",
+                options: FunctionInvokeOptions(method: .post)
+            )
+
+            if response.ok == false {
+                throw AuthServiceError.unknown("Failed to delete account.")
+            }
         } catch {
+            if isLocalProject, shouldFallbackToLocalRPC(for: error) {
+                do {
+                    try await client
+                        .rpc("delete_own_account")
+                        .execute()
+                    return
+                } catch {
+                    throw mapAuthError(error)
+                }
+            }
             throw mapAuthError(error)
         }
     }
@@ -180,7 +201,12 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             let session = try await client.auth.session
             return await sessionUser(from: session.user)
         } catch {
-            return nil
+            do {
+                let refreshed = try await client.auth.refreshSession()
+                return await sessionUser(from: refreshed.user)
+            } catch {
+                return nil
+            }
         }
     }
 
@@ -261,6 +287,28 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         return nil
     }
 
+    private var isLocalProject: Bool {
+        guard let host = supabaseURL.host?.lowercased() else {
+            return false
+        }
+        return host == "127.0.0.1" || host == "localhost"
+    }
+
+    private func shouldFallbackToLocalRPC(for error: Error) -> Bool {
+        if let functionsError = error as? FunctionsError {
+            switch functionsError {
+            case .relayError:
+                return true
+            case .httpError(let code, _):
+                return code == 404 || code == 405 || code == 500 || code == 503
+            }
+        }
+
+        let message = error.localizedDescription.lowercased()
+        return message.contains("delete-account")
+            && (message.contains("404") || message.contains("not found") || message.contains("non-2xx"))
+    }
+
     private func mapAuthError(_ error: Error) -> AuthServiceError {
         let message = error.localizedDescription.lowercased()
         if message.contains("already registered")
@@ -323,6 +371,8 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         if message.contains("otp_expired")
             || message.contains("flow state")
             || message.contains("invalid flow state")
+            || message.contains("code verifier")
+            || message.contains("auth session missing")
             || message.contains("expired")
             || message.contains("token has expired")
         {
