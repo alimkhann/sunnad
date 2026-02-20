@@ -79,3 +79,17 @@ Notes:
 - Auth -> URL Configuration:
   - Add redirect URL: `sunnad://auth-callback`
 - Recovery and signup confirmations now use `sunnad://auth-callback` so no web domain is required for mobile auth flows.
+
+## Local email testing (Mailpit)
+- Supabase local runs Mailpit at `http://127.0.0.1:54324`.
+- Inbox UI: open `http://127.0.0.1:54324`.
+- API: `http://127.0.0.1:54324/api/v1/messages`.
+- Helper script:
+  - `scripts/dev/mailpit_latest_auth.sh any`
+  - `scripts/dev/mailpit_latest_auth.sh confirm`
+  - `scripts/dev/mailpit_latest_auth.sh reset`
+- Open latest confirmation/reset link directly in booted simulator (recommended):
+  - `scripts/dev/mailpit_open_latest_link_sim.sh confirm`
+  - `scripts/dev/mailpit_open_latest_link_sim.sh reset`
+- The helper prints recipient, subject, extracted `sunnad://auth-callback...` deep link, and OTP code (if present).
+- Recovery flow is link-first: open the reset link in simulator Safari and it should redirect into app to the Change Password screen.

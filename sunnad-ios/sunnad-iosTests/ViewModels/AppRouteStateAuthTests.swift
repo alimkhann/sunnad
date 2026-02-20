@@ -194,6 +194,29 @@ struct AppRouteStateAuthTests {
     }
 
     @Test
+    func recoveryCallbackWithPKCECodeOpensChangePasswordFlow() async throws {
+        let callbackUser = SessionUser(id: UUID(), email: "recover-code@example.com", username: "RecoverCodeUser")
+        let authService = FakeAuthService(currentUserValue: nil, callbackUser: callbackUser)
+        let tokenSync = FakeDeviceTokenSyncService()
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: authService,
+            deviceTokenSyncService: tokenSync
+        )
+        let state = AppRouteState(dependencies: dependencies)
+        let callbackURL = URL(string: "sunnad://auth-callback?code=fakepkcecode&type=recovery")!
+
+        state.handleIncomingURL(callbackURL)
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            state.fullScreen == .changePassword && state.user.email == "recover-code@example.com"
+        }
+
+        #expect(state.fullScreen == .changePassword)
+        #expect(state.user.email == "recover-code@example.com")
+        #expect(await tokenSync.containsSyncedUserID(callbackUser.id))
+    }
+
+    @Test
     func changePasswordUpdatesSessionAndClosesModal() async throws {
         let initialUser = SessionUser(id: UUID(), email: "before@example.com", username: "Before")
         let changedUser = SessionUser(id: initialUser.id, email: "after@example.com", username: "After")

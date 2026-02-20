@@ -265,7 +265,6 @@ struct SunnadRootView: View {
                 onVerify: state.verifyProfileOTP,
                 onResend: state.resendProfileOTP,
                 authErrorMessage: state.authErrorMessage,
-                authSuccessMessage: state.authSuccessMessage,
                 onClearMessage: state.clearAuthError,
                 showsBackButton: false,
                 onClose: { state.fullScreen = nil }
