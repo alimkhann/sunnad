@@ -7,6 +7,7 @@ Validate outbox push/pull behavior, foreground/background triggers, and two-devi
 - Same Supabase environment configured on both devices (or simulator + real device).
 - Authenticated user account available.
 - Devices can be independently toggled offline/online.
+- Run with environment-specific scheme (`sunnad-ios`, `sunnad-ios-dev`, `sunnad-ios-prod`) and verify launch-from-icon parity.
 
 ## 1) Outbox push (single device)
 1. Sign in.
@@ -56,3 +57,15 @@ Validate outbox push/pull behavior, foreground/background triggers, and two-devi
 2. Reconnect network and foreground app.
 3. Verify pending outbox events flush successfully.
 4. Verify retries survive app relaunch.
+
+## 9) Account-switch isolation
+1. Sign in as user A and create distinct habits/completions/saved quotes.
+2. Sign out, sign in as user B and create a different set.
+3. Relaunch app and verify user B scope never shows user A rows.
+4. Sign out to guest and verify guest rows are isolated from both A and B.
+
+## 10) Delete Data scope semantics
+1. While signed in as user A, trigger `Delete Data`.
+2. Verify only user A local scope clears immediately.
+3. Foreground sync and verify remote rows repopulate local scope for user A.
+4. Sign out/in to user B and verify user B local scope remains unchanged.

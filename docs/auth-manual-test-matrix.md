@@ -2,8 +2,11 @@
 
 ## Preconditions
 - Supabase target environment is running and reachable.
-- Xcode scheme env vars are set for the target environment.
-- `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`.
+- Use the correct scheme for the environment:
+  - local: `sunnad-ios`
+  - dev: `sunnad-ios-dev`
+  - prod: `sunnad-ios-prod`
+- `sunnad://auth-callback` exists in Supabase redirect URLs.
 - For Google OAuth tests: provider must be enabled in that Supabase project.
 
 ## 1) Signup (email/password)
@@ -67,6 +70,13 @@
 3. User created in dev does not exist in prod.
 4. Email template behavior (link + code) is identical in local/dev/prod.
 
+## 7.1) Launch-mode parity checks (critical)
+1. Launch from Xcode and sign in.
+2. Stop from Xcode.
+3. Launch the same installed app from simulator/device icon.
+4. Confirm session is still restored (no forced guest fallback).
+5. Repeat once per environment scheme.
+
 ## 8) Profile editing (signed-in users)
 1. Open Profile tab and tap account card.
 2. Change username to a valid lowercase value (`[a-z0-9_]{3,20}`) and save.
@@ -89,6 +99,10 @@ Run sections 1-9 in:
 - prod on iPhone 17 Pro simulator
 - dev on real device
 - prod on real device
+
+For dev/prod, run each row in both launch modes:
+- launched from Xcode
+- launched from icon
 
 ## 11) Groups + refresh regression
 1. Sign in and open Groups tab.
