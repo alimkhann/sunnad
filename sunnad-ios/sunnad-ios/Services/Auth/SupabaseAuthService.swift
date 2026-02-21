@@ -18,6 +18,21 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         let ok: Bool?
     }
 
+    private struct ProfileUsernameUpsertRow: Encodable {
+        let id: UUID
+        let username: String
+    }
+
+    private struct ProfileAvatarUpsertRow: Encodable {
+        let id: UUID
+        let avatarPath: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case avatarPath = "avatar_path"
+        }
+    }
+
     private let client: SupabaseClient
     private let supabaseURL: URL
     private let authRedirectURL: URL?
@@ -204,7 +219,7 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         }
 
         let fileExtension = fileExtension(for: mimeType)
-        let avatarPath = "profiles/\(user.id.uuidString)/avatar.\(fileExtension)"
+        let avatarPath = "profiles/\(user.id.uuidString.lowercased())/avatar.\(fileExtension)"
 
         do {
             _ = try await client.storage.from("avatars").upload(
@@ -347,19 +362,43 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
     }
 
     private func persistProfileUsername(_ username: String, for userID: UUID) async throws {
-        try await client
-            .from("profiles")
-            .update(["username": AnyJSON.string(username)])
-            .eq("id", value: userID)
-            .execute()
+        do {
+            try await client
+                .rpc(
+                    "upsert_profile_fields",
+                    params: [
+                        "p_username": AnyJSON.string(username),
+                        "p_set_username": AnyJSON.bool(true)
+                    ]
+                )
+                .execute()
+        } catch {
+            let row = ProfileUsernameUpsertRow(id: userID, username: username)
+            try await client
+                .from("profiles")
+                .upsert(row, onConflict: "id")
+                .execute()
+        }
     }
 
     private func persistProfileAvatarPath(_ avatarPath: String?, for userID: UUID) async throws {
-        try await client
-            .from("profiles")
-            .update(["avatar_path": avatarPath.map(AnyJSON.string) ?? AnyJSON.null])
-            .eq("id", value: userID)
-            .execute()
+        do {
+            try await client
+                .rpc(
+                    "upsert_profile_fields",
+                    params: [
+                        "p_avatar_path": avatarPath.map(AnyJSON.string) ?? AnyJSON.null,
+                        "p_set_avatar": AnyJSON.bool(true)
+                    ]
+                )
+                .execute()
+        } catch {
+            let row = ProfileAvatarUpsertRow(id: userID, avatarPath: avatarPath)
+            try await client
+                .from("profiles")
+                .upsert(row, onConflict: "id")
+                .execute()
+        }
     }
 
     private func fetchProfileRow(for userID: UUID) async -> ProfileRow? {
@@ -601,6 +640,11 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             || message.contains("invalid token")
         {
             return .invalidOTPCode
+        }
+        if message.contains("row-level security policy")
+            || message.contains("violates row-level security")
+        {
+            return .unknown("Permission denied. Please sign in again and retry.")
         }
         if message.contains("invalid login")
             || message.contains("invalid email or password")
