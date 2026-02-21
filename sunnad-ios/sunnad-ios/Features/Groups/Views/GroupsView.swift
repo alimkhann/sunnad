@@ -6,6 +6,7 @@ struct GroupsView: View {
     let groups: [UIGroup]
     let user: UIUserState
     let habits: [UIHabit]
+    let errorMessage: String?
     let onRefresh: () async -> Void
     let onCreateGroup: () -> Void
     let onJoinGroup: () -> Void
@@ -60,6 +61,19 @@ struct GroupsView: View {
     private var signedInState: some View {
         ScreenScaffold(contentTopPadding: 8) {
             pageHeader
+
+            if let errorMessage, !errorMessage.isEmpty {
+                Card {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .padding(.top, 2)
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
 
             if groups.isEmpty {
                 Card {

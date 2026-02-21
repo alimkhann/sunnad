@@ -63,6 +63,7 @@ final class GroupsViewModel: ObservableObject {
             }
             errorMessage = nil
         } catch {
+            errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_refresh_group", "error": error.localizedDescription])
         }
     }
@@ -76,7 +77,11 @@ final class GroupsViewModel: ObservableObject {
     func createGroup(name: String) async {
         guard !user.isGuest else { return }
         do {
-            _ = try await groupsRepository.createGroup(name: name.trimmingCharacters(in: .whitespacesAndNewlines))
+            let group = try await groupsRepository
+                .createGroup(name: name.trimmingCharacters(in: .whitespacesAndNewlines))
+                .asUIGroup()
+            mergeOrAppend(group)
+            groups = refreshGroupProgress(for: groups)
             await refresh()
             errorMessage = nil
         } catch {
@@ -88,7 +93,9 @@ final class GroupsViewModel: ObservableObject {
     func joinGroup(code: String) async {
         guard !user.isGuest else { return }
         do {
-            _ = try await groupsRepository.joinGroup(code: code)
+            let group = try await groupsRepository.joinGroup(code: code).asUIGroup()
+            mergeOrAppend(group)
+            groups = refreshGroupProgress(for: groups)
             await refresh()
             errorMessage = nil
         } catch {

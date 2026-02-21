@@ -120,73 +120,85 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         groups.reserveCapacity(groupRows.count)
 
         for groupRow in groupRows {
-            let members = try await fetchGroupMembers(groupID: groupRow.id)
-            let sharedRows = try await fetchSharedHabits(groupID: groupRow.id)
+            do {
+                let members = try await fetchGroupMembers(groupID: groupRow.id)
+                let sharedRows = try await fetchSharedHabits(groupID: groupRow.id)
 
-            let sharedForGroup = sharedRows.filter(\.shared)
-            let currentUserSharedIDs = Set(
-                sharedForGroup
-                    .filter { $0.userID == currentUserID }
-                    .map(\.habitID)
-            )
+                let sharedForGroup = sharedRows.filter(\.shared)
+                let currentUserSharedIDs = Set(
+                    sharedForGroup
+                        .filter { $0.userID == currentUserID }
+                        .map(\.habitID)
+                )
 
-            var domainMembers: [GroupMember] = []
-            domainMembers.reserveCapacity(members.count)
+                var domainMembers: [GroupMember] = []
+                domainMembers.reserveCapacity(members.count)
 
-            for member in members {
-                let memberID = member.userID
-                let memberName = try await resolveProfileName(for: memberID, cache: &profileNames)
-                let memberSharedRows = sharedForGroup.filter { $0.userID == memberID }
+                for member in members {
+                    let memberID = member.userID
+                    let memberName = try await resolveProfileName(for: memberID, cache: &profileNames)
+                    let memberSharedRows = sharedForGroup.filter { $0.userID == memberID }
 
-                var memberSharedHabits: [SharedHabit] = []
-                memberSharedHabits.reserveCapacity(memberSharedRows.count)
+                    var memberSharedHabits: [SharedHabit] = []
+                    memberSharedHabits.reserveCapacity(memberSharedRows.count)
 
-                for shared in memberSharedRows {
-                    guard let habit = try await resolveHabit(shared.habitID, cache: &habitsByID) else {
-                        continue
+                    for shared in memberSharedRows {
+                        guard let habit = try await resolveHabit(shared.habitID, cache: &habitsByID) else {
+                            continue
+                        }
+
+                        let completedToday = try await resolveCompletion(
+                            for: habit,
+                            userID: memberID,
+                            dayDate: todayDate,
+                            cache: &completionCache
+                        )
+
+                        memberSharedHabits.append(
+                            SharedHabit(
+                                habitID: habit.id,
+                                title: habit.name,
+                                icon: habit.icon,
+                                completedToday: completedToday,
+                                streak: 0
+                            )
+                        )
                     }
 
-                    let completedToday = try await resolveCompletion(
-                        for: habit,
-                        userID: memberID,
-                        dayDate: todayDate,
-                        cache: &completionCache
-                    )
-
-                    memberSharedHabits.append(
-                        SharedHabit(
-                            habitID: habit.id,
-                            title: habit.name,
-                            icon: habit.icon,
-                            completedToday: completedToday,
-                            streak: 0
+                    domainMembers.append(
+                        GroupMember(
+                            id: memberID,
+                            name: memberName,
+                            completedToday: memberSharedHabits.filter(\.completedToday).count,
+                            totalSharedHabits: memberSharedHabits.count,
+                            sharedHabits: memberSharedHabits
                         )
                     )
                 }
 
-                domainMembers.append(
-                    GroupMember(
-                        id: memberID,
-                        name: memberName,
-                        completedToday: memberSharedHabits.filter(\.completedToday).count,
-                        totalSharedHabits: memberSharedHabits.count,
-                        sharedHabits: memberSharedHabits
+                groups.append(
+                    Group(
+                        id: groupRow.id,
+                        name: groupRow.name,
+                        code: groupRow.code,
+                        joinLocked: groupRow.joinLocked ?? false,
+                        members: domainMembers,
+                        sharedHabitIDs: currentUserSharedIDs,
+                        ownerMemberID: groupRow.ownerID,
+                        currentUserMemberID: currentUserID
                     )
                 )
-            }
-
-            groups.append(
-                Group(
-                    id: groupRow.id,
-                    name: groupRow.name,
-                    code: groupRow.code,
-                    joinLocked: groupRow.joinLocked ?? false,
-                    members: domainMembers,
-                    sharedHabitIDs: currentUserSharedIDs,
-                    ownerMemberID: groupRow.ownerID,
-                    currentUserMemberID: currentUserID
+            } catch {
+                logger.log(
+                    .storageFailure,
+                    metadata: [
+                        "scope": "groups_fetch_enrichment",
+                        "group_id": groupRow.id.uuidString,
+                        "error": error.localizedDescription
+                    ]
                 )
-            )
+                groups.append(minimalGroup(from: groupRow, currentUserID: currentUserID))
+            }
         }
 
         return groups
@@ -505,6 +517,19 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             }
         }
         return nil
+    }
+
+    private func minimalGroup(from row: GroupRow, currentUserID: UUID) -> Group {
+        Group(
+            id: row.id,
+            name: row.name,
+            code: row.code,
+            joinLocked: row.joinLocked ?? false,
+            members: [],
+            sharedHabitIDs: [],
+            ownerMemberID: row.ownerID,
+            currentUserMemberID: currentUserID
+        )
     }
 
     private func mapJoinError(_ error: Error) -> Error {

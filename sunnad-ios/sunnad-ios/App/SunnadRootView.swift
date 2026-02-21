@@ -73,6 +73,7 @@ struct SunnadRootView: View {
                     groups: state.groupsViewModel.groups,
                     user: state.groupsViewModel.user,
                     habits: state.groupsViewModel.habits,
+                    errorMessage: state.groupsViewModel.errorMessage,
                     onRefresh: state.refreshGroups,
                     onCreateGroup: { state.rootSheet = .createGroup },
                     onJoinGroup: { state.rootSheet = .joinGroup },
