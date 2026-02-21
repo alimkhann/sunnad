@@ -114,7 +114,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     auth: {
       title: "Sign in",
       hint: "This admin panel is restricted to allowlisted admins.",
-      configError: "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Configure env vars first.",
+      configError:
+        "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Configure env vars first.",
       emailLabel: "Admin email",
       emailPlaceholder: "editor@example.com",
       sendMagicLink: "Send magic link",
@@ -179,7 +180,8 @@ const dictionaries: Record<Locale, Dictionary> = {
       dayUnpinned: "Day override removed.",
       deleted: "Quote set permanently deleted.",
       confirmDelete: "Permanently delete this quote set?",
-      confirmDeleteHint: "This cannot be undone. The quote and all translations will be removed from the database.",
+      confirmDeleteHint:
+        "This cannot be undone. The quote and all translations will be removed from the database.",
     },
     errors: {
       signInFailed: "Sign in failed.",
@@ -196,19 +198,22 @@ const dictionaries: Record<Locale, Dictionary> = {
       deleteFailed: "Could not delete quote set.",
       verifyFailed: "Could not verify source.",
     },
-    translationContext: "Translate for a respectful Islamic habits app. Keep meaning faithful.",
+    translationContext:
+      "Translate for a respectful Islamic habits app. Keep meaning faithful.",
   },
   ru: {
     appName: "Sunnad Quotes Admin",
     header: {
       badge: "Внутренний",
       title: "Редакция цитат",
-      subtitle: "Создание, перевод, утверждение и закрепление одной глобальной цитаты на день.",
+      subtitle:
+        "Создание, перевод, утверждение и закрепление одной глобальной цитаты на день.",
     },
     auth: {
       title: "Вход",
       hint: "Доступ только для администраторов из allowlist.",
-      configError: "Отсутствуют NEXT_PUBLIC_SUPABASE_URL или NEXT_PUBLIC_SUPABASE_ANON_KEY. Сначала настройте env.",
+      configError:
+        "Отсутствуют NEXT_PUBLIC_SUPABASE_URL или NEXT_PUBLIC_SUPABASE_ANON_KEY. Сначала настройте env.",
       emailLabel: "Email администратора",
       emailPlaceholder: "editor@example.com",
       sendMagicLink: "Отправить magic link",
@@ -273,7 +278,8 @@ const dictionaries: Record<Locale, Dictionary> = {
       dayUnpinned: "Закрепление дня удалено.",
       deleted: "Набор цитат удалён навсегда.",
       confirmDelete: "Удалить этот набор цитат навсегда?",
-      confirmDeleteHint: "Это действие нельзя отменить. Цитата и все переводы будут удалены из базы данных.",
+      confirmDeleteHint:
+        "Это действие нельзя отменить. Цитата и все переводы будут удалены из базы данных.",
     },
     errors: {
       signInFailed: "Ошибка входа.",
@@ -290,19 +296,22 @@ const dictionaries: Record<Locale, Dictionary> = {
       deleteFailed: "Не удалось удалить набор цитат.",
       verifyFailed: "Не удалось проверить источник.",
     },
-    translationContext: "Перевод для исламского приложения привычек. Сохраняй точный смысл.",
+    translationContext:
+      "Перевод для исламского приложения привычек. Сохраняй точный смысл.",
   },
   kk: {
     appName: "Sunnad Quotes Admin",
     header: {
       badge: "Ішкі",
       title: "Дәйексөз редакция панелі",
-      subtitle: "Бір күнге ортақ дәйексөзді жасау, аудару, бекіту және күнге бекіту.",
+      subtitle:
+        "Бір күнге ортақ дәйексөзді жасау, аудару, бекіту және күнге бекіту.",
     },
     auth: {
       title: "Кіру",
       hint: "Қолжетімділік тек allowlist-тегі әкімшілерге берілген.",
-      configError: "NEXT_PUBLIC_SUPABASE_URL немесе NEXT_PUBLIC_SUPABASE_ANON_KEY жоқ. Алдымен env баптаңыз.",
+      configError:
+        "NEXT_PUBLIC_SUPABASE_URL немесе NEXT_PUBLIC_SUPABASE_ANON_KEY жоқ. Алдымен env баптаңыз.",
       emailLabel: "Әкімші email",
       emailPlaceholder: "editor@example.com",
       sendMagicLink: "Magic link жіберу",
@@ -367,7 +376,8 @@ const dictionaries: Record<Locale, Dictionary> = {
       dayUnpinned: "Күнге бекіту алынды.",
       deleted: "Дәйексөз жиыны біржола жойылды.",
       confirmDelete: "Бұл дәйексөз жиынын біржола жою керек пе?",
-      confirmDeleteHint: "Бұл әрекетті қайтару мүмкін емес. Дәйексөз бен барлық аудармалар деректер базасынан жойылады.",
+      confirmDeleteHint:
+        "Бұл әрекетті қайтару мүмкін емес. Дәйексөз бен барлық аудармалар деректер базасынан жойылады.",
     },
     errors: {
       signInFailed: "Кіру қатесі.",
@@ -384,7 +394,8 @@ const dictionaries: Record<Locale, Dictionary> = {
       deleteFailed: "Дәйексөз жиынын жою мүмкін болмады.",
       verifyFailed: "Дереккөзді тексеру мүмкін болмады.",
     },
-    translationContext: "Исламдық әдеттер қосымшасына арналған аударма. Мағынасын дәл сақта.",
+    translationContext:
+      "Исламдық әдеттер қосымшасына арналған аударма. Мағынасын дәл сақта.",
   },
 };
 

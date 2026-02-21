@@ -37,7 +37,9 @@ export default function AuthCallbackPage(): React.JSX.Element {
       if (code) {
         // PKCE flow: exchangeCodeForSession is handled by Supabase client internally
         // Just wait for the auth state to settle, then redirect
-        const { data: { session } } = await supabase!.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase!.auth.getSession();
         if (session) {
           router.replace("/en");
           return;

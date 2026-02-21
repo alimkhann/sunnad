@@ -58,7 +58,8 @@ type QuoteOverrideRow = {
 const jsonHeaders = {
   "Content-Type": "application/json",
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
 };
 
@@ -89,13 +90,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return await handlePatchQuoteSet(req, auth, setID);
     }
 
-    if (req.method === "POST" && path.startsWith("/quotes/") && path.endsWith("/approve")) {
+    if (
+      req.method === "POST" &&
+      path.startsWith("/quotes/") &&
+      path.endsWith("/approve")
+    ) {
       const setID = path.replace("/quotes/", "").replace("/approve", "").trim();
       if (!setID) return json({ error: "Missing set id" }, 400);
       return await handleApproveQuoteSet(auth, setID);
     }
 
-    if (req.method === "DELETE" && path.startsWith("/quotes/") && !path.includes("day-override")) {
+    if (
+      req.method === "DELETE" &&
+      path.startsWith("/quotes/") &&
+      !path.includes("day-override")
+    ) {
       const setID = path.replace("/quotes/", "").trim();
       if (!setID) return json({ error: "Missing set id" }, 400);
       return await handleDeleteQuoteSet(auth, setID);
@@ -125,7 +134,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
 async function handleGetQuotes(auth: AuthContext): Promise<Response> {
   const quoteSetsResult = await auth.admin
     .from("quote_sets")
-    .select("id,status,created_by,approved_by,approved_at,created_at,updated_at")
+    .select(
+      "id,status,created_by,approved_by,approved_at,created_at,updated_at",
+    )
     .order("updated_at", { ascending: false })
     .returns<QuoteSetRow[]>();
 
@@ -176,14 +187,19 @@ async function handleGetQuotes(auth: AuthContext): Promise<Response> {
 
   const payload = (quoteSetsResult.data ?? []).map((setRow) => ({
     ...setRow,
-    translations: (groupedQuotes.get(setRow.id) ?? []).sort((a, b) => a.locale.localeCompare(b.locale)),
+    translations: (groupedQuotes.get(setRow.id) ?? []).sort((a, b) =>
+      a.locale.localeCompare(b.locale),
+    ),
     override_days: groupedOverrides.get(setRow.id) ?? [],
   }));
 
   return json({ data: payload }, 200);
 }
 
-async function handleCreateQuoteSet(req: Request, auth: AuthContext): Promise<Response> {
+async function handleCreateQuoteSet(
+  req: Request,
+  auth: AuthContext,
+): Promise<Response> {
   const body = (await req.json()) as CreateQuoteSetInput;
   const translations = normalizeTranslations(body.translations);
 
@@ -196,11 +212,16 @@ async function handleCreateQuoteSet(req: Request, auth: AuthContext): Promise<Re
   const insertSet = await auth.admin
     .from("quote_sets")
     .insert({ status, created_by: auth.userID })
-    .select("id,status,created_by,approved_by,approved_at,created_at,updated_at")
+    .select(
+      "id,status,created_by,approved_by,approved_at,created_at,updated_at",
+    )
     .single<QuoteSetRow>();
 
   if (insertSet.error || !insertSet.data) {
-    return json({ error: insertSet.error?.message ?? "Failed to create quote set" }, 500);
+    return json(
+      { error: insertSet.error?.message ?? "Failed to create quote set" },
+      500,
+    );
   }
 
   const quoteRows = translations.map((item) => ({
@@ -220,7 +241,11 @@ async function handleCreateQuoteSet(req: Request, auth: AuthContext): Promise<Re
   return json({ data: insertSet.data }, 201);
 }
 
-async function handlePatchQuoteSet(req: Request, auth: AuthContext, setID: string): Promise<Response> {
+async function handlePatchQuoteSet(
+  req: Request,
+  auth: AuthContext,
+  setID: string,
+): Promise<Response> {
   const body = (await req.json()) as UpdateQuoteSetInput;
   const patch: Record<string, unknown> = {};
   const normalizedStatus = normalizeStatus(body.status);
@@ -229,7 +254,10 @@ async function handlePatchQuoteSet(req: Request, auth: AuthContext, setID: strin
   }
 
   if (Object.keys(patch).length > 0) {
-    const setUpdate = await auth.admin.from("quote_sets").update(patch).eq("id", setID);
+    const setUpdate = await auth.admin
+      .from("quote_sets")
+      .update(patch)
+      .eq("id", setID);
     if (setUpdate.error) {
       return json({ error: setUpdate.error.message }, 500);
     }
@@ -259,7 +287,10 @@ async function handlePatchQuoteSet(req: Request, auth: AuthContext, setID: strin
   return json({ ok: true }, 200);
 }
 
-async function handleDeleteQuoteSet(auth: AuthContext, setID: string): Promise<Response> {
+async function handleDeleteQuoteSet(
+  auth: AuthContext,
+  setID: string,
+): Promise<Response> {
   // Check that the set exists
   const existing = await auth.admin
     .from("quote_sets")
@@ -275,7 +306,10 @@ async function handleDeleteQuoteSet(auth: AuthContext, setID: string): Promise<R
   }
 
   // Delete the set – child quotes are cascade-deleted via FK
-  const deleteResult = await auth.admin.from("quote_sets").delete().eq("id", setID);
+  const deleteResult = await auth.admin
+    .from("quote_sets")
+    .delete()
+    .eq("id", setID);
   if (deleteResult.error) {
     return json({ error: deleteResult.error.message }, 500);
   }
@@ -315,7 +349,9 @@ async function handleVerifySource(req: Request): Promise<Response> {
     "Be concise (max 200 words).",
     "",
     `Quote: "${quoteText}"`,
-    source ? `Claimed source: ${source}` : "Source: not provided — try to identify the correct source",
+    source
+      ? `Claimed source: ${source}`
+      : "Source: not provided — try to identify the correct source",
   ].join("\n");
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -338,7 +374,10 @@ async function handleVerifySource(req: Request): Promise<Response> {
 
     if (!response.ok) {
       const errText = await response.text();
-      return json({ error: `Gemini request failed: ${errText.substring(0, 300)}` }, 502);
+      return json(
+        { error: `Gemini request failed: ${errText.substring(0, 300)}` },
+        502,
+      );
     }
 
     const raw = await response.json();
@@ -351,38 +390,55 @@ async function handleVerifySource(req: Request): Promise<Response> {
     const parts = first?.content?.parts;
     let text = "";
     if (Array.isArray(parts)) {
-      text = parts.map((p: { text?: string }) => p.text ?? "").join("\n").trim();
+      text = parts
+        .map((p: { text?: string }) => p.text ?? "")
+        .join("\n")
+        .trim();
     }
 
     // Extract grounding metadata if present
     const groundingMetadata = first?.groundingMetadata;
-    const searchQueries = groundingMetadata?.searchEntryPoint?.renderedContent ? true : false;
+    const searchQueries = groundingMetadata?.searchEntryPoint?.renderedContent
+      ? true
+      : false;
     const groundingSupports = groundingMetadata?.groundingSupports ?? [];
     const webSearchQueries = groundingMetadata?.webSearchQueries ?? [];
 
-    return json({
-      verification: text,
-      grounded: searchQueries || groundingSupports.length > 0,
-      search_queries: webSearchQueries,
-    }, 200);
-
+    return json(
+      {
+        verification: text,
+        grounded: searchQueries || groundingSupports.length > 0,
+        search_queries: webSearchQueries,
+      },
+      200,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";
     return json({ error: `Verification failed: ${message}` }, 502);
   }
 }
 
-async function handleApproveQuoteSet(auth: AuthContext, setID: string): Promise<Response> {
+async function handleApproveQuoteSet(
+  auth: AuthContext,
+  setID: string,
+): Promise<Response> {
   const updateSet = await auth.admin
     .from("quote_sets")
-    .update({ status: "approved", approved_by: auth.userID, approved_at: new Date().toISOString() })
+    .update({
+      status: "approved",
+      approved_by: auth.userID,
+      approved_at: new Date().toISOString(),
+    })
     .eq("id", setID);
 
   if (updateSet.error) {
     return json({ error: updateSet.error.message }, 500);
   }
 
-  const updateQuotes = await auth.admin.from("quotes").update({ draft: false, active: true }).eq("quote_set_id", setID);
+  const updateQuotes = await auth.admin
+    .from("quotes")
+    .update({ draft: false, active: true })
+    .eq("quote_set_id", setID);
   if (updateQuotes.error) {
     return json({ error: updateQuotes.error.message }, 500);
   }
@@ -390,7 +446,10 @@ async function handleApproveQuoteSet(auth: AuthContext, setID: string): Promise<
   return json({ ok: true }, 200);
 }
 
-async function handleUpsertDayOverride(req: Request, auth: AuthContext): Promise<Response> {
+async function handleUpsertDayOverride(
+  req: Request,
+  auth: AuthContext,
+): Promise<Response> {
   const body = (await req.json()) as DayOverrideInput;
   const day = normalizeDay(body.day_date);
   if (!day) {
@@ -415,19 +474,28 @@ async function handleUpsertDayOverride(req: Request, auth: AuthContext): Promise
     .single<QuoteOverrideRow>();
 
   if (overrideResult.error || !overrideResult.data) {
-    return json({ error: overrideResult.error?.message ?? "Failed to save override" }, 500);
+    return json(
+      { error: overrideResult.error?.message ?? "Failed to save override" },
+      500,
+    );
   }
 
   return json({ data: overrideResult.data }, 200);
 }
 
-async function handleDeleteDayOverride(auth: AuthContext, day: string): Promise<Response> {
+async function handleDeleteDayOverride(
+  auth: AuthContext,
+  day: string,
+): Promise<Response> {
   const normalizedDay = normalizeDay(day);
   if (!normalizedDay) {
     return json({ error: "Invalid day. Use YYYY-MM-DD" }, 400);
   }
 
-  const deleteResult = await auth.admin.from("quote_day_overrides").delete().eq("day_date", normalizedDay);
+  const deleteResult = await auth.admin
+    .from("quote_day_overrides")
+    .delete()
+    .eq("day_date", normalizedDay);
   if (deleteResult.error) {
     return json({ error: deleteResult.error.message }, 500);
   }
@@ -467,7 +535,9 @@ async function requireAdmin(req: Request): Promise<AuthContext | Response> {
   }
 
   const admin = createClient(supabaseURL, serviceRoleKey);
-  const allowResult = await admin.rpc("is_allowlisted_admin", { p_user_id: user.id });
+  const allowResult = await admin.rpc("is_allowlisted_admin", {
+    p_user_id: user.id,
+  });
 
   if (allowResult.error) {
     return json({ error: allowResult.error.message }, 500);
@@ -484,12 +554,17 @@ async function requireAdmin(req: Request): Promise<AuthContext | Response> {
   };
 }
 
-function normalizeTranslations(input: QuoteTranslationInput[] | undefined): Required<QuoteTranslationInput>[] {
+function normalizeTranslations(
+  input: QuoteTranslationInput[] | undefined,
+): Required<QuoteTranslationInput>[] {
   if (!Array.isArray(input)) {
     return [];
   }
 
-  const map = new Map<QuoteTranslationInput["locale"], Required<QuoteTranslationInput>>();
+  const map = new Map<
+    QuoteTranslationInput["locale"],
+    Required<QuoteTranslationInput>
+  >();
 
   for (const row of input) {
     if (!row?.locale || !["en", "ru", "kk"].includes(row.locale)) {
@@ -529,7 +604,9 @@ function normalizeNullableText(input: unknown): string | null {
   return value.length > 0 ? value : null;
 }
 
-function normalizeStatus(input: unknown): "draft" | "approved" | "archived" | null {
+function normalizeStatus(
+  input: unknown,
+): "draft" | "approved" | "archived" | null {
   if (input === "draft" || input === "approved" || input === "archived") {
     return input;
   }
@@ -544,7 +621,9 @@ function normalizeDay(input: string): string | null {
 }
 
 function looksLikeUUID(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }
 
 function getFunctionPath(url: string, fnName: string): string {

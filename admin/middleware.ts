@@ -5,7 +5,12 @@ import { defaultLocale, isLocale } from "@/lib/i18n";
 export function middleware(request: NextRequest): NextResponse {
   const pathname = request.nextUrl.pathname;
 
-  if (pathname.startsWith("/_next") || pathname.startsWith("/api") || pathname.startsWith("/auth") || pathname.includes(".")) {
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/auth") ||
+    pathname.includes(".")
+  ) {
     return NextResponse.next();
   }
 
@@ -20,5 +25,5 @@ export function middleware(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"]
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

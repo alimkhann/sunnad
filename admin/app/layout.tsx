@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Sunnad Admin",
-  description: "Sunnad internal multilingual quote admin panel"
+  description: "Sunnad internal multilingual quote admin panel",
 };
 
 export const viewport: Viewport = {
@@ -12,7 +12,11 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }): React.JSX.Element {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.JSX.Element {
   return (
     <html lang="en">
       <body>{children}</body>

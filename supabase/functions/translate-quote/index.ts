@@ -34,7 +34,8 @@ const ALL_LOCALES: SupportedLocale[] = ["en", "ru", "kk"];
 const jsonHeaders = {
   "Content-Type": "application/json",
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST,OPTIONS",
 };
 
@@ -68,11 +69,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   if (!ALL_LOCALES.includes(sourceLocale)) {
-    return json({ error: `source_locale must be one of: ${ALL_LOCALES.join(", ")}` }, 400);
+    return json(
+      { error: `source_locale must be one of: ${ALL_LOCALES.join(", ")}` },
+      400,
+    );
   }
 
   const targetLocales: SupportedLocale[] = payload.target_locales?.length
-    ? payload.target_locales.filter((l) => ALL_LOCALES.includes(l) && l !== sourceLocale)
+    ? payload.target_locales.filter(
+        (l) => ALL_LOCALES.includes(l) && l !== sourceLocale,
+      )
     : ALL_LOCALES.filter((l) => l !== sourceLocale);
 
   if (targetLocales.length === 0) {
@@ -90,8 +96,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ error: "GEMINI_API_KEY is not configured" }, 500);
   }
 
-  const prompt = buildPrompt({ sourceText: mainText, sourceLocale, targetLocales, source, context, sourceAttribution: sourceText });
-  const result = await callGemini({ prompt, apiKey, model, targetLocales, hasSourceAttribution: !!sourceText });
+  const prompt = buildPrompt({
+    sourceText: mainText,
+    sourceLocale,
+    targetLocales,
+    source,
+    context,
+    sourceAttribution: sourceText,
+  });
+  const result = await callGemini({
+    prompt,
+    apiKey,
+    model,
+    targetLocales,
+    hasSourceAttribution: !!sourceText,
+  });
 
   if (result instanceof Response) {
     return result;
@@ -122,7 +141,9 @@ function buildPrompt(input: {
     ? `Original source attribution: ${input.source}`
     : "Original source attribution: not provided";
 
-  const targetNames = input.targetLocales.map((l) => `${LOCALE_NAMES[l]} (${l})`).join(", ");
+  const targetNames = input.targetLocales
+    .map((l) => `${LOCALE_NAMES[l]} (${l})`)
+    .join(", ");
   const outputKeys = input.targetLocales.join(", ");
 
   const lines = [
@@ -138,9 +159,7 @@ function buildPrompt(input: {
       "Keep honorifics like \u{FDFA} (\u{FE0E}) as-is. Do not translate proper names (e.g. Prophet Muhammad). Translate descriptive parts only.",
     );
   } else {
-    lines.push(
-      `Output strict JSON only with keys: ${outputKeys}.`,
-    );
+    lines.push(`Output strict JSON only with keys: ${outputKeys}.`);
   }
 
   lines.push(
@@ -211,7 +230,13 @@ async function callGemini(args: {
   try {
     parsed = JSON.parse(cleaned);
   } catch {
-    return json({ error: "Gemini response is not valid JSON", raw_text: cleaned.substring(0, 200) }, 502);
+    return json(
+      {
+        error: "Gemini response is not valid JSON",
+        raw_text: cleaned.substring(0, 200),
+      },
+      502,
+    );
   }
 
   if (!parsed || typeof parsed !== "object") {
@@ -222,7 +247,10 @@ async function callGemini(args: {
   for (const locale of args.targetLocales) {
     const value = normalizeText((parsed as Record<string, unknown>)[locale]);
     if (!value) {
-      return json({ error: `Gemini response must include non-empty ${locale}` }, 502);
+      return json(
+        { error: `Gemini response must include non-empty ${locale}` },
+        502,
+      );
     }
     result[locale] = value;
   }
@@ -233,7 +261,9 @@ async function callGemini(args: {
     if (sourcesRaw && typeof sourcesRaw === "object") {
       const sources: Record<string, string> = {};
       for (const locale of args.targetLocales) {
-        const value = normalizeText((sourcesRaw as Record<string, unknown>)[locale]);
+        const value = normalizeText(
+          (sourcesRaw as Record<string, unknown>)[locale],
+        );
         if (value) {
           sources[locale] = value;
         }
@@ -303,7 +333,9 @@ async function requireAdmin(req: Request): Promise<AuthContext | Response> {
   }
 
   const admin = createClient(supabaseURL, serviceRoleKey);
-  const allowResult = await admin.rpc("is_allowlisted_admin", { p_user_id: user.id });
+  const allowResult = await admin.rpc("is_allowlisted_admin", {
+    p_user_id: user.id,
+  });
 
   if (allowResult.error) {
     return json({ error: allowResult.error.message }, 500);

@@ -17,7 +17,13 @@ import {
 } from "@/lib/admin-api";
 import type { QuoteLocale, QuoteSet, QuoteStatus } from "@/lib/admin-types";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -105,7 +111,9 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
 
   // Editor
   const [status, setStatus] = useState<QuoteStatus>("draft");
-  const [translations, setTranslations] = useState<Record<QuoteLocale, TranslationDraft>>(() => emptyTranslations());
+  const [translations, setTranslations] = useState<
+    Record<QuoteLocale, TranslationDraft>
+  >(() => emptyTranslations());
   const [pinDay, setPinDay] = useState("");
 
   // Verify source
@@ -133,64 +141,70 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
     setShowDeleteConfirm(false);
   }, []);
 
-  const syncFormFromSet = useCallback((setRow: QuoteSet | null) => {
-    if (!setRow) {
-      resetForm();
-      return;
-    }
-    const next = emptyTranslations();
-    for (const row of setRow.translations) {
-      next[row.locale] = {
-        locale: row.locale,
-        text: row.text,
-        source: row.source ?? "",
-        active: row.active,
-        draft: row.draft,
-      };
-    }
-    setSelectedSetID(setRow.id);
-    setStatus(setRow.status);
-    setTranslations(next);
-    setVerifyResult(null);
-    setShowDeleteConfirm(false);
-  }, [resetForm]);
+  const syncFormFromSet = useCallback(
+    (setRow: QuoteSet | null) => {
+      if (!setRow) {
+        resetForm();
+        return;
+      }
+      const next = emptyTranslations();
+      for (const row of setRow.translations) {
+        next[row.locale] = {
+          locale: row.locale,
+          text: row.text,
+          source: row.source ?? "",
+          active: row.active,
+          draft: row.draft,
+        };
+      }
+      setSelectedSetID(setRow.id);
+      setStatus(setRow.status);
+      setTranslations(next);
+      setVerifyResult(null);
+      setShowDeleteConfirm(false);
+    },
+    [resetForm],
+  );
 
   const accessToken = session?.access_token;
 
-  const reload = useCallback(async (opts?: { skipCache?: boolean }) => {
-    if (!accessToken) return;
-    setLoading(true);
-    setError(null);
+  const reload = useCallback(
+    async (opts?: { skipCache?: boolean }) => {
+      if (!accessToken) return;
+      setLoading(true);
+      setError(null);
 
-    // Try cache first (unless skipCache)
-    if (!opts?.skipCache) {
-      const cached = readCache();
-      if (cached) {
-        setSets(cached);
-        setLoading(false);
-        // Still fetch fresh in background
-        listQuoteSets({ accessToken })
-          .then((payload) => {
-            const data = payload.data ?? [];
-            setSets(data);
-            writeCache(data);
-          })
-          .catch(() => {});
-        return;
+      // Try cache first (unless skipCache)
+      if (!opts?.skipCache) {
+        const cached = readCache();
+        if (cached) {
+          setSets(cached);
+          setLoading(false);
+          // Still fetch fresh in background
+          listQuoteSets({ accessToken })
+            .then((payload) => {
+              const data = payload.data ?? [];
+              setSets(data);
+              writeCache(data);
+            })
+            .catch(() => {});
+          return;
+        }
       }
-    }
 
-    try {
-      const payload = await listQuoteSets({ accessToken });
-      const data = payload.data ?? [];
-      setSets(data);
-      writeCache(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.errors.loadFailed);
-    } finally {
-      setLoading(false);
-    }
-  }, [accessToken, t.errors.loadFailed]);
+      try {
+        const payload = await listQuoteSets({ accessToken });
+        const data = payload.data ?? [];
+        setSets(data);
+        writeCache(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : t.errors.loadFailed);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [accessToken, t.errors.loadFailed],
+  );
 
   // Bootstrap auth
   useEffect(() => {
@@ -200,7 +214,9 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
       setSession(data.session);
     };
     void bootstrap();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
     });
     return () => subscription.unsubscribe();
@@ -214,7 +230,7 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
       setSets([]);
       resetForm();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
   // -----------------------------------------------------------------------
@@ -238,10 +254,16 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
     setError(null);
     try {
       if (selectedSetID) {
-        await updateQuoteSet({ accessToken }, selectedSetID, { status, translations: payloadTranslations });
+        await updateQuoteSet({ accessToken }, selectedSetID, {
+          status,
+          translations: payloadTranslations,
+        });
         showNotice(t.messages.saved);
       } else {
-        await createQuoteSet({ accessToken }, { status, translations: payloadTranslations });
+        await createQuoteSet(
+          { accessToken },
+          { status, translations: payloadTranslations },
+        );
         showNotice(t.messages.created);
       }
       clearCache();
@@ -252,7 +274,16 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
     } finally {
       setBusy(false);
     }
-  }, [accessToken, selectedSetID, status, translations, t, showNotice, reload, resetForm]);
+  }, [
+    accessToken,
+    selectedSetID,
+    status,
+    translations,
+    t,
+    showNotice,
+    reload,
+    resetForm,
+  ]);
 
   const signIn = useCallback(async () => {
     if (!supabase) {
@@ -272,7 +303,10 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
         const { error: signInError } = await supabase.auth.signInWithOtp({
           email: loginEmail.trim(),
           options: {
-            emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+            emailRedirectTo:
+              typeof window !== "undefined"
+                ? window.location.origin
+                : undefined,
           },
         });
         if (signInError) throw signInError;
@@ -318,7 +352,8 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
       return;
     }
     const targetLocales = localeOrder.filter((l) => l !== sourceLocale);
-    const sourceAttribution = translations[sourceLocale].source?.trim() || undefined;
+    const sourceAttribution =
+      translations[sourceLocale].source?.trim() || undefined;
 
     setBusy(true);
     setError(null);
@@ -440,7 +475,10 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
     setVerifyResult(null);
     setError(null);
     try {
-      const result = await verifyQuoteSource({ accessToken }, { quote_text: quoteText, source: source || undefined });
+      const result = await verifyQuoteSource(
+        { accessToken },
+        { quote_text: quoteText, source: source || undefined },
+      );
       setVerifyResult(result.verification);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.errors.verifyFailed);
@@ -491,7 +529,10 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
     }
   }, [accessToken, pinDay, reload, t, showNotice]);
 
-  const updateTranslation = (lang: QuoteLocale, patch: Partial<TranslationDraft>): void => {
+  const updateTranslation = (
+    lang: QuoteLocale,
+    patch: Partial<TranslationDraft>,
+  ): void => {
     setTranslations((current) => ({
       ...current,
       [lang]: { ...current[lang], ...patch },
@@ -563,7 +604,9 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
                 </div>
                 <Button
                   className="w-full"
-                  disabled={busy || !loginEmail.trim() || !loginPassword || !hasConfig}
+                  disabled={
+                    busy || !loginEmail.trim() || !loginPassword || !hasConfig
+                  }
                   onClick={() => void signIn()}
                 >
                   {t.auth.signInWithPassword}
@@ -595,7 +638,9 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
               </>
             )}
 
-            {!hasConfig ? <p className="text-sm text-red-400">{t.auth.configError}</p> : null}
+            {!hasConfig ? (
+              <p className="text-sm text-red-400">{t.auth.configError}</p>
+            ) : null}
             {notice ? <p className="text-sm text-primary">{notice}</p> : null}
             {error ? <p className="text-sm text-red-400">{error}</p> : null}
           </CardContent>
@@ -613,16 +658,33 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
       {/* Header */}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t.header.badge}</p>
-          <h1 className="font-heading text-2xl font-semibold">{t.header.title}</h1>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            {t.header.badge}
+          </p>
+          <h1 className="font-heading text-2xl font-semibold">
+            {t.header.title}
+          </h1>
           <p className="text-sm text-muted-foreground">{t.header.subtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           <LocaleSwitch base={localeRouteBase} current={locale} />
-          <Button variant="secondary" size="sm" onClick={() => { clearCache(); void reload({ skipCache: true }); }} disabled={loading || busy}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              clearCache();
+              void reload({ skipCache: true });
+            }}
+            disabled={loading || busy}
+          >
             {t.actions.refresh}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => void signOut()} disabled={busy}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void signOut()}
+            disabled={busy}
+          >
             {t.actions.signOut}
           </Button>
         </div>
@@ -644,32 +706,40 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
             </div>
             {/* Status filter tabs */}
             <div className="mt-3 flex gap-1">
-              {(["all", "draft", "approved", "archived"] as StatusFilter[]).map((f) => {
-                const label = f === "all" ? t.list.filterAll
-                  : f === "draft" ? t.list.filterDraft
-                  : f === "approved" ? t.list.filterApproved
-                  : t.list.filterArchived;
-                return (
-                  <button
-                    type="button"
-                    key={f}
-                    onClick={() => setStatusFilter(f)}
-                    className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-                      statusFilter === f
-                        ? "bg-primary/15 text-primary"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {label} ({counts[f]})
-                  </button>
-                );
-              })}
+              {(["all", "draft", "approved", "archived"] as StatusFilter[]).map(
+                (f) => {
+                  const label =
+                    f === "all"
+                      ? t.list.filterAll
+                      : f === "draft"
+                        ? t.list.filterDraft
+                        : f === "approved"
+                          ? t.list.filterApproved
+                          : t.list.filterArchived;
+                  return (
+                    <button
+                      type="button"
+                      key={f}
+                      onClick={() => setStatusFilter(f)}
+                      className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                        statusFilter === f
+                          ? "bg-primary/15 text-primary"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {label} ({counts[f]})
+                    </button>
+                  );
+                },
+              )}
             </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden pb-4">
             <div className="max-h-[calc(100vh-16rem)] space-y-2 overflow-auto pr-1">
               {filteredSets.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">{t.list.empty}</p>
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  {t.list.empty}
+                </p>
               ) : null}
               {filteredSets.map((setRow) => (
                 <button
@@ -683,19 +753,30 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="font-mono text-xs font-medium">{setRow.id.slice(0, 8)}</p>
+                    <p className="font-mono text-xs font-medium">
+                      {setRow.id.slice(0, 8)}
+                    </p>
                     <StatusBadge status={setRow.status} t={t} />
                   </div>
                   <div className="mt-1.5 space-y-0.5">
                     {localeOrder.map((lang) => {
-                      const tr = setRow.translations.find((item) => item.locale === lang);
+                      const tr = setRow.translations.find(
+                        (item) => item.locale === lang,
+                      );
                       const text = tr?.text?.trim();
                       return (
-                        <div key={lang} className="flex items-start gap-1.5 text-xs">
-                          <span className={`shrink-0 font-semibold uppercase ${text ? "text-muted-foreground" : "text-red-400/70"}`}>
+                        <div
+                          key={lang}
+                          className="flex items-start gap-1.5 text-xs"
+                        >
+                          <span
+                            className={`shrink-0 font-semibold uppercase ${text ? "text-muted-foreground" : "text-red-400/70"}`}
+                          >
                             {lang}
                           </span>
-                          <p className={`line-clamp-1 ${text ? "text-muted-foreground" : "italic text-red-400/50"}`}>
+                          <p
+                            className={`line-clamp-1 ${text ? "text-muted-foreground" : "italic text-red-400/50"}`}
+                          >
                             {text || t.list.missing}
                           </p>
                         </div>
@@ -703,7 +784,9 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
                     })}
                   </div>
                   {setRow.override_days.length > 0 ? (
-                    <p className="mt-1 text-[10px] text-primary">{t.list.pinnedDays}: {setRow.override_days.join(", ")}</p>
+                    <p className="mt-1 text-[10px] text-primary">
+                      {t.list.pinnedDays}: {setRow.override_days.join(", ")}
+                    </p>
                   ) : null}
                 </button>
               ))}
@@ -716,12 +799,12 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>{selectedSetID ? t.editor.editTitle : t.editor.createTitle}</CardTitle>
+                <CardTitle>
+                  {selectedSetID ? t.editor.editTitle : t.editor.createTitle}
+                </CardTitle>
                 <CardDescription>{t.editor.hint}</CardDescription>
               </div>
-              {selectedSetID && (
-                <StatusBadge status={status} t={t} />
-              )}
+              {selectedSetID && <StatusBadge status={status} t={t} />}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -742,18 +825,27 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
 
             {/* Translation fields */}
             {localeOrder.map((lang) => (
-              <div key={lang} className="rounded-md border border-border/70 p-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.locales[lang]}</p>
+              <div
+                key={lang}
+                className="rounded-md border border-border/70 p-3"
+              >
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t.locales[lang]}
+                </p>
                 <div className="space-y-2">
                   <Textarea
                     value={translations[lang].text}
-                    onChange={(e) => updateTranslation(lang, { text: e.target.value })}
+                    onChange={(e) =>
+                      updateTranslation(lang, { text: e.target.value })
+                    }
                     placeholder={t.editor.quotePlaceholder}
                     rows={2}
                   />
                   <Input
                     value={translations[lang].source}
-                    onChange={(e) => updateTranslation(lang, { source: e.target.value })}
+                    onChange={(e) =>
+                      updateTranslation(lang, { source: e.target.value })
+                    }
                     placeholder={t.editor.sourcePlaceholder}
                   />
                 </div>
@@ -762,19 +854,34 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
 
             {/* Action buttons */}
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => void generateDrafts()} disabled={busy} variant="secondary" size="sm">
+              <Button
+                onClick={() => void generateDrafts()}
+                disabled={busy}
+                variant="secondary"
+                size="sm"
+              >
                 {t.actions.generateDrafts}
               </Button>
               <Button onClick={() => void save()} disabled={busy} size="sm">
                 {selectedSetID ? t.actions.saveChanges : t.actions.createSet}
               </Button>
               {selectedSetID && status !== "approved" && (
-                <Button onClick={() => void approve()} disabled={busy} variant="secondary" size="sm">
+                <Button
+                  onClick={() => void approve()}
+                  disabled={busy}
+                  variant="secondary"
+                  size="sm"
+                >
                   {t.actions.approve}
                 </Button>
               )}
               {selectedSetID && status !== "archived" && (
-                <Button onClick={() => void handleArchive()} disabled={busy} variant="secondary" size="sm">
+                <Button
+                  onClick={() => void handleArchive()}
+                  disabled={busy}
+                  variant="secondary"
+                  size="sm"
+                >
                   {t.actions.archive}
                 </Button>
               )}
@@ -791,7 +898,9 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
                 >
                   {verifying ? "..." : t.actions.verifySource}
                 </Button>
-                <span className="text-xs text-muted-foreground">Gemini + Web Search</span>
+                <span className="text-xs text-muted-foreground">
+                  Gemini + Web Search
+                </span>
               </div>
               {verifyResult && (
                 <div className="mt-2 max-h-48 overflow-auto rounded bg-muted/20 p-2 text-xs whitespace-pre-wrap">
@@ -802,18 +911,36 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
 
             {/* Day override */}
             <div className="rounded-md border border-border/70 p-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.editor.dayOverrideTitle}</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t.editor.dayOverrideTitle}
+              </p>
               <div className="flex flex-wrap items-center gap-2">
-                <Input type="date" value={pinDay} onChange={(e) => setPinDay(e.target.value)} className="w-[180px]" />
-                <Button onClick={() => void pinSelectedDay()} disabled={busy || !selectedSetID} size="sm">
+                <Input
+                  type="date"
+                  value={pinDay}
+                  onChange={(e) => setPinDay(e.target.value)}
+                  className="w-[180px]"
+                />
+                <Button
+                  onClick={() => void pinSelectedDay()}
+                  disabled={busy || !selectedSetID}
+                  size="sm"
+                >
                   {t.actions.pinDay}
                 </Button>
-                <Button onClick={() => void unpinSelectedDay()} disabled={busy} variant="secondary" size="sm">
+                <Button
+                  onClick={() => void unpinSelectedDay()}
+                  disabled={busy}
+                  variant="secondary"
+                  size="sm"
+                >
                   {t.actions.unpinDay}
                 </Button>
               </div>
               {selected?.override_days?.length ? (
-                <p className="mt-2 text-xs text-primary">{t.list.pinnedDays}: {selected.override_days.join(", ")}</p>
+                <p className="mt-2 text-xs text-primary">
+                  {t.list.pinnedDays}: {selected.override_days.join(", ")}
+                </p>
               ) : null}
             </div>
 
@@ -822,12 +949,16 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
               <div className="rounded-md border border-red-400/30 bg-red-400/5 p-3">
                 {showDeleteConfirm ? (
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-red-400">{t.messages.confirmDelete}</p>
-                    <p className="text-xs text-muted-foreground">{t.messages.confirmDeleteHint}</p>
+                    <p className="text-sm font-medium text-red-400">
+                      {t.messages.confirmDelete}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {t.messages.confirmDeleteHint}
+                    </p>
                     <div className="flex gap-2">
                       <Button
-                        variant="destructive"
                         size="sm"
+                        className="bg-red-600 text-white hover:bg-red-700"
                         onClick={() => void handleDelete()}
                         disabled={busy}
                       >
@@ -869,27 +1000,43 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function StatusBadge({ status, t }: { status: QuoteStatus; t: Dictionary }): React.JSX.Element {
+function StatusBadge({
+  status,
+  t,
+}: {
+  status: QuoteStatus;
+  t: Dictionary;
+}): React.JSX.Element {
   const colors: Record<QuoteStatus, string> = {
     draft: "bg-yellow-400/15 text-yellow-600",
     approved: "bg-green-400/15 text-green-600",
     archived: "bg-muted text-muted-foreground",
   };
   return (
-    <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[status]}`}>
+    <span
+      className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors[status]}`}
+    >
       {t.status[status]}
     </span>
   );
 }
 
-function LocaleSwitch({ base, current }: { base: string; current: Locale }): React.JSX.Element {
+function LocaleSwitch({
+  base,
+  current,
+}: {
+  base: string;
+  current: Locale;
+}): React.JSX.Element {
   return (
     <div className="inline-flex rounded-md border border-border/80 bg-muted/10 p-0.5 text-xs font-semibold uppercase tracking-wide">
-      {([
-        ["en", "EN"],
-        ["ru", "RU"],
-        ["kk", "KZ"],
-      ] as const).map(([code, label]) => (
+      {(
+        [
+          ["en", "EN"],
+          ["ru", "RU"],
+          ["kk", "KZ"],
+        ] as const
+      ).map(([code, label]) => (
         <Link
           key={code}
           href={base.replace(/^\/(en|ru|kk)/, `/${code}`)}
