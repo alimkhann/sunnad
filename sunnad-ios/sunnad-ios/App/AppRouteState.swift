@@ -8,6 +8,7 @@ final class AppRouteState: ObservableObject {
     private enum LocalStateKeys {
         static let onboardingCompleted = "sunnad.onboarding.completed"
         static let pendingPasswordRecovery = "sunnad.auth.pending-password-recovery"
+        static let pendingOAuthIntent = "sunnad.auth.pending-oauth-intent"
     }
 
     private enum PasswordRecoverySource {
@@ -27,6 +28,11 @@ final class AppRouteState: ObservableObject {
                 return "apple"
             }
         }
+    }
+
+    private enum OAuthIntent: String {
+        case signIn = "sign_in"
+        case signUp = "sign_up"
     }
 
     private enum GuestPromotionMode {
@@ -325,19 +331,35 @@ final class AppRouteState: ObservableObject {
     }
 
     func handleGoogleSignIn() {
-        handleOAuthSignIn(using: .google, fromProfileSurface: false)
+        handleOAuthSignIn(using: .google, intent: .signIn, fromProfileSurface: false)
+    }
+
+    func handleGoogleSignUp() {
+        handleOAuthSignIn(using: .google, intent: .signUp, fromProfileSurface: false)
     }
 
     func handleGoogleProfileSignIn() {
-        handleOAuthSignIn(using: .google, fromProfileSurface: true)
+        handleOAuthSignIn(using: .google, intent: .signIn, fromProfileSurface: true)
+    }
+
+    func handleGoogleProfileSignUp() {
+        handleOAuthSignIn(using: .google, intent: .signUp, fromProfileSurface: true)
     }
 
     func handleAppleSignIn() {
-        handleOAuthSignIn(using: .apple, fromProfileSurface: false)
+        handleOAuthSignIn(using: .apple, intent: .signIn, fromProfileSurface: false)
+    }
+
+    func handleAppleSignUp() {
+        handleOAuthSignIn(using: .apple, intent: .signUp, fromProfileSurface: false)
     }
 
     func handleAppleProfileSignIn() {
-        handleOAuthSignIn(using: .apple, fromProfileSurface: true)
+        handleOAuthSignIn(using: .apple, intent: .signIn, fromProfileSurface: true)
+    }
+
+    func handleAppleProfileSignUp() {
+        handleOAuthSignIn(using: .apple, intent: .signUp, fromProfileSurface: true)
     }
 
     func handleSignUp(email: String, username: String, password: String, method: String = "email") {
@@ -730,10 +752,12 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                let promotionMode: GuestPromotionMode = shouldOpenRecoveryPassword
-                    ? .none
-                    : (Self.isSignupCallbackURL(url) ? .signup : .none)
+                let promotionMode = resolvePromotionModeForAuthCallback(
+                    url: url,
+                    shouldOpenRecoveryPassword: shouldOpenRecoveryPassword
+                )
                 await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: promotionMode)
+                clearPendingOAuthIntent()
                 markOnboardingCompleted()
                 activeTab = .today
 
@@ -746,6 +770,7 @@ final class AppRouteState: ObservableObject {
                     fullScreen = nil
                 }
             } catch {
+                clearPendingOAuthIntent()
                 authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
                 if shouldOpenRecoveryPassword {
@@ -968,7 +993,11 @@ final class AppRouteState: ObservableObject {
         await groupsViewModel.sendNudge(groupID: groupID, memberID: memberID, habitID: habitID)
     }
 
-    private func handleOAuthSignIn(using provider: OAuthProvider, fromProfileSurface: Bool) {
+    private func handleOAuthSignIn(
+        using provider: OAuthProvider,
+        intent: OAuthIntent,
+        fromProfileSurface: Bool
+    ) {
         switch provider {
         case .google where !dependencies.environment.oauthConfig.googleEnabled:
             authErrorMessage = AuthServiceError.providerUnavailable("Google").localizedDescription
@@ -982,6 +1011,7 @@ final class AppRouteState: ObservableObject {
 
         Task {
             do {
+                setPendingOAuthIntent(intent)
                 let sessionUser: SessionUser
                 switch provider {
                 case .google:
@@ -992,13 +1022,16 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .none)
+                let promotionMode: GuestPromotionMode = intent == .signUp ? .signup : .none
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: promotionMode)
+                clearPendingOAuthIntent()
                 markOnboardingCompleted()
                 activeTab = .today
                 if fromProfileSurface {
                     fullScreen = nil
                 }
             } catch {
+                clearPendingOAuthIntent()
                 authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
                 dependencies.analyticsLogger.log(
@@ -1548,6 +1581,43 @@ final class AppRouteState: ObservableObject {
     private static func isSignupCallbackURL(_ url: URL) -> Bool {
         let raw = url.absoluteString.lowercased()
         return raw.contains("type=signup") || raw.contains("type=magiclink")
+    }
+
+    private func resolvePromotionModeForAuthCallback(
+        url: URL,
+        shouldOpenRecoveryPassword: Bool
+    ) -> GuestPromotionMode {
+        guard !shouldOpenRecoveryPassword else {
+            return .none
+        }
+
+        if Self.isSignupCallbackURL(url) {
+            return .signup
+        }
+
+        if consumePendingOAuthIntent() == .signUp {
+            return .signup
+        }
+
+        return .none
+    }
+
+    private func setPendingOAuthIntent(_ intent: OAuthIntent) {
+        userDefaults.set(intent.rawValue, forKey: LocalStateKeys.pendingOAuthIntent)
+    }
+
+    private func consumePendingOAuthIntent() -> OAuthIntent? {
+        guard let raw = userDefaults.string(forKey: LocalStateKeys.pendingOAuthIntent),
+              let intent = OAuthIntent(rawValue: raw) else {
+            return nil
+        }
+
+        userDefaults.removeObject(forKey: LocalStateKeys.pendingOAuthIntent)
+        return intent
+    }
+
+    private func clearPendingOAuthIntent() {
+        userDefaults.removeObject(forKey: LocalStateKeys.pendingOAuthIntent)
     }
 
     private static func lastSevenMarks(
