@@ -1,12 +1,13 @@
 import { Locale, isLocale } from "@/lib/i18n";
 
-export default function LocaleLayout({
+export default async function LocaleLayout({
   children,
   params
 }: {
   children: React.ReactNode;
-  params: { locale: string };
-}): React.JSX.Element {
-  const locale: Locale = isLocale(params.locale) ? params.locale : "en";
+  params: Promise<{ locale: string }>;
+}): Promise<React.JSX.Element> {
+  const resolvedParams = await params;
+  const locale: Locale = isLocale(resolvedParams.locale) ? resolvedParams.locale : "en";
   return <section data-locale={locale}>{children}</section>;
 }
