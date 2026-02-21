@@ -4,6 +4,7 @@ import SwiftData
 @Model
 final class LocalOutboxEventEntity {
     @Attribute(.unique) var id: UUID
+    var ownerScope: String = "guest"
     var type: String
     var payloadJSON: String
     var createdAt: Date
@@ -12,6 +13,7 @@ final class LocalOutboxEventEntity {
 
     init(
         id: UUID = UUID(),
+        ownerScope: String,
         type: String,
         payloadJSON: String,
         createdAt: Date = Date(),
@@ -19,6 +21,7 @@ final class LocalOutboxEventEntity {
         lastError: String? = nil
     ) {
         self.id = id
+        self.ownerScope = ownerScope
         self.type = type
         self.payloadJSON = payloadJSON
         self.createdAt = createdAt

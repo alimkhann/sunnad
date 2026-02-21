@@ -9,7 +9,8 @@ struct LocalRepositoriesTests {
     func createUpdateDeleteHabitPersists() async throws {
         let container = try makeInMemoryContainer()
         let logger = TestLogger()
-        let repository = HabitsLocalRepository(modelContext: container.mainContext, logger: logger)
+        let ownerScope = makeTestOwnerScopeResolver()
+        let repository = HabitsLocalRepository(modelContext: container.mainContext, logger: logger, ownerScopeProvider: ownerScope)
 
         var habit = Habit(
             id: UUID(),
@@ -43,7 +44,8 @@ struct LocalRepositoriesTests {
     func dueHabitsFilterExcludesNotScheduled() async throws {
         let container = try makeInMemoryContainer()
         let logger = TestLogger()
-        let repository = HabitsLocalRepository(modelContext: container.mainContext, logger: logger)
+        let ownerScope = makeTestOwnerScopeResolver()
+        let repository = HabitsLocalRepository(modelContext: container.mainContext, logger: logger, ownerScopeProvider: ownerScope)
 
         let mondayOnly = Habit(
             id: UUID(),
@@ -80,7 +82,8 @@ struct LocalRepositoriesTests {
     func completionUpsertIsIdempotentForSameDay() async throws {
         let container = try makeInMemoryContainer()
         let logger = TestLogger()
-        let repository = CompletionsLocalRepository(modelContext: container.mainContext, logger: logger)
+        let ownerScope = makeTestOwnerScopeResolver()
+        let repository = CompletionsLocalRepository(modelContext: container.mainContext, logger: logger, ownerScopeProvider: ownerScope)
 
         let habitID = UUID()
         let day = date(year: 2026, month: 2, day: 19)
@@ -101,7 +104,8 @@ struct LocalRepositoriesTests {
     func savedQuotesAreReturnedInDescendingOrder() async throws {
         let container = try makeInMemoryContainer()
         let logger = TestLogger()
-        let repository = QuotesLocalRepository(modelContext: container.mainContext, logger: logger)
+        let ownerScope = makeTestOwnerScopeResolver()
+        let repository = QuotesLocalRepository(modelContext: container.mainContext, logger: logger, ownerScopeProvider: ownerScope)
 
         let first = Quote(id: UUID(), locale: "en", text: "Q1", source: "S1", sortOrder: 0, active: true)
         let second = Quote(id: UUID(), locale: "en", text: "Q2", source: "S2", sortOrder: 1, active: true)
@@ -119,7 +123,8 @@ struct LocalRepositoriesTests {
     func habitsAreFetchedByPersistedSortOrder() async throws {
         let container = try makeInMemoryContainer()
         let logger = TestLogger()
-        let repository = HabitsLocalRepository(modelContext: container.mainContext, logger: logger)
+        let ownerScope = makeTestOwnerScopeResolver()
+        let repository = HabitsLocalRepository(modelContext: container.mainContext, logger: logger, ownerScopeProvider: ownerScope)
 
         let first = Habit(
             id: UUID(),
@@ -152,7 +157,8 @@ struct LocalRepositoriesTests {
     func dhikrCountersPersistPerKey() async throws {
         let container = try makeInMemoryContainer()
         let logger = TestLogger()
-        let repository = HabitsLocalRepository(modelContext: container.mainContext, logger: logger)
+        let ownerScope = makeTestOwnerScopeResolver()
+        let repository = HabitsLocalRepository(modelContext: container.mainContext, logger: logger, ownerScopeProvider: ownerScope)
 
         let habit = Habit(
             id: UUID(),
@@ -176,6 +182,79 @@ struct LocalRepositoriesTests {
         #expect(fetched[0].selectedDhikrKey == "dhikr.choice.alhamdulillah")
         #expect(fetched[0].dhikrCountsByKey["dhikr.choice.subhanallah"] == 7)
         #expect(fetched[0].dhikrCountsByKey["dhikr.choice.alhamdulillah"] == 12)
+    }
+
+    @Test
+    func ownerScopeIsolationAllowsSameHabitIDAcrossScopes() async throws {
+        let container = try makeInMemoryContainer()
+        let logger = TestLogger()
+        let ownerScope = makeTestOwnerScopeResolver(namespace: "owner-scope-isolation")
+        let repository = HabitsLocalRepository(modelContext: container.mainContext, logger: logger, ownerScopeProvider: ownerScope)
+
+        let sharedHabitID = UUID()
+        let guestHabit = Habit(
+            id: sharedHabitID,
+            name: "Guest Habit",
+            icon: "person",
+            category: .spiritual,
+            type: .binary,
+            schedule: .daily
+        )
+        try await repository.saveHabit(guestHabit)
+
+        let userID = UUID()
+        ownerScope.setSignedInUserID(userID)
+        let accountHabit = Habit(
+            id: sharedHabitID,
+            name: "Account Habit",
+            icon: "person.crop.circle",
+            category: .physical,
+            type: .binary,
+            schedule: .daily
+        )
+        try await repository.saveHabit(accountHabit)
+
+        let signedInHabits = try await repository.fetchHabits(includeArchived: false)
+        #expect(signedInHabits.count == 1)
+        #expect(signedInHabits.first?.name == "Account Habit")
+
+        ownerScope.setSignedInUserID(nil)
+        let guestHabits = try await repository.fetchHabits(includeArchived: false)
+        #expect(guestHabits.count == 1)
+        #expect(guestHabits.first?.name == "Guest Habit")
+    }
+
+    @Test
+    func clearLocalDataForScopeDoesNotReseedHabitsOnContainerRebuild() async throws {
+        let container = try makeInMemoryContainer()
+        let authService = FakeAuthService(currentUserValue: nil)
+
+        let dependencies = DependencyContainer(
+            modelContainer: container,
+            authService: authService,
+            deviceTokenSyncService: FakeDeviceTokenSyncService()
+        )
+
+        let habit = Habit(
+            id: UUID(),
+            name: "Temporary Habit",
+            icon: "trash",
+            category: .spiritual,
+            type: .binary,
+            schedule: .daily
+        )
+        try await dependencies.habitsRepository.saveHabit(habit)
+
+        try await dependencies.clearLocalDataForCurrentScope()
+
+        let rebuiltDependencies = DependencyContainer(
+            modelContainer: container,
+            authService: authService,
+            deviceTokenSyncService: FakeDeviceTokenSyncService()
+        )
+
+        let habitsAfterRebuild = try await rebuiltDependencies.habitsRepository.fetchHabits(includeArchived: true)
+        #expect(habitsAfterRebuild.isEmpty)
     }
 
     private func date(year: Int, month: Int, day: Int, hour: Int = 12) -> Date {

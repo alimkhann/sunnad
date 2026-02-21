@@ -27,3 +27,10 @@ func makeInMemoryContainer() throws -> ModelContainer {
         configurations: configuration
     )
 }
+
+@MainActor
+func makeTestOwnerScopeResolver(namespace: String = UUID().uuidString) -> LocalOwnerScopeResolver {
+    let defaults = UserDefaults(suiteName: "sunnad.tests.\(namespace)") ?? .standard
+    defaults.removePersistentDomain(forName: "sunnad.tests.\(namespace)")
+    return LocalOwnerScopeResolver(namespace: namespace, userDefaults: defaults)
+}

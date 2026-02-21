@@ -3,7 +3,8 @@ import SwiftData
 
 @Model
 final class HabitEntity {
-    @Attribute(.unique) var id: UUID
+    var id: UUID
+    var ownerScope: String = "guest"
     var name: String
     var icon: String
     var categoryRaw: String
@@ -22,6 +23,7 @@ final class HabitEntity {
 
     init(
         id: UUID,
+        ownerScope: String,
         name: String,
         icon: String,
         categoryRaw: String,
@@ -39,6 +41,7 @@ final class HabitEntity {
         updatedAt: Date
     ) {
         self.id = id
+        self.ownerScope = ownerScope
         self.name = name
         self.icon = icon
         self.categoryRaw = categoryRaw
@@ -55,12 +58,14 @@ final class HabitEntity {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
+
 }
 
 extension HabitEntity {
-    func apply(_ habit: Habit) {
+    func apply(_ habit: Habit, ownerScope: String) {
         name = habit.name
         icon = habit.icon
+        self.ownerScope = ownerScope
         categoryRaw = habit.category.rawValue
         typeRaw = habit.type.rawValue
         targetCount = habit.targetCount
