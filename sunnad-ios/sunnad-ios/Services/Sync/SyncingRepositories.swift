@@ -21,11 +21,13 @@ final class SyncingHabitsRepository: HabitsRepository {
     func saveHabit(_ habit: Habit) async throws {
         try await base.saveHabit(habit)
         await syncCoordinator.enqueueHabitUpsert(habitID: habit.id)
+        await syncCoordinator.runSyncCycle(trigger: .manual)
     }
 
     func deleteHabit(id: UUID) async throws {
         try await base.deleteHabit(id: id)
         await syncCoordinator.enqueueHabitDelete(habitID: id)
+        await syncCoordinator.runSyncCycle(trigger: .manual)
     }
 }
 
@@ -64,6 +66,7 @@ final class SyncingCompletionsRepository: CompletionsRepository {
             calendar: calendar,
             timeZone: timeZone
         )
+        await syncCoordinator.runSyncCycle(trigger: .manual)
     }
 
     func deleteCompletion(habitID: UUID, on day: Date, calendar: Calendar, timeZone: TimeZone) async throws {
@@ -92,6 +95,7 @@ final class SyncingQuotesRepository: QuotesRepository {
     func saveQuote(_ quote: Quote, savedAt: Date) async throws {
         try await base.saveQuote(quote, savedAt: savedAt)
         await syncCoordinator.enqueueSavedQuoteInsert(quoteID: quote.id)
+        await syncCoordinator.runSyncCycle(trigger: .manual)
     }
 
     func deleteAllSavedQuotes() async throws {
@@ -102,6 +106,7 @@ final class SyncingQuotesRepository: QuotesRepository {
             guard let quoteID = item.quoteID else { continue }
             await syncCoordinator.enqueueSavedQuoteDelete(quoteID: quoteID)
         }
+        await syncCoordinator.runSyncCycle(trigger: .manual)
     }
 }
 

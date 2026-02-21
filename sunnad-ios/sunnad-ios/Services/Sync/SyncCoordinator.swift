@@ -91,10 +91,12 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private struct CompletionPayload: Codable {
+        let completionKey: String
         let habitID: UUID
         let dayDate: String
 
         enum CodingKeys: String, CodingKey {
+            case completionKey = "completion_key"
             case habitID = "habit_id"
             case dayDate = "day_date"
         }
@@ -336,8 +338,10 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     private let modelContext: ModelContext
     private let logger: AnalyticsLogging
     private let userDefaults: UserDefaults
+    private let ownerScopeProvider: LocalOwnerScopeProviding
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+    private let outboxMaxAttempts = 5
 
     private var activeUserID: UUID?
     private var isRunningCycle = false
@@ -346,20 +350,24 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         client: SupabaseClient,
         modelContext: ModelContext,
         logger: AnalyticsLogging,
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        ownerScopeProvider: LocalOwnerScopeProviding
     ) {
         self.client = client
         self.modelContext = modelContext
         self.logger = logger
         self.userDefaults = userDefaults
+        self.ownerScopeProvider = ownerScopeProvider
     }
 
     func setSignedInUserID(_ userID: UUID?) async {
         activeUserID = userID
+        ownerScopeProvider.setSignedInUserID(userID)
     }
 
     func promoteLocalDataIfNeeded() async {
         guard let activeUserID else { return }
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
 
         let key = "\(Keys.promotionPrefix)\(activeUserID.uuidString)"
         if userDefaults.bool(forKey: key) {
@@ -367,12 +375,16 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         }
 
         do {
-            let habits = try modelContext.fetch(FetchDescriptor<HabitEntity>())
+            let habits = try modelContext.fetch(
+                FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.ownerScope == ownerScope })
+            )
             for habit in habits {
                 await enqueueHabitUpsert(habitID: habit.id)
             }
 
-            let completions = try modelContext.fetch(FetchDescriptor<CompletionEntity>())
+            let completions = try modelContext.fetch(
+                FetchDescriptor<CompletionEntity>(predicate: #Predicate { $0.ownerScope == ownerScope })
+            )
             for completion in completions {
                 await enqueueCompletionUpsert(
                     habitID: completion.habitID,
@@ -382,7 +394,9 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 )
             }
 
-            let savedQuotes = try modelContext.fetch(FetchDescriptor<SavedQuoteEntity>())
+            let savedQuotes = try modelContext.fetch(
+                FetchDescriptor<SavedQuoteEntity>(predicate: #Predicate { $0.ownerScope == ownerScope })
+            )
             for savedQuote in savedQuotes {
                 guard let quoteID = savedQuote.quoteID else { continue }
                 await enqueueSavedQuoteInsert(quoteID: quoteID)
@@ -423,7 +437,15 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     func enqueueCompletionUpsert(habitID: UUID, dayDate: Date, calendar: Calendar, timeZone: TimeZone) async {
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
         let payload = CompletionPayload(
+            completionKey: CompletionsLocalRepository.key(
+                habitID: habitID,
+                day: dayDate,
+                ownerScope: ownerScope,
+                calendar: calendar,
+                timeZone: timeZone
+            ),
             habitID: habitID,
             dayDate: Self.dayDateString(for: dayDate, calendar: calendar, timeZone: timeZone)
         )
@@ -446,6 +468,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private func enqueue<T: Encodable>(type: EventType, payload: T) async {
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
         do {
             let data = try encoder.encode(payload)
             guard let payloadJSON = String(data: data, encoding: .utf8) else {
@@ -454,6 +477,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
 
             modelContext.insert(
                 LocalOutboxEventEntity(
+                    ownerScope: ownerScope,
                     type: type.rawValue,
                     payloadJSON: payloadJSON
                 )
@@ -468,12 +492,18 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private func pushOutbox(activeUserID: UUID) async throws {
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
         let descriptor = FetchDescriptor<LocalOutboxEventEntity>(
+            predicate: #Predicate { $0.ownerScope == ownerScope },
             sortBy: [SortDescriptor(\.createdAt, order: .forward)]
         )
         let events = try modelContext.fetch(descriptor)
 
         for event in events {
+            if event.attemptCount >= outboxMaxAttempts {
+                continue
+            }
+
             do {
                 try await apply(event: event, activeUserID: activeUserID)
                 modelContext.delete(event)
@@ -482,7 +512,17 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 event.attemptCount += 1
                 event.lastError = error.localizedDescription
                 try modelContext.save()
-                throw error
+                let status = event.attemptCount >= outboxMaxAttempts ? "quarantined" : "retrying"
+                logger.log(
+                    .storageFailure,
+                    metadata: [
+                        "scope": "sync_outbox_apply",
+                        "type": event.type,
+                        "status": status,
+                        "attempt_count": String(event.attemptCount),
+                        "error": error.localizedDescription
+                    ]
+                )
             }
         }
     }
@@ -534,7 +574,10 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private func pushHabit(habitID: UUID, activeUserID: UUID) async throws {
-        let descriptor = FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.id == habitID })
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
+        let descriptor = FetchDescriptor<HabitEntity>(
+            predicate: #Predicate { $0.id == habitID && $0.ownerScope == ownerScope }
+        )
         guard let local = try modelContext.fetch(descriptor).first else { return }
 
         let row = HabitPushRow(
@@ -561,15 +604,10 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private func pushCompletion(payload: CompletionPayload, activeUserID: UUID) async throws {
-        guard let dayDate = Self.dayDate(from: payload.dayDate) else { return }
-
-        let key = CompletionsLocalRepository.key(
-            habitID: payload.habitID,
-            day: dayDate,
-            calendar: .gregorianUTC,
-            timeZone: .utc
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
+        let descriptor = FetchDescriptor<CompletionEntity>(
+            predicate: #Predicate { $0.id == payload.completionKey && $0.ownerScope == ownerScope }
         )
-        let descriptor = FetchDescriptor<CompletionEntity>(predicate: #Predicate { $0.id == key })
         guard let local = try modelContext.fetch(descriptor).first else { return }
 
         let row = CompletionPushRow(
@@ -588,9 +626,10 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private func pushSavedQuoteInsert(payload: SavedQuotePayload, activeUserID: UUID) async throws {
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
         let quoteID: UUID? = payload.quoteID
         let descriptor = FetchDescriptor<SavedQuoteEntity>(
-            predicate: #Predicate { $0.quoteID == quoteID }
+            predicate: #Predicate { $0.quoteID == quoteID && $0.ownerScope == ownerScope }
         )
         guard let local = try modelContext.fetch(descriptor).first else { return }
 
@@ -650,6 +689,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private func mergeHabit(_ row: HabitPullRow) throws {
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
         let habitID = row.id
         let updatedAt = Self.timestamp(from: row.updatedAt) ?? Date()
         let createdAt = row.createdAt.flatMap(Self.timestamp(from:)) ?? updatedAt
@@ -659,7 +699,9 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             .map(String.init)
             .joined(separator: ",")
 
-        let descriptor = FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.id == habitID })
+        let descriptor = FetchDescriptor<HabitEntity>(
+            predicate: #Predicate { $0.id == habitID && $0.ownerScope == ownerScope }
+        )
         if let existing = try modelContext.fetch(descriptor).first {
             guard updatedAt >= existing.updatedAt else { return }
             existing.name = row.name
@@ -680,6 +722,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         modelContext.insert(
             HabitEntity(
                 id: row.id,
+                ownerScope: ownerScope,
                 name: row.name,
                 icon: row.icon ?? "checkmark.circle",
                 categoryRaw: HabitCategoryValue.spiritual.rawValue,
@@ -725,10 +768,12 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private func mergeCompletion(_ row: CompletionPullRow) throws {
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
         guard let dayDate = Self.dayDate(from: row.dayDate) else { return }
         let key = CompletionsLocalRepository.key(
             habitID: row.habitID,
             day: dayDate,
+            ownerScope: ownerScope,
             calendar: .gregorianUTC,
             timeZone: .utc
         )
@@ -747,6 +792,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         modelContext.insert(
             CompletionEntity(
                 id: key,
+                ownerScope: ownerScope,
                 habitID: row.habitID,
                 dayDate: dayDate,
                 value: row.value,
@@ -775,11 +821,12 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private func mergeSavedQuote(_ row: SavedQuotePullRow) throws {
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
         let quoteID: UUID? = row.quoteID
         let savedAt = Self.timestamp(from: row.savedAt) ?? Date()
         let remoteUpdatedAt = Self.timestamp(from: row.updatedAt) ?? savedAt
         let descriptor = FetchDescriptor<SavedQuoteEntity>(
-            predicate: #Predicate { $0.quoteID == quoteID }
+            predicate: #Predicate { $0.quoteID == quoteID && $0.ownerScope == ownerScope }
         )
 
         if let existing = try modelContext.fetch(descriptor).first {
@@ -791,6 +838,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         modelContext.insert(
             SavedQuoteEntity(
                 id: UUID(),
+                ownerScope: ownerScope,
                 quoteID: row.quoteID,
                 text: "",
                 author: "",
@@ -981,20 +1029,22 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private func cursorDate(for resource: String) throws -> Date {
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
         let descriptor = FetchDescriptor<LocalSyncCursorEntity>(
-            predicate: #Predicate { $0.resource == resource }
+            predicate: #Predicate { $0.ownerScope == ownerScope && $0.resource == resource }
         )
         return try modelContext.fetch(descriptor).first?.lastPulledAt ?? .distantPast
     }
 
     private func setCursorDate(_ date: Date, for resource: String) throws {
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
         let descriptor = FetchDescriptor<LocalSyncCursorEntity>(
-            predicate: #Predicate { $0.resource == resource }
+            predicate: #Predicate { $0.ownerScope == ownerScope && $0.resource == resource }
         )
         if let cursor = try modelContext.fetch(descriptor).first {
             cursor.lastPulledAt = date
         } else {
-            modelContext.insert(LocalSyncCursorEntity(resource: resource, lastPulledAt: date))
+            modelContext.insert(LocalSyncCursorEntity(ownerScope: ownerScope, resource: resource, lastPulledAt: date))
         }
         try modelContext.save()
     }
