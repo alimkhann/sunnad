@@ -18,6 +18,14 @@
 4. Push the same migration set to prod.
 5. Record migration release notes and backup artifacts.
 
+## Stage 6/7 parity gate (hosted)
+Before testing remote Groups, ensure hosted projects include:
+- `20260221000009_stage6_group_governance.sql`
+- `20260221000010_profile_routing_and_avatar_policy_fix.sql`
+- `20260221000011_advisor_rls_search_path_hardening.sql`
+
+If `groups.join_locked` is missing remotely, Groups UI can still render via app fallback, but hosted migration parity is still required.
+
 ## Data safety rules
 - Never commit secrets or service keys.
 - Keep RLS as the authorization layer.
@@ -45,40 +53,74 @@ Create `dev` and `prod` GitHub environments with:
 - `SUPABASE_ACCESS_TOKEN`
 - `SUPABASE_DB_URL`
 - `SUPABASE_PROJECT_REF`
+- `SUPABASE_FUNCTIONS_ONESIGNAL_APP_ID` (only if deploying `send-nudge-push`)
+- `SUPABASE_FUNCTIONS_ONESIGNAL_REST_API_KEY` (only if deploying `send-nudge-push`)
 
-## iOS Xcode env vars (Run/Test scheme)
-Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
+## iOS runtime config model (build-time first, env second)
+The app now reads Supabase/OAuth config from `Info.plist` bundle keys first.
 
-### Local Supabase
-- `SUNNAD_SUPABASE_URL=http://127.0.0.1:55421`
-- `SUNNAD_SUPABASE_ANON_KEY=<local publishable/anon key from supabase start>`
-- `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
-- `SUNNAD_AUTH_GOOGLE_ENABLED=1`
-- `SUNNAD_AUTH_APPLE_ENABLED=0`
-- `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=120`
-- `SUNNAD_ENABLE_LOCAL_SUPABASE_FALLBACK=1` (optional; only for local convenience)
+Bundle keys:
+- `SunnadSupabaseURL`
+- `SunnadSupabaseAnonKey`
+- `SunnadAuthRedirectURL`
+- `SunnadAuthGoogleEnabled`
+- `SunnadAuthAppleEnabled`
+- `SunnadAuthResendCooldownSeconds`
+- `SunnadStorageNamespace`
 
-### Hosted dev project
-- `SUNNAD_SUPABASE_URL=https://wejnrzlxnesqhbtvgdga.supabase.co`
-- `SUNNAD_SUPABASE_ANON_KEY=<sunnad-dev anon/publishable key>`
-- `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
-- `SUNNAD_AUTH_GOOGLE_ENABLED=1`
-- `SUNNAD_AUTH_APPLE_ENABLED=0`
-- `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=120`
+Debug-only environment overrides are supported for temporary troubleshooting:
+- `SUNNAD_SUPABASE_URL`
+- `SUNNAD_SUPABASE_ANON_KEY` (or `SUNNAD_SUPABASE_PUBLISHABLE_KEY`)
+- `SUNNAD_AUTH_REDIRECT_URL`
+- `SUNNAD_AUTH_GOOGLE_ENABLED`
+- `SUNNAD_AUTH_APPLE_ENABLED`
+- `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS`
+- `SUNNAD_STORAGE_NAMESPACE`
 
-### Hosted prod project
-- `SUNNAD_SUPABASE_URL=https://artwfvypcdacdpqhciqt.supabase.co`
-- `SUNNAD_SUPABASE_ANON_KEY=<sunnad-prod anon/publishable key>`
-- `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
-- `SUNNAD_AUTH_GOOGLE_ENABLED=1`
-- `SUNNAD_AUTH_APPLE_ENABLED=0`
-- `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=180`
+Debug-only fallback flags:
+- `SUNNAD_ENABLE_LOCAL_SUPABASE_FALLBACK=1` enables explicit local URL fallback.
+- `SUNNAD_ALLOW_CACHED_SUPABASE_CONFIG=1` enables cached Supabase config fallback.
+- Both are off by default.
 
-Notes:
-- `SUNNAD_SUPABASE_PUBLISHABLE_KEY` is also supported; `SUNNAD_SUPABASE_ANON_KEY` is preferred in app setup.
-- Do not wrap values in quotes in Xcode env rows.
-- Hosted env validation now fails fast by default if URL/key are missing.
-- Set `SUNNAD_ENABLE_LOCAL_SUPABASE_FALLBACK=1` only when you intentionally want automatic local fallback in debug.
+## Xcode scheme -> build configuration mapping
+- `sunnad-ios` (local): `Local`
+- `sunnad-ios-dev`: `Debug`
+- `sunnad-ios-prod`: `Release`
+
+Configured app display names:
+- local: `Sunnad Local`
+- dev: `Sunnad Dev`
+- prod: `Sunnad`
+
+Configured bundle IDs:
+- local: `com.arystan.almasuly.sunnad-ios.local`
+- dev: `com.arystan.almasuly.sunnad-ios.dev`
+- prod: `com.arystan.almasuly.sunnad-ios`
+
+Configured Supabase endpoints:
+- local (`Local`): `http://127.0.0.1:55421`
+- dev (`Debug`): `https://wejnrzlxnesqhbtvgdga.supabase.co`
+- prod (`Release`): `https://artwfvypcdacdpqhciqt.supabase.co`
+
+Configured storage namespaces:
+- local: `local`
+- dev: `dev`
+- prod: `prod`
+
+In-app debug diagnostics (debug builds only) now show:
+- `bundle id | supabase host | namespace`
+- Use this on Profile screen to quickly confirm wrong-env launches.
+
+## App Store note
+- App Store builds use `Release` configuration, so Supabase values come from build settings embedded in `Info.plist`.
+- No Xcode Run environment variables are available in App Store launch context.
+
+## Reliability checks required per release candidate
+1. Launch from Xcode and from installed icon for each environment scheme.
+2. Confirm auth session restore behavior is identical in both launch modes.
+3. Confirm group list/detail pull-to-refresh works and surfaces errors when enrichment fails.
+4. Confirm profile pull-to-refresh reflects remote username/avatar changes.
+5. Confirm guest data promotion runs once on first auth for a user and does not regress streak counts.
 
 ## Auth settings required for OTP/recovery (all envs)
 - Auth -> Sign In / Providers:
@@ -87,6 +129,19 @@ Notes:
 - Auth -> URL Configuration:
   - Add redirect URL: `sunnad://auth-callback`
 - Recovery and signup confirmations now use `sunnad://auth-callback` so no web domain is required for mobile auth flows.
+
+## Dashboard security checklist (dev/prod)
+Run this after each auth configuration change:
+1. Open Supabase Dashboard -> Security Advisor and confirm no new high-risk warnings.
+2. Open Auth -> Settings and ensure `Leaked password protection` is enabled.
+3. Re-send signup and recovery emails once to verify templates still include both link and OTP token.
+4. Verify redirect URL list still contains `sunnad://auth-callback`.
+
+## Advisor triage policy
+- `Errors` in Security Advisor: release blocker.
+- `Warnings`: treat as blocker unless explicitly documented and accepted in PR notes.
+- `Info`: track in backlog; prioritize only when they show measurable query/latency impact.
+- CI SQL lint gate (`supabase/tests/advisor_lints.sql`) is mandatory for schema PRs.
 
 ## Auth resend/rate-limit baseline by environment
 Use these as baseline values so users can retry without getting blocked too aggressively:
@@ -136,6 +191,100 @@ Hosted dev/prod parity steps:
 - Apple (prewired only):
   - Keep disabled until Apple Developer credentials are ready.
   - App shows Apple button disabled via `SUNNAD_AUTH_APPLE_ENABLED=0`.
+
+## Edge Functions (delete-account + send-nudge-push)
+- Current function paths:
+  - `supabase/functions/delete-account/index.ts`
+  - `supabase/functions/send-nudge-push/index.ts`
+- Required runtime secrets:
+  - `SUPABASE_SERVICE_ROLE_KEY` (both functions)
+  - `ONESIGNAL_APP_ID` (`send-nudge-push`)
+  - `ONESIGNAL_REST_API_KEY` (`send-nudge-push`)
+- Set secrets per project (dev/prod) before deploy:
+  - `supabase secrets set SUPABASE_SERVICE_ROLE_KEY=... --project-ref <ref>`
+  - `supabase secrets set ONESIGNAL_APP_ID=... ONESIGNAL_REST_API_KEY=... --project-ref <ref>`
+- Deploy manually:
+  - `supabase functions deploy delete-account --project-ref <ref>`
+  - `supabase functions deploy send-nudge-push --project-ref <ref>`
+- Behavior notes:
+  - `delete-account` now removes profile avatar storage objects (`avatars/profiles/<user_id>/...`) before user deletion.
+  - `send-nudge-push` requires authenticated bearer token; if iOS logs show `groups_send_nudge 401`, verify session refresh + function deployment parity.
+
+## Stage 9 quote-admin functions
+- New functions:
+  - `supabase/functions/admin-quotes/index.ts`
+  - `supabase/functions/translate-quote/index.ts`
+- Required secrets:
+  - `SUPABASE_SERVICE_ROLE_KEY` (both functions)
+  - `GEMINI_API_KEY` (`translate-quote`)
+  - optional `GEMINI_MODEL` (defaults to `gemini-2.0-flash`)
+- Deploy commands:
+  - `supabase functions deploy admin-quotes --project-ref <ref>`
+  - `supabase functions deploy translate-quote --project-ref <ref>`
+
+## Stage 9 quote-admin schema additions
+Migration:
+- `20260222000012_stage9_quote_admin.sql`
+
+Added objects:
+- `public.quote_sets`
+- `public.quote_day_overrides`
+- `public.admin_allowlist`
+- `public.is_allowlisted_admin(uuid)`
+- `public.get_quote_for_day(text, date)`
+
+Compatibility note:
+- `public.quotes` remains in place; migration adds `quote_set_id` + `draft` for staged editorial publishing.
+
+Editorial policy:
+- Quote of the day is global for everyone.
+- Day rollover uses `Asia/Almaty`.
+- Locale fallback in RPC: requested -> `kk` -> `ru` -> `en`.
+
+## Admin web app environment
+Path:
+- `admin/`
+
+Required env vars:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+Local run:
+- `cd admin`
+- `npm install`
+- `npm run dev`
+
+Recommended deploy target:
+- separate Vercel project for internal admin panel (not public landing site).
+
+## Notification toggles contract (iOS)
+- Habit reminders toggle:
+  - controls local `habit-reminder-*` requests.
+- Quote reminder toggle:
+  - controls local `quote-reminder-*` requests.
+  - schedules a rolling 7-day window at `09:00` local using quote snippets.
+- Group reminders toggle (receive-only):
+  - when disabled, current device registration is removed from `device_tokens`.
+  - when enabled, current device registration is upserted again.
+
+## Sync engine (Stage 7)
+- Local SwiftData remains source-of-truth.
+- Signed-in mode enables outbox + pull cursors for:
+  - `habits`
+  - `habit_completions` (rolling 40-day window)
+  - `saved_quotes`
+  - `quotes`
+  - `groups`, `group_members`, `group_shared_habits` snapshots
+- Conflict strategy is last-write-wins by `updated_at`.
+- Sync triggers:
+  - auth sign-in / auth restore
+  - foreground refresh cycle
+  - background refresh via `BGTaskScheduler` identifier: `com.arystan.almasuly.sunnad-ios.sync.refresh`
+- Required iOS config:
+  - `Info.plist` includes `BGTaskSchedulerPermittedIdentifiers`
+  - `Info.plist` includes `UIBackgroundModes = fetch`
+- Diagnostics:
+  - `OSLog` category `sync` records cycle start/finish/failures.
 
 ## Local email testing (Mailpit)
 - Supabase local runs Mailpit at `http://127.0.0.1:54324`.

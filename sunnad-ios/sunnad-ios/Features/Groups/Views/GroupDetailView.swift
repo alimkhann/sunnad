@@ -45,9 +45,14 @@ struct GroupDetailView: View {
     let habits: [UIHabit]
     let onUpdateSharing: (Set<UUID>) -> Void
     let onToggleOwnHabit: (UUID) -> Void
+    let onSendReminder: (UUID, UUID) async -> GroupNudgeStatus
     let onLeaveGroup: () -> Void
     let onDeleteGroup: () -> Void
     let onKickMember: (UUID) -> Void
+    let onRenameGroup: (String) -> Void
+    let onSetJoinLock: (Bool) -> Void
+    let onRotateInviteCode: () -> Void
+    let onRefresh: () async -> Void
     let currentSharedHabitIDs: () -> Set<UUID>?
 
     @State private var expandedMemberIDs: Set<UUID> = []
@@ -56,8 +61,6 @@ struct GroupDetailView: View {
 
     @State private var reminderTarget: ReminderTarget?
     @State private var reminderToast: ReminderToast?
-    @State private var lastReminderSentAt: [String: Date] = [:]
-    @State private var reminderAttemptCount: [String: Int] = [:]
     @State private var ownCompletionOverrides: [UUID: Bool] = [:]
     @State private var pendingKickMember: UIGroupMember?
     @State private var swipedMemberID: UUID?
@@ -65,24 +68,35 @@ struct GroupDetailView: View {
     @State private var showsDeleteConfirmation = false
     @State private var showsCopiedCodeSuccess = false
     @State private var copyCodeSequence = 0
+    @State private var showsRenameSheet = false
 
     init(
         group: UIGroup,
         habits: [UIHabit],
         onUpdateSharing: @escaping (Set<UUID>) -> Void,
         onToggleOwnHabit: @escaping (UUID) -> Void,
+        onSendReminder: @escaping (UUID, UUID) async -> GroupNudgeStatus,
         onLeaveGroup: @escaping () -> Void,
         onDeleteGroup: @escaping () -> Void,
         onKickMember: @escaping (UUID) -> Void,
+        onRenameGroup: @escaping (String) -> Void,
+        onSetJoinLock: @escaping (Bool) -> Void,
+        onRotateInviteCode: @escaping () -> Void,
+        onRefresh: @escaping () async -> Void,
         currentSharedHabitIDs: @escaping () -> Set<UUID>?
     ) {
         self.group = group
         self.habits = habits
         self.onUpdateSharing = onUpdateSharing
         self.onToggleOwnHabit = onToggleOwnHabit
+        self.onSendReminder = onSendReminder
         self.onLeaveGroup = onLeaveGroup
         self.onDeleteGroup = onDeleteGroup
         self.onKickMember = onKickMember
+        self.onRenameGroup = onRenameGroup
+        self.onSetJoinLock = onSetJoinLock
+        self.onRotateInviteCode = onRotateInviteCode
+        self.onRefresh = onRefresh
         self.currentSharedHabitIDs = currentSharedHabitIDs
         _sharedHabitIDs = State(initialValue: group.sharedHabitIDs)
     }
@@ -103,6 +117,9 @@ struct GroupDetailView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .sunnadSolidBars()
+        .refreshable {
+            await onRefresh()
+        }
         .onAppear {
             sharedHabitIDs = currentSharedHabitIDs() ?? group.sharedHabitIDs
         }
@@ -121,6 +138,11 @@ struct GroupDetailView: View {
                     reminderTarget = nil
                 }
             )
+        }
+        .sheet(isPresented: $showsRenameSheet) {
+            RenameGroupSheet(initialName: group.name) { newName in
+                onRenameGroup(newName)
+            }
         }
         .overlay(alignment: .top) {
             if let reminderToast {
@@ -198,6 +220,24 @@ struct GroupDetailView: View {
                 .minimumScaleFactor(0.8)
 
             Spacer()
+
+            if isCurrentUserOwner {
+                Menu {
+                    Button(L10n.t("groups.manage.rename")) {
+                        showsRenameSheet = true
+                    }
+                    Button(group.joinLocked ? L10n.t("groups.manage.unlock") : L10n.t("groups.manage.lock")) {
+                        onSetJoinLock(!group.joinLocked)
+                    }
+                    Button(L10n.t("groups.manage.rotate_code")) {
+                        onRotateInviteCode()
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3.weight(.semibold))
+                }
+                .tint(.secondary)
+            }
         }
     }
 
@@ -205,6 +245,12 @@ struct GroupDetailView: View {
         HStack(spacing: 8) {
             Text(group.code)
                 .font(.headline.weight(.semibold))
+
+            if group.joinLocked {
+                Image(systemName: "lock.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
 
             Button {
                 UIPasteboard.general.string = group.code
@@ -247,11 +293,7 @@ struct GroupDetailView: View {
                     VStack(spacing: 0) {
                         HStack(spacing: 0) {
                             HStack(spacing: 12) {
-                                Text(String(member.name.prefix(1)).uppercased())
-                                    .font(.headline.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 40, height: 40)
-                                    .background(Circle().fill(SunnadTheme.primary))
+                                memberAvatarView(member)
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(member.name)
@@ -523,29 +565,35 @@ struct GroupDetailView: View {
         isCurrentUserOwner && !isCurrentUser
     }
 
+    @ViewBuilder
+    private func memberAvatarView(_ member: UIGroupMember) -> some View {
+        if let avatarURL = member.avatarURL {
+            CachedAvatarView(url: avatarURL, size: 40, placeholderPadding: 4)
+        } else {
+            Text(String(member.name.prefix(1)).uppercased())
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(SunnadTheme.primary))
+        }
+    }
+
     private var resolvedCurrentUserMemberID: UUID {
         group.currentUserMemberID ?? group.members.first?.id ?? UUID()
     }
 
     private func sendReminder(to target: ReminderTarget) {
-        let key = target.id
-
-        if let lastSentAt = lastReminderSentAt[key], Date().timeIntervalSince(lastSentAt) < 60 {
-            showReminderToast(message: L10n.t("groups.reminder.rate_limited"), style: .rateLimited)
-            return
+        Task {
+            let status = await onSendReminder(target.memberID, target.habitID)
+            switch status {
+            case .sent:
+                showReminderToast(message: L10n.t("groups.reminder.sent"), style: .success)
+            case .duplicate:
+                showReminderToast(message: L10n.t("groups.reminder.rate_limited"), style: .rateLimited)
+            case .forbidden, .error:
+                showReminderToast(message: L10n.t("groups.reminder.error"), style: .error)
+            }
         }
-
-        let attempts = reminderAttemptCount[key, default: 0] + 1
-        reminderAttemptCount[key] = attempts
-
-        // UI scaffold only: deterministic occasional failure to surface error state.
-        if attempts.isMultiple(of: 5) {
-            showReminderToast(message: L10n.t("groups.reminder.error"), style: .error)
-            return
-        }
-
-        lastReminderSentAt[key] = Date()
-        showReminderToast(message: L10n.t("groups.reminder.sent"), style: .success)
     }
 
     private func showReminderToast(message: String, style: ReminderToast.Style) {

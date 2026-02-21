@@ -19,9 +19,11 @@ struct QuoteCardView: View {
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("— \(quote.author)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    if !quote.author.isEmpty {
+                        Text("— \(quote.author)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }

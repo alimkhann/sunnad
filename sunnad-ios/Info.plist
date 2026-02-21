@@ -12,6 +12,8 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundleDisplayName</key>
+	<string>$(SUNNAD_BUNDLE_DISPLAY_NAME_BUNDLE)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -29,13 +31,35 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>SunnadSupabaseURL</key>
+	<string>$(SUNNAD_SUPABASE_URL_BUNDLE)</string>
+	<key>SunnadSupabaseAnonKey</key>
+	<string>$(SUNNAD_SUPABASE_ANON_KEY_BUNDLE)</string>
+	<key>SunnadAuthRedirectURL</key>
+	<string>$(SUNNAD_AUTH_REDIRECT_URL_BUNDLE)</string>
+	<key>SunnadAuthGoogleEnabled</key>
+	<string>$(SUNNAD_AUTH_GOOGLE_ENABLED_BUNDLE)</string>
+	<key>SunnadAuthAppleEnabled</key>
+	<string>$(SUNNAD_AUTH_APPLE_ENABLED_BUNDLE)</string>
+	<key>SunnadAuthResendCooldownSeconds</key>
+	<string>$(SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS_BUNDLE)</string>
+	<key>SunnadStorageNamespace</key>
+	<string>$(SUNNAD_STORAGE_NAMESPACE_BUNDLE)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.arystan.almasuly.sunnad-ios.sync.refresh</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>

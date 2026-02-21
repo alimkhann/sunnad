@@ -19,9 +19,11 @@ struct QuoteOfDaySheetView: View {
                         Text("\"\(quote.text)\"")
                             .font(.body)
 
-                        Text("— \(quote.author)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        if !quote.author.isEmpty {
+                            Text("— \(quote.author)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
 
                         if showsSavedConfirmation {
                             Text(L10n.t("quote.saved_feedback"))
@@ -43,7 +45,11 @@ struct QuoteOfDaySheetView: View {
                         let shareFooter = L10n.t("quote.share.footer")
                             .replacingOccurrences(of: "https://www.sunnad.app", with: shareLink.absoluteString)
                             .replacingOccurrences(of: "https://sunnad.app", with: shareLink.absoluteString)
-                        let message = """
+                        let message = quote.author.isEmpty ? """
+                        "\(quote.text)"
+
+                        \(shareFooter)
+                        """ : """
                         "\(quote.text)"
                         — \(quote.author)
 

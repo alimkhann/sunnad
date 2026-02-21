@@ -30,164 +30,197 @@ final class GroupsViewModel: ObservableObject {
             return
         }
 
+        await refresh()
+    }
+
+    func refresh() async {
+        guard !user.isGuest else {
+            groups = []
+            return
+        }
+
         isLoading = true
         defer { isLoading = false }
 
         do {
-            let storedGroups = try await groupsRepository.fetchGroups().map { $0.asUIGroup() }
-            groups = refreshGroupProgress(for: storedGroups)
-            try await persistCurrentGroups()
+            let fetchedGroups = try await groupsRepository.fetchGroups().map { $0.asUIGroup() }
+            groups = refreshGroupProgress(for: fetchedGroups)
+            errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
-            logger.log(.storageFailure, metadata: ["scope": "groups_load", "error": error.localizedDescription])
+            logger.log(.storageFailure, metadata: ["scope": "groups_refresh", "error": error.localizedDescription])
+        }
+    }
+
+    func refreshGroup(groupID: UUID) async {
+        guard !user.isGuest else { return }
+        do {
+            if let group = try await groupsRepository.refreshGroup(groupID: groupID)?.asUIGroup() {
+                mergeOrAppend(group)
+                groups = refreshGroupProgress(for: groups)
+            } else {
+                groups.removeAll(where: { $0.id == groupID })
+            }
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+            logger.log(.storageFailure, metadata: ["scope": "groups_refresh_group", "error": error.localizedDescription])
         }
     }
 
     func syncHabits(_ habits: [UIHabit]) async {
         self.habits = habits
-        guard !user.isGuest else {
-            return
-        }
-
+        guard !user.isGuest else { return }
         groups = refreshGroupProgress(for: groups)
-
-        do {
-            try await persistCurrentGroups()
-        } catch {
-            logger.log(.storageFailure, metadata: ["scope": "groups_sync_habits", "error": error.localizedDescription])
-        }
     }
 
     func createGroup(name: String) async {
-        guard !user.isGuest else {
-            return
-        }
-
-        let code = String(UUID().uuidString.prefix(6)).uppercased()
-        let me = currentUserMember(sharedHabitIDs: Set(habits.map(\.id)))
-        let friend = sampleFriendMember()
-        let group = UIGroup(
-            name: name,
-            code: code,
-            members: [me, friend],
-            sharedHabitIDs: Set(habits.map(\.id)),
-            ownerMemberID: me.id,
-            currentUserMemberID: me.id
-        )
-
-        groups.append(group)
-        groups = refreshGroupProgress(for: groups)
-
+        guard !user.isGuest else { return }
         do {
-            try await persistCurrentGroups()
+            let group = try await groupsRepository
+                .createGroup(name: name.trimmingCharacters(in: .whitespacesAndNewlines))
+                .asUIGroup()
+            mergeOrAppend(group)
+            groups = refreshGroupProgress(for: groups)
+            await refresh()
+            errorMessage = nil
         } catch {
+            errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_create", "error": error.localizedDescription])
         }
     }
 
     func joinGroup(code: String) async {
-        guard !user.isGuest else {
-            return
-        }
-
-        let me = currentUserMember(sharedHabitIDs: Set(habits.map(\.id)))
-        let friend = sampleFriendMember()
-        let group = UIGroup(
-            name: "\(L10n.t("groups.group")) \(code.uppercased())",
-            code: code.uppercased(),
-            members: [friend, me],
-            sharedHabitIDs: Set(habits.map(\.id)),
-            ownerMemberID: friend.id,
-            currentUserMemberID: me.id
-        )
-
-        groups.append(group)
-        groups = refreshGroupProgress(for: groups)
-
+        guard !user.isGuest else { return }
         do {
-            try await persistCurrentGroups()
+            let group = try await groupsRepository.joinGroup(code: code).asUIGroup()
+            mergeOrAppend(group)
+            groups = refreshGroupProgress(for: groups)
+            await refresh()
+            errorMessage = nil
         } catch {
+            errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_join", "error": error.localizedDescription])
         }
     }
 
-    func updateGroupSharing(groupID: UUID, habitIDs: Set<UUID>) async {
-        guard let groupIndex = groups.firstIndex(where: { $0.id == groupID }) else {
-            return
-        }
-
-        groups[groupIndex].sharedHabitIDs = habitIDs
-        groups = refreshGroupProgress(for: groups)
-
+    func renameGroup(groupID: UUID, name: String) async {
         do {
-            try await persistCurrentGroups()
+            try await groupsRepository.renameGroup(groupID: groupID, name: name.trimmingCharacters(in: .whitespacesAndNewlines))
+            await refreshGroup(groupID: groupID)
         } catch {
+            errorMessage = error.localizedDescription
+            logger.log(.storageFailure, metadata: ["scope": "groups_rename", "error": error.localizedDescription])
+        }
+    }
+
+    func setGroupJoinLock(groupID: UUID, locked: Bool) async {
+        do {
+            try await groupsRepository.setJoinLock(groupID: groupID, locked: locked)
+            await refreshGroup(groupID: groupID)
+        } catch {
+            errorMessage = error.localizedDescription
+            logger.log(.storageFailure, metadata: ["scope": "groups_set_lock", "error": error.localizedDescription])
+        }
+    }
+
+    func rotateInviteCode(groupID: UUID) async {
+        do {
+            _ = try await groupsRepository.rotateInviteCode(groupID: groupID)
+            await refreshGroup(groupID: groupID)
+        } catch {
+            errorMessage = error.localizedDescription
+            logger.log(.storageFailure, metadata: ["scope": "groups_rotate_code", "error": error.localizedDescription])
+        }
+    }
+
+    func updateGroupSharing(groupID: UUID, habitIDs: Set<UUID>) async {
+        do {
+            try await groupsRepository.updateSharing(groupID: groupID, habitIDs: habitIDs)
+            await refreshGroup(groupID: groupID)
+        } catch {
+            errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_update_sharing", "error": error.localizedDescription])
         }
     }
 
     func updateHabitSharing(habitID: UUID, sharedGroupIDs: Set<UUID>) async {
-        guard !groups.isEmpty else {
-            return
-        }
-
-        for index in groups.indices {
-            if sharedGroupIDs.contains(groups[index].id) {
-                groups[index].sharedHabitIDs.insert(habitID)
-            } else {
-                groups[index].sharedHabitIDs.remove(habitID)
-            }
-        }
-
-        groups = refreshGroupProgress(for: groups)
-
+        guard !groups.isEmpty else { return }
         do {
-            try await persistCurrentGroups()
+            for group in groups {
+                var habitIDs = group.sharedHabitIDs
+                if sharedGroupIDs.contains(group.id) {
+                    habitIDs.insert(habitID)
+                } else {
+                    habitIDs.remove(habitID)
+                }
+                try await groupsRepository.updateSharing(groupID: group.id, habitIDs: habitIDs)
+            }
+            await refresh()
         } catch {
+            errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_update_habit_sharing", "error": error.localizedDescription])
         }
     }
 
     func leaveGroup(_ groupID: UUID) async {
-        groups.removeAll(where: { $0.id == groupID })
-
         do {
-            try await persistCurrentGroups()
+            try await groupsRepository.leaveGroup(groupID: groupID)
+            groups.removeAll(where: { $0.id == groupID })
+            errorMessage = nil
         } catch {
+            errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_leave", "error": error.localizedDescription])
         }
     }
 
     func deleteGroup(_ groupID: UUID) async {
-        groups.removeAll(where: { $0.id == groupID })
-
         do {
-            try await persistCurrentGroups()
+            try await groupsRepository.deleteGroup(groupID: groupID)
+            groups.removeAll(where: { $0.id == groupID })
+            errorMessage = nil
         } catch {
+            errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_delete", "error": error.localizedDescription])
         }
     }
 
     func kickMember(groupID: UUID, memberID: UUID) async {
-        guard let groupIndex = groups.firstIndex(where: { $0.id == groupID }) else {
+        guard let group = groups.first(where: { $0.id == groupID }) else {
             return
         }
-
-        guard groups[groupIndex].ownerMemberID == groups[groupIndex].currentUserMemberID else {
+        guard group.ownerMemberID == group.currentUserMemberID else {
             return
         }
-
-        groups[groupIndex].members.removeAll { $0.id == memberID }
 
         do {
-            try await persistCurrentGroups()
+            try await groupsRepository.kickMember(groupID: groupID, memberUserID: memberID)
+            await refreshGroup(groupID: groupID)
         } catch {
+            errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_kick_member", "error": error.localizedDescription])
+        }
+    }
+
+    func sendNudge(groupID: UUID, memberID: UUID, habitID: UUID) async -> GroupNudgeStatus {
+        do {
+            return try await groupsRepository.sendNudge(groupID: groupID, toUserID: memberID, habitID: habitID)
+        } catch {
+            logger.log(.storageFailure, metadata: ["scope": "groups_send_nudge", "error": error.localizedDescription])
+            return .error
         }
     }
 
     func currentGroupSharedHabitIDs(for groupID: UUID) -> Set<UUID>? {
         groups.first(where: { $0.id == groupID })?.sharedHabitIDs
+    }
+
+    private func mergeOrAppend(_ group: UIGroup) {
+        if let index = groups.firstIndex(where: { $0.id == group.id }) {
+            groups[index] = group
+        } else {
+            groups.append(group)
+        }
     }
 
     private func refreshGroupProgress(for groups: [UIGroup]) -> [UIGroup] {
@@ -209,6 +242,7 @@ final class GroupsViewModel: ObservableObject {
             let updatedMe = UIGroupMember(
                 id: myMemberID,
                 name: user.name ?? L10n.t("groups.you"),
+                avatarURL: user.avatarURL,
                 completedToday: myHabits.filter(\.completedToday).count,
                 totalSharedHabits: myHabits.count,
                 sharedHabits: mySharedHabits
@@ -226,54 +260,5 @@ final class GroupsViewModel: ObservableObject {
 
             return mutable
         }
-    }
-
-    private func currentUserMember(sharedHabitIDs: Set<UUID>) -> UIGroupMember {
-        let myHabits = habits.filter { sharedHabitIDs.contains($0.id) }
-        let mySharedHabits = myHabits.map {
-            UISharedHabit(
-                habitID: $0.id,
-                habitTitle: $0.displayTitle,
-                habitIconSystemName: $0.iconSystemName,
-                completedToday: $0.completedToday,
-                streak: $0.streak
-            )
-        }
-
-        return UIGroupMember(
-            name: user.name ?? L10n.t("groups.you"),
-            completedToday: myHabits.filter(\.completedToday).count,
-            totalSharedHabits: myHabits.count,
-            sharedHabits: mySharedHabits
-        )
-    }
-
-    private func sampleFriendMember() -> UIGroupMember {
-        UIGroupMember(
-            name: "Sara",
-            completedToday: 2,
-            totalSharedHabits: 4,
-            sharedHabits: [
-                UISharedHabit(
-                    habitID: UUID(),
-                    habitTitle: L10n.t("habit.read_quran"),
-                    habitIconSystemName: "book.fill",
-                    completedToday: true,
-                    streak: 9
-                ),
-                UISharedHabit(
-                    habitID: UUID(),
-                    habitTitle: L10n.t("habit.exercise"),
-                    habitIconSystemName: "figure.run",
-                    completedToday: false,
-                    streak: 2
-                )
-            ]
-        )
-    }
-
-    private func persistCurrentGroups() async throws {
-        let domainGroups = groups.map { $0.asDomainGroup() }
-        try await groupsRepository.replaceGroups(domainGroups)
     }
 }

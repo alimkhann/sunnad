@@ -67,6 +67,7 @@ protocol AuthService: Sendable {
 
 protocol DeviceTokenSyncing: Sendable {
     func syncCurrentDeviceToken(for userID: UUID) async
+    func setGroupRemindersEnabled(_ enabled: Bool, for userID: UUID) async
 }
 
 struct UnconfiguredAuthService: AuthService {
@@ -143,4 +144,5 @@ struct UnconfiguredAuthService: AuthService {
 
 struct NoOpDeviceTokenSyncService: DeviceTokenSyncing {
     func syncCurrentDeviceToken(for userID: UUID) async {}
+    func setGroupRemindersEnabled(_ enabled: Bool, for userID: UUID) async {}
 }

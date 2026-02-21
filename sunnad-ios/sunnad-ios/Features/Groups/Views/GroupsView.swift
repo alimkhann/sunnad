@@ -6,14 +6,21 @@ struct GroupsView: View {
     let groups: [UIGroup]
     let user: UIUserState
     let habits: [UIHabit]
+    let errorMessage: String?
+    let onRefresh: () async -> Void
     let onCreateGroup: () -> Void
     let onJoinGroup: () -> Void
     let onSignIn: () -> Void
     let onUpdateGroupSharing: (UUID, Set<UUID>) -> Void
     let onToggleOwnHabit: (UUID) -> Void
+    let onSendReminder: (UUID, UUID, UUID) async -> GroupNudgeStatus
     let onLeaveGroup: (UUID) -> Void
     let onDeleteGroup: (UUID) -> Void
     let onKickMember: (UUID, UUID) -> Void
+    let onRenameGroup: (UUID, String) -> Void
+    let onSetJoinLock: (UUID, Bool) -> Void
+    let onRotateInviteCode: (UUID) -> Void
+    let onRefreshGroup: (UUID) async -> Void
     let currentGroupSharedHabitIDs: (UUID) -> Set<UUID>?
 
     var body: some View {
@@ -55,6 +62,19 @@ struct GroupsView: View {
         ScreenScaffold(contentTopPadding: 8) {
             pageHeader
 
+            if let errorMessage, !errorMessage.isEmpty {
+                Card {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .padding(.top, 2)
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
             if groups.isEmpty {
                 Card {
                     EmptyStateView(
@@ -77,9 +97,16 @@ struct GroupsView: View {
                                     habits: habits,
                                     onUpdateSharing: { onUpdateGroupSharing(group.id, $0) },
                                     onToggleOwnHabit: onToggleOwnHabit,
+                                    onSendReminder: { memberID, habitID in
+                                        await onSendReminder(group.id, memberID, habitID)
+                                    },
                                     onLeaveGroup: { onLeaveGroup(group.id) },
                                     onDeleteGroup: { onDeleteGroup(group.id) },
                                     onKickMember: { onKickMember(group.id, $0) },
+                                    onRenameGroup: { onRenameGroup(group.id, $0) },
+                                    onSetJoinLock: { onSetJoinLock(group.id, $0) },
+                                    onRotateInviteCode: { onRotateInviteCode(group.id) },
+                                    onRefresh: { await onRefreshGroup(group.id) },
                                     currentSharedHabitIDs: { currentGroupSharedHabitIDs(group.id) }
                                 )
                                 .id(groupDetailIdentity(for: group))
@@ -121,6 +148,9 @@ struct GroupsView: View {
                 }
             }
         }
+        .refreshable {
+            await onRefresh()
+        }
     }
 
     private var pageHeader: some View {
@@ -129,6 +159,6 @@ struct GroupsView: View {
     }
 
     private func groupDetailIdentity(for group: UIGroup) -> String {
-        "\(group.id.uuidString)-\(group.members.count)"
+        "\(group.id.uuidString)-\(group.members.count)-\(group.joinLocked)-\(group.code)"
     }
 }

@@ -34,6 +34,16 @@ jobs:
           SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
         run: psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/stage4_smoke.sql
 
+      - name: Run Stage 9 quote-admin smoke checks
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/stage9_quote_admin_smoke.sql
+
+      - name: Run advisor lint SQL checks
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/advisor_lints.sql
+
       - name: Stop Supabase local stack
         if: always()
         run: supabase stop

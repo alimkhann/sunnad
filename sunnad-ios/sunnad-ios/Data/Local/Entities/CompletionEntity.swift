@@ -4,6 +4,7 @@ import SwiftData
 @Model
 final class CompletionEntity {
     @Attribute(.unique) var id: String
+    var ownerScope: String = "guest"
     var habitID: UUID
     var dayDate: Date
     var value: Int
@@ -12,6 +13,7 @@ final class CompletionEntity {
 
     init(
         id: String,
+        ownerScope: String,
         habitID: UUID,
         dayDate: Date,
         value: Int,
@@ -19,6 +21,7 @@ final class CompletionEntity {
         updatedAt: Date
     ) {
         self.id = id
+        self.ownerScope = ownerScope
         self.habitID = habitID
         self.dayDate = dayDate
         self.value = value
@@ -28,8 +31,9 @@ final class CompletionEntity {
 }
 
 extension CompletionEntity {
-    func apply(_ completion: HabitCompletion, key: String) {
+    func apply(_ completion: HabitCompletion, key: String, ownerScope: String) {
         id = key
+        self.ownerScope = ownerScope
         habitID = completion.habitID
         dayDate = completion.dayDate
         value = completion.value

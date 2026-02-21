@@ -5,31 +5,44 @@ import Supabase
 
 final class DependencyContainer {
     private enum CachedSupabaseKeys {
-        static let url = "sunnad.cached.supabase.url"
-        static let key = "sunnad.cached.supabase.key"
+        static func url(namespace: String) -> String {
+            "sunnad.cached.supabase.url.\(namespace)"
+        }
+
+        static func key(namespace: String) -> String {
+            "sunnad.cached.supabase.key.\(namespace)"
+        }
     }
 
     let environment: AppEnvironment
     let modelContainer: ModelContainer
 
     let analyticsLogger: AnalyticsLogging
-    let habitsRepository: HabitsLocalRepository
-    let completionsRepository: CompletionsLocalRepository
-    let quotesRepository: QuotesLocalRepository
-    let groupsRepository: GroupsLocalRepository
+    let habitsRepository: HabitsRepository
+    let completionsRepository: CompletionsRepository
+    let quotesRepository: QuotesRepository
+    let groupsRepository: GroupsRepository
+    let syncCoordinator: SyncCoordinating
     let reminderScheduler: LocalReminderScheduling
     let authService: AuthService
     let deviceTokenSyncService: DeviceTokenSyncing
+    let ownerScopeResolver: LocalOwnerScopeResolver
+    private let localQuotesRepository: QuotesLocalRepository
     private let userDefaults: UserDefaults
 
     init(
         environment: AppEnvironment = .current,
         modelContainer: ModelContainer? = nil,
         authService: AuthService? = nil,
-        deviceTokenSyncService: DeviceTokenSyncing? = nil
+        deviceTokenSyncService: DeviceTokenSyncing? = nil,
+        syncCoordinator: SyncCoordinating? = nil
     ) {
         self.environment = environment
         self.userDefaults = .standard
+        self.ownerScopeResolver = LocalOwnerScopeResolver(
+            namespace: environment.storageNamespace,
+            userDefaults: userDefaults
+        )
 
         if let modelContainer {
             self.modelContainer = modelContainer
@@ -40,7 +53,12 @@ final class DependencyContainer {
                     CompletionEntity.self,
                     QuoteEntity.self,
                     SavedQuoteEntity.self,
-                    DiagnosticEventEntity.self
+                    DiagnosticEventEntity.self,
+                    LocalOutboxEventEntity.self,
+                    LocalSyncCursorEntity.self,
+                    LocalGroupSyncEntity.self,
+                    LocalGroupMemberSyncEntity.self,
+                    LocalGroupSharedHabitSyncEntity.self
                 )
             } catch {
                 fatalError("Failed to initialize SwiftData container: \(error)")
@@ -54,21 +72,77 @@ final class DependencyContainer {
         let logger = OSLogAnalyticsLogger(diagnosticsStore: diagnosticsStore)
 
         analyticsLogger = logger
-        habitsRepository = HabitsLocalRepository(modelContext: modelContext, logger: logger)
-        completionsRepository = CompletionsLocalRepository(modelContext: modelContext, logger: logger)
-        quotesRepository = QuotesLocalRepository(modelContext: modelContext, logger: logger)
-        groupsRepository = GroupsLocalRepository()
+        let localHabitsRepository = HabitsLocalRepository(
+            modelContext: modelContext,
+            logger: logger,
+            ownerScopeProvider: ownerScopeResolver
+        )
+        let localCompletionsRepository = CompletionsLocalRepository(
+            modelContext: modelContext,
+            logger: logger,
+            ownerScopeProvider: ownerScopeResolver
+        )
+        localQuotesRepository = QuotesLocalRepository(
+            modelContext: modelContext,
+            logger: logger,
+            ownerScopeProvider: ownerScopeResolver
+        )
         reminderScheduler = UserNotificationReminderScheduler(logger: logger)
 
         let resolvedSupabase = Self.resolvedSupabaseConfig(
             environment: environment,
-            userDefaults: userDefaults
+            userDefaults: userDefaults,
+            cacheNamespace: environment.storageNamespace
+        )
+
+        let supabaseClient: SupabaseClient?
+        if let config = resolvedSupabase {
+            supabaseClient = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
+        } else {
+            supabaseClient = nil
+        }
+
+        let resolvedGroupsRepository: GroupsRepository
+        if let client = supabaseClient {
+            resolvedGroupsRepository = SupabaseGroupsRepository(client: client, logger: logger)
+        } else {
+            resolvedGroupsRepository = GroupsLocalRepository()
+        }
+
+        if let syncCoordinator {
+            self.syncCoordinator = syncCoordinator
+        } else if let client = supabaseClient {
+            self.syncCoordinator = SupabaseSyncCoordinator(
+                client: client,
+                modelContext: modelContext,
+                logger: logger,
+                userDefaults: userDefaults,
+                ownerScopeProvider: ownerScopeResolver
+            )
+        } else {
+            self.syncCoordinator = NoOpSyncCoordinator()
+        }
+
+        habitsRepository = SyncingHabitsRepository(
+            base: localHabitsRepository,
+            syncCoordinator: self.syncCoordinator
+        )
+        completionsRepository = SyncingCompletionsRepository(
+            base: localCompletionsRepository,
+            syncCoordinator: self.syncCoordinator
+        )
+        quotesRepository = SyncingQuotesRepository(
+            base: localQuotesRepository,
+            syncCoordinator: self.syncCoordinator
+        )
+        groupsRepository = SyncingGroupsRepository(
+            base: resolvedGroupsRepository,
+            syncCoordinator: self.syncCoordinator
         )
 
         if let authService {
             self.authService = authService
-        } else if let config = resolvedSupabase {
-            let client = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
+        } else if let config = resolvedSupabase, let client = supabaseClient {
             self.authService = SupabaseAuthService(
                 client: client,
                 supabaseURL: config.url,
@@ -86,8 +160,7 @@ final class DependencyContainer {
 
         if let deviceTokenSyncService {
             self.deviceTokenSyncService = deviceTokenSyncService
-        } else if let config = resolvedSupabase {
-            let client = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
+        } else if let client = supabaseClient {
             self.deviceTokenSyncService = SupabaseDeviceTokenSyncService(client: client, logger: logger)
         } else {
             self.deviceTokenSyncService = NoOpDeviceTokenSyncService()
@@ -98,18 +171,19 @@ final class DependencyContainer {
 
     private static func resolvedSupabaseConfig(
         environment: AppEnvironment,
-        userDefaults: UserDefaults
+        userDefaults: UserDefaults,
+        cacheNamespace: String
     ) -> AppEnvironment.SupabaseConfig? {
         if let config = environment.supabaseConfig {
-            userDefaults.set(config.url.absoluteString, forKey: CachedSupabaseKeys.url)
-            userDefaults.set(config.anonKey, forKey: CachedSupabaseKeys.key)
+            userDefaults.set(config.url.absoluteString, forKey: CachedSupabaseKeys.url(namespace: cacheNamespace))
+            userDefaults.set(config.anonKey, forKey: CachedSupabaseKeys.key(namespace: cacheNamespace))
             return config
         }
 
         guard shouldUseCachedSupabaseConfig else {
             #if DEBUG
             if
-                let cachedURL = userDefaults.string(forKey: CachedSupabaseKeys.url),
+                let cachedURL = userDefaults.string(forKey: CachedSupabaseKeys.url(namespace: cacheNamespace)),
                 !cachedURL.isEmpty
             {
                 NSLog("Sunnad auth ignored cached Supabase config because SUNNAD_ALLOW_CACHED_SUPABASE_CONFIG is not enabled.")
@@ -119,8 +193,8 @@ final class DependencyContainer {
         }
 
         if
-            let urlString = userDefaults.string(forKey: CachedSupabaseKeys.url),
-            let key = userDefaults.string(forKey: CachedSupabaseKeys.key),
+            let urlString = userDefaults.string(forKey: CachedSupabaseKeys.url(namespace: cacheNamespace)),
+            let key = userDefaults.string(forKey: CachedSupabaseKeys.key(namespace: cacheNamespace)),
             let url = URL(string: urlString),
             !key.isEmpty
         {
@@ -137,7 +211,8 @@ final class DependencyContainer {
         #if DEBUG
         guard let raw = ProcessInfo.processInfo.environment["SUNNAD_ALLOW_CACHED_SUPABASE_CONFIG"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased() else {
+            .lowercased(),
+              !raw.isEmpty else {
             return false
         }
         return raw == "1" || raw == "true" || raw == "yes"
@@ -149,65 +224,9 @@ final class DependencyContainer {
     func seedLocalDataIfNeeded() {
         do {
             let modelContext = modelContainer.mainContext
-            let existingHabits = try modelContext.fetch(FetchDescriptor<HabitEntity>())
-            if existingHabits.isEmpty {
-                let seeded = UIFixtures.initialHabits.enumerated().map { index, item in
-                    var habit = item.asDomainHabit()
-                    habit.sortOrder = index
-                    return habit
-                }
-
-                for habit in seeded {
-                    modelContext.insert(
-                        HabitEntity(
-                            id: habit.id,
-                            name: habit.name,
-                            icon: habit.icon,
-                            categoryRaw: habit.category.rawValue,
-                            typeRaw: habit.type.rawValue,
-                            targetCount: habit.targetCount,
-                            scheduleFrequency: {
-                                switch habit.schedule {
-                                case .daily: return "daily"
-                                case .weekly: return "weekly"
-                                }
-                            }(),
-                            weekdaysISO: {
-                                switch habit.schedule {
-                                case .daily:
-                                    return ""
-                                case .weekly(let weekdays):
-                                    return weekdays
-                                        .map(\.rawValue)
-                                        .sorted()
-                                        .map(String.init)
-                                        .joined(separator: ",")
-                                }
-                            }(),
-                            reminderHour: habit.reminder?.hour,
-                            reminderMinute: habit.reminder?.minute,
-                            selectedDhikrKey: habit.selectedDhikrKey,
-                            dhikrCountsJSON: {
-                                guard let data = try? JSONEncoder().encode(habit.dhikrCountsByKey),
-                                      let string = String(data: data, encoding: .utf8) else {
-                                    return "{}"
-                                }
-                                return string
-                            }(),
-                            sortOrder: habit.sortOrder,
-                            archived: habit.archived,
-                            createdAt: habit.createdAt,
-                            updatedAt: habit.updatedAt
-                        )
-                    )
-                }
-
-                try modelContext.save()
-            }
-
             let existingQuotes = try modelContext.fetch(FetchDescriptor<QuoteEntity>())
             if existingQuotes.isEmpty {
-                try quotesRepository.upsertQuotes(Self.seedQuotes)
+                try localQuotesRepository.upsertQuotes(Self.seedQuotes)
             }
         } catch {
             analyticsLogger.log(.storageFailure, metadata: ["scope": "seed", "error": error.localizedDescription])
@@ -245,10 +264,112 @@ final class DependencyContainer {
         }
     }
 
+    func syncQuoteReminders(enabled: Bool, locale: String) {
+        Task { @MainActor in
+            guard enabled else {
+                await reminderScheduler.syncQuoteReminders(enabled: false, plans: [])
+                return
+            }
+
+            do {
+                let calendar = Calendar.current
+                let timeZone = TimeZone.current
+                let startOfDay = calendar.startOfDay(for: Date())
+                let dayFormatter = Self.quoteDayFormatter(calendar: calendar, timeZone: timeZone)
+                var plans: [QuoteReminderPlan] = []
+                plans.reserveCapacity(7)
+
+                for offset in 0 ..< 7 {
+                    guard let day = calendar.date(byAdding: .day, value: offset, to: startOfDay) else {
+                        continue
+                    }
+
+                    guard let quote = try await quotesRepository.fetchQuoteOfDay(
+                        locale: locale,
+                        on: day,
+                        calendar: calendar,
+                        timeZone: timeZone
+                    ) else {
+                        continue
+                    }
+
+                    let snippet = Self.quoteReminderSnippet(from: quote.text)
+                    guard !snippet.isEmpty else {
+                        continue
+                    }
+
+                    var dateComponents = calendar.dateComponents([.year, .month, .day], from: day)
+                    dateComponents.hour = 9
+                    dateComponents.minute = 0
+                    dateComponents.timeZone = timeZone
+
+                    plans.append(
+                        QuoteReminderPlan(
+                            identifier: "quote-reminder-\(dayFormatter.string(from: day))",
+                            body: snippet,
+                            dateComponents: dateComponents
+                        )
+                    )
+                }
+
+                await reminderScheduler.syncQuoteReminders(enabled: true, plans: plans)
+            } catch {
+                analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "quote_reminder_sync", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
     func requestLocalNotificationPermission() {
         Task {
             _ = await reminderScheduler.requestAuthorizationIfNeeded()
         }
+    }
+
+    @MainActor
+    func clearLocalDataForCurrentScope() async throws {
+        let scope = ownerScopeResolver.currentOwnerScopeRawValue
+        let modelContext = modelContainer.mainContext
+
+        let habits = try modelContext.fetch(
+            FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.ownerScope == scope })
+        )
+        for habit in habits {
+            await reminderScheduler.removeReminder(habitID: habit.id)
+            modelContext.delete(habit)
+        }
+
+        let completions = try modelContext.fetch(
+            FetchDescriptor<CompletionEntity>(predicate: #Predicate { $0.ownerScope == scope })
+        )
+        for completion in completions {
+            modelContext.delete(completion)
+        }
+
+        let savedQuotes = try modelContext.fetch(
+            FetchDescriptor<SavedQuoteEntity>(predicate: #Predicate { $0.ownerScope == scope })
+        )
+        for savedQuote in savedQuotes {
+            modelContext.delete(savedQuote)
+        }
+
+        let outbox = try modelContext.fetch(
+            FetchDescriptor<LocalOutboxEventEntity>(predicate: #Predicate { $0.ownerScope == scope })
+        )
+        for event in outbox {
+            modelContext.delete(event)
+        }
+
+        let cursors = try modelContext.fetch(
+            FetchDescriptor<LocalSyncCursorEntity>(predicate: #Predicate { $0.ownerScope == scope })
+        )
+        for cursor in cursors {
+            modelContext.delete(cursor)
+        }
+
+        try modelContext.save()
     }
 
     private static var seedQuotes: [Quote] {
@@ -264,5 +385,28 @@ final class DependencyContainer {
 
     private static var isRunningUnitTests: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
+    private static func quoteDayFormatter(calendar: Calendar, timeZone: TimeZone) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }
+
+    private static func quoteReminderSnippet(from text: String, maxLength: Int = 110) -> String {
+        let normalized = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        guard !normalized.isEmpty else {
+            return ""
+        }
+        if normalized.count <= maxLength {
+            return normalized
+        }
+        let endIndex = normalized.index(normalized.startIndex, offsetBy: maxLength)
+        return String(normalized[..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
 }

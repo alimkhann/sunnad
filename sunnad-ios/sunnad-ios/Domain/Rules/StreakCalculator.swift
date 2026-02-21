@@ -11,9 +11,18 @@ enum StreakCalculator {
         var calendar = calendar
         calendar.timeZone = timeZone
 
-        let normalized = Dictionary(uniqueKeysWithValues: completions.map {
-            (calendar.startOfDay(for: $0.dayDate), $0)
-        })
+        var normalized: [Date: HabitCompletion] = [:]
+        normalized.reserveCapacity(completions.count)
+        for completion in completions {
+            let dayKey = calendar.startOfDay(for: completion.dayDate)
+            if let existing = normalized[dayKey] {
+                if completion.updatedAt >= existing.updatedAt {
+                    normalized[dayKey] = completion
+                }
+            } else {
+                normalized[dayKey] = completion
+            }
+        }
 
         var streak = 0
         var cursor = calendar.startOfDay(for: date)

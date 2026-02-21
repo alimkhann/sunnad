@@ -4,13 +4,15 @@ import SwiftData
 @Model
 final class SavedQuoteEntity {
     @Attribute(.unique) var id: UUID
+    var ownerScope: String = "guest"
     var quoteID: UUID?
     var text: String
     var author: String
     var savedAt: Date
 
-    init(id: UUID, quoteID: UUID?, text: String, author: String, savedAt: Date) {
+    init(id: UUID, ownerScope: String, quoteID: UUID?, text: String, author: String, savedAt: Date) {
         self.id = id
+        self.ownerScope = ownerScope
         self.quoteID = quoteID
         self.text = text
         self.author = author

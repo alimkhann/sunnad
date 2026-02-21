@@ -19,6 +19,18 @@ func makeInMemoryContainer() throws -> ModelContainer {
         QuoteEntity.self,
         SavedQuoteEntity.self,
         DiagnosticEventEntity.self,
+        LocalOutboxEventEntity.self,
+        LocalSyncCursorEntity.self,
+        LocalGroupSyncEntity.self,
+        LocalGroupMemberSyncEntity.self,
+        LocalGroupSharedHabitSyncEntity.self,
         configurations: configuration
     )
+}
+
+@MainActor
+func makeTestOwnerScopeResolver(namespace: String = UUID().uuidString) -> LocalOwnerScopeResolver {
+    let defaults = UserDefaults(suiteName: "sunnad.tests.\(namespace)") ?? .standard
+    defaults.removePersistentDomain(forName: "sunnad.tests.\(namespace)")
+    return LocalOwnerScopeResolver(namespace: namespace, userDefaults: defaults)
 }

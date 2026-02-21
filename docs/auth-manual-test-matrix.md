@@ -2,8 +2,11 @@
 
 ## Preconditions
 - Supabase target environment is running and reachable.
-- Xcode scheme env vars are set for the target environment.
-- `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`.
+- Use the correct scheme for the environment:
+  - local: `sunnad-ios`
+  - dev: `sunnad-ios-dev`
+  - prod: `sunnad-ios-prod`
+- `sunnad://auth-callback` exists in Supabase redirect URLs.
 - For Google OAuth tests: provider must be enabled in that Supabase project.
 
 ## 1) Signup (email/password)
@@ -52,6 +55,11 @@
 1. Google button:
 - enabled in envs where configured
 - successful sign-in routes to Today tab
+2. Google sign-up intent from onboarding/profile:
+- start in guest, create at least one habit/template selection
+- tap Google Sign Up (not Sign In)
+- after callback, confirm guest onboarding data is present in signed-in scope
+- sign out, sign back in with Google Sign In, confirm no additional guest import happens
 2. Apple button:
 - visible but disabled while `SUNNAD_AUTH_APPLE_ENABLED=0`
 - helper text indicates unavailable/coming soon
@@ -66,6 +74,17 @@
 2. Prod scheme uses prod URL/key only.
 3. User created in dev does not exist in prod.
 4. Email template behavior (link + code) is identical in local/dev/prod.
+5. Installed app name matches scheme environment:
+- local: `Sunnad Local`
+- dev: `Sunnad Dev`
+- prod: `Sunnad`
+
+## 7.1) Launch-mode parity checks (critical)
+1. Launch from Xcode and sign in.
+2. Stop from Xcode.
+3. Launch the same installed app from simulator/device icon.
+4. Confirm session is still restored (no forced guest fallback).
+5. Repeat once per environment scheme.
 
 ## 8) Profile editing (signed-in users)
 1. Open Profile tab and tap account card.
@@ -74,6 +93,8 @@
 4. Try invalid username (uppercase/spaces/symbols/too short) and confirm save remains disabled or fails with validation.
 5. Upload avatar image and confirm card updates.
 6. Remove avatar and confirm default icon restores.
+7. Pull down to refresh Profile and confirm username/avatar remain consistent with remote state.
+8. Confirm debug diagnostics line (debug builds) shows `bundle id | supabase host | namespace`.
 
 ## 9) Delete account semantics
 1. While signed in, use `Delete Account`.
@@ -81,6 +102,7 @@
 3. Confirm app transitions to guest mode without onboarding reset.
 4. Confirm local habits/quotes still exist on device.
 5. Confirm old credentials no longer authenticate against that environment.
+6. Confirm avatar object is removed from `avatars` storage bucket for deleted user.
 
 ## 10) Execution matrix
 Run sections 1-9 in:
@@ -89,3 +111,37 @@ Run sections 1-9 in:
 - prod on iPhone 17 Pro simulator
 - dev on real device
 - prod on real device
+
+For dev/prod, run each row in both launch modes:
+- launched from Xcode
+- launched from icon
+
+## 11) Groups + refresh regression
+1. Sign in and open Groups tab.
+2. Pull down to refresh group list.
+3. Open a group detail and pull down to refresh detail.
+4. Verify group create/join entries appear without relaunch.
+5. Verify group rename/lock/rotate actions still work.
+6. If network enrichment fails, verify user sees a recoverable error message (not silent empty state).
+7. Verify bell nudge action shows recoverable status (sent/duplicate/forbidden/error).
+8. Verify member avatars render in group detail (fallback to initials when avatar is missing).
+
+## 14) Notification toggles (all three)
+1. In Profile -> Notifications, toggle `Habit reminders` off and verify pending `habit-reminder-*` requests are removed.
+2. Toggle `Habit reminders` on and verify due habits recreate pending requests.
+3. Toggle `Quote of the day reminder` on and verify pending `quote-reminder-*` requests are scheduled at `09:00` local.
+4. Toggle `Quote of the day reminder` off and verify `quote-reminder-*` requests are removed.
+5. Toggle `Group reminders` off while signed in and verify current device token/subscription is de-registered in `device_tokens`.
+6. Toggle `Group reminders` on and verify token/subscription row is re-registered.
+
+## 12) Guest promotion + streak sanity
+1. As guest, create a habit and mark one completion for today.
+2. Sign up and verify guest data appears immediately in the new signed-in scope.
+3. Sign out and sign in to an existing account; verify guest data does not auto-import.
+4. Sign out and verify guest scope still has original guest data.
+5. In a non-UTC timezone, verify a single completion yields streak `1` (never `2`) after sync and relaunch.
+
+## 13) Groups schema-compat and fallback visibility
+1. In dev/prod, open Groups and pull-to-refresh.
+2. If backend is missing `join_locked`, verify UI shows recoverable warning but still renders groups.
+3. After migrations are promoted, verify warning disappears and lock/rotate controls continue to work.

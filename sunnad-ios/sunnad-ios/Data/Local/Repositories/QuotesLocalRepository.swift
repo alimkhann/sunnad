@@ -7,9 +7,16 @@ final class QuotesLocalRepository: QuotesRepository {
     private let savedQuotesRepository: SavedQuotesLocalRepository
     private let logger: AnalyticsLogging
 
-    init(modelContext: ModelContext, logger: AnalyticsLogging) {
+    init(
+        modelContext: ModelContext,
+        logger: AnalyticsLogging,
+        ownerScopeProvider: LocalOwnerScopeProviding
+    ) {
         self.modelContext = modelContext
-        self.savedQuotesRepository = SavedQuotesLocalRepository(modelContext: modelContext)
+        self.savedQuotesRepository = SavedQuotesLocalRepository(
+            modelContext: modelContext,
+            ownerScopeProvider: ownerScopeProvider
+        )
         self.logger = logger
     }
 

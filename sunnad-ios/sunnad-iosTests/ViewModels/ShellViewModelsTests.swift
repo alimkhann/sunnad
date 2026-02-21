@@ -124,6 +124,81 @@ final class FakeGroupsRepository: GroupsRepository, @unchecked Sendable {
         groups
     }
 
+    func createGroup(name: String) async throws -> Group {
+        let me = GroupMember(name: "Ali", completedToday: 0, totalSharedHabits: 0, sharedHabits: [])
+        let group = Group(
+            name: name,
+            code: "ABC123",
+            joinLocked: false,
+            members: [me],
+            sharedHabitIDs: [],
+            ownerMemberID: me.id,
+            currentUserMemberID: me.id
+        )
+        groups.append(group)
+        return group
+    }
+
+    func joinGroup(code: String) async throws -> Group {
+        let owner = GroupMember(name: "Sara", completedToday: 0, totalSharedHabits: 0, sharedHabits: [])
+        let me = GroupMember(name: "Ali", completedToday: 0, totalSharedHabits: 0, sharedHabits: [])
+        let group = Group(
+            name: "Group \(code)",
+            code: code,
+            joinLocked: false,
+            members: [owner, me],
+            sharedHabitIDs: [],
+            ownerMemberID: owner.id,
+            currentUserMemberID: me.id
+        )
+        groups.append(group)
+        return group
+    }
+
+    func renameGroup(groupID: UUID, name: String) async throws {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+        groups[index].name = name
+    }
+
+    func setJoinLock(groupID: UUID, locked: Bool) async throws {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+        groups[index].joinLocked = locked
+    }
+
+    func rotateInviteCode(groupID: UUID) async throws -> String {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return "NEWCODE" }
+        let code = "NEWCODE"
+        groups[index].code = code
+        return code
+    }
+
+    func updateSharing(groupID: UUID, habitIDs: Set<UUID>) async throws {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+        groups[index].sharedHabitIDs = habitIDs
+    }
+
+    func leaveGroup(groupID: UUID) async throws {
+        groups.removeAll(where: { $0.id == groupID })
+    }
+
+    func deleteGroup(groupID: UUID) async throws {
+        groups.removeAll(where: { $0.id == groupID })
+    }
+
+    func kickMember(groupID: UUID, memberUserID: UUID) async throws {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+        groups[index].members.removeAll(where: { $0.id == memberUserID })
+    }
+
+    func refreshGroup(groupID: UUID) async throws -> Group? {
+        groups.first(where: { $0.id == groupID })
+    }
+
+    func sendNudge(groupID: UUID, toUserID: UUID, habitID: UUID) async throws -> GroupNudgeStatus {
+        _ = (groupID, toUserID, habitID)
+        return .sent
+    }
+
     func replaceGroups(_ groups: [Group]) async throws {
         self.groups = groups
     }

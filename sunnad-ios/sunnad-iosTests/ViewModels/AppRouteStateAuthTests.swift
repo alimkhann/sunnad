@@ -698,9 +698,17 @@ actor FakeAuthService: AuthService {
 
 actor FakeDeviceTokenSyncService: DeviceTokenSyncing {
     private(set) var syncedUserIDs: [UUID] = []
+    private(set) var groupReminderUpdates: [(userID: UUID, enabled: Bool)] = []
 
     func syncCurrentDeviceToken(for userID: UUID) async {
         syncedUserIDs.append(userID)
+    }
+
+    func setGroupRemindersEnabled(_ enabled: Bool, for userID: UUID) async {
+        groupReminderUpdates.append((userID: userID, enabled: enabled))
+        if enabled {
+            syncedUserIDs.append(userID)
+        }
     }
 
     func containsSyncedUserID(_ userID: UUID) -> Bool {

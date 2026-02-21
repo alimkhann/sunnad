@@ -142,6 +142,7 @@ extension UIGroupMember {
         GroupMember(
             id: id,
             name: name,
+            avatarURL: avatarURL,
             completedToday: completedToday,
             totalSharedHabits: totalSharedHabits,
             sharedHabits: sharedHabits.map { $0.asDomainSharedHabit() }
@@ -154,6 +155,7 @@ extension GroupMember {
         UIGroupMember(
             id: id,
             name: name,
+            avatarURL: avatarURL,
             completedToday: completedToday,
             totalSharedHabits: totalSharedHabits,
             sharedHabits: sharedHabits.map { $0.asUISharedHabit() }
@@ -167,6 +169,7 @@ extension UIGroup {
             id: id,
             name: name,
             code: code,
+            joinLocked: joinLocked,
             members: members.map { $0.asDomainGroupMember() },
             sharedHabitIDs: sharedHabitIDs,
             ownerMemberID: ownerMemberID,
@@ -181,6 +184,7 @@ extension Group {
             id: id,
             name: name,
             code: code,
+            joinLocked: joinLocked,
             members: members.map { $0.asUIGroupMember() },
             sharedHabitIDs: sharedHabitIDs,
             ownerMemberID: ownerMemberID,

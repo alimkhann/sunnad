@@ -21,6 +21,8 @@ struct ProfileView: View {
     let onChangePassword: () -> Void
     let onDeleteData: () -> Void
     let onDeleteAccount: () -> Void
+    let onRefresh: () async -> Void
+    let debugDiagnosticsText: String?
     let privacyURL: URL
     let helpURL: URL
 
@@ -175,6 +177,14 @@ struct ProfileView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 8)
+
+            if let debugDiagnosticsText, !debugDiagnosticsText.isEmpty {
+                Text(debugDiagnosticsText)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .multilineTextAlignment(.center)
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
         .sunnadSolidBars()
@@ -184,6 +194,9 @@ struct ProfileView: View {
                     .frame(height: 96)
                     .ignoresSafeArea(edges: .top)
             }
+        }
+        .refreshable {
+            await onRefresh()
         }
         .sheet(isPresented: $showsNotificationSettings) {
             NotificationSettingsSheet(preferences: $notificationPreferences)
@@ -301,22 +314,7 @@ struct ProfileView: View {
     @ViewBuilder
     private var avatarView: some View {
         if let avatarURL = user.avatarURL {
-            AsyncImage(url: avatarURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                default:
-                    Image(systemName: "person.crop.circle.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundStyle(SunnadTheme.primary)
-                        .padding(4)
-                }
-            }
-            .frame(width: 42, height: 42)
-            .clipShape(Circle())
+            CachedAvatarView(url: avatarURL, size: 42, placeholderPadding: 4)
         } else {
             Image(systemName: "person.crop.circle.fill")
                 .font(.system(size: 42))
@@ -478,22 +476,7 @@ struct EditProfileView: View {
     @ViewBuilder
     private var avatarView: some View {
         if let avatarURL = user.avatarURL {
-            AsyncImage(url: avatarURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                default:
-                    Image(systemName: "person.crop.circle.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundStyle(SunnadTheme.primary)
-                        .padding(8)
-                }
-            }
-            .frame(width: 92, height: 92)
-            .clipShape(Circle())
+            CachedAvatarView(url: avatarURL, size: 92, placeholderPadding: 8)
         } else {
             Image(systemName: "person.crop.circle.fill")
                 .resizable()

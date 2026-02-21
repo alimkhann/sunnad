@@ -5,17 +5,36 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
     private struct ProfileRow: Decodable {
         let username: String?
         let avatarPath: String?
-        let updatedAt: Date?
+        let updatedAtRaw: String?
+
+        var updatedAt: Date? {
+            SupabaseAuthService.parseProfileTimestamp(updatedAtRaw)
+        }
 
         enum CodingKeys: String, CodingKey {
             case username
             case avatarPath = "avatar_path"
-            case updatedAt = "updated_at"
+            case updatedAtRaw = "updated_at"
         }
     }
 
     private struct DeleteAccountResponse: Decodable {
         let ok: Bool?
+    }
+
+    private struct ProfileUsernameUpsertRow: Encodable {
+        let id: UUID
+        let username: String
+    }
+
+    private struct ProfileAvatarUpsertRow: Encodable {
+        let id: UUID
+        let avatarPath: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case avatarPath = "avatar_path"
+        }
     }
 
     private let client: SupabaseClient
@@ -192,7 +211,7 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 
         do {
             try await persistProfileUsername(cleanedUsername, for: user.id)
-            return await sessionUser(from: user, fallbackUsername: cleanedUsername)
+            return try await fetchProfile()
         } catch {
             throw mapAuthError(error)
         }
@@ -204,7 +223,7 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         }
 
         let fileExtension = fileExtension(for: mimeType)
-        let avatarPath = "profiles/\(user.id.uuidString)/avatar.\(fileExtension)"
+        let avatarPath = "profiles/\(user.id.uuidString.lowercased())/avatar.\(fileExtension)"
 
         do {
             _ = try await client.storage.from("avatars").upload(
@@ -217,7 +236,7 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
                 )
             )
             try await persistProfileAvatarPath(avatarPath, for: user.id)
-            return await sessionUser(from: user)
+            return try await fetchProfile()
         } catch {
             throw mapAuthError(error)
         }
@@ -237,7 +256,7 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             }
 
             try await persistProfileAvatarPath(nil, for: user.id)
-            return await sessionUser(from: user)
+            return try await fetchProfile()
         } catch {
             throw mapAuthError(error)
         }
@@ -347,19 +366,43 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
     }
 
     private func persistProfileUsername(_ username: String, for userID: UUID) async throws {
-        try await client
-            .from("profiles")
-            .update(["username": AnyJSON.string(username)])
-            .eq("id", value: userID)
-            .execute()
+        do {
+            try await client
+                .rpc(
+                    "upsert_profile_fields",
+                    params: [
+                        "p_username": AnyJSON.string(username),
+                        "p_set_username": AnyJSON.bool(true)
+                    ]
+                )
+                .execute()
+        } catch {
+            let row = ProfileUsernameUpsertRow(id: userID, username: username)
+            try await client
+                .from("profiles")
+                .upsert(row, onConflict: "id")
+                .execute()
+        }
     }
 
     private func persistProfileAvatarPath(_ avatarPath: String?, for userID: UUID) async throws {
-        try await client
-            .from("profiles")
-            .update(["avatar_path": avatarPath.map(AnyJSON.string) ?? AnyJSON.null])
-            .eq("id", value: userID)
-            .execute()
+        do {
+            try await client
+                .rpc(
+                    "upsert_profile_fields",
+                    params: [
+                        "p_avatar_path": avatarPath.map(AnyJSON.string) ?? AnyJSON.null,
+                        "p_set_avatar": AnyJSON.bool(true)
+                    ]
+                )
+                .execute()
+        } catch {
+            let row = ProfileAvatarUpsertRow(id: userID, avatarPath: avatarPath)
+            try await client
+                .from("profiles")
+                .upsert(row, onConflict: "id")
+                .execute()
+        }
     }
 
     private func fetchProfileRow(for userID: UUID) async -> ProfileRow? {
@@ -444,6 +487,20 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         }
 
         return publicURL
+    }
+
+    private static func parseProfileTimestamp(_ rawValue: String?) -> Date? {
+        guard let rawValue, !rawValue.isEmpty else { return nil }
+
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsed = fractional.date(from: rawValue) {
+            return parsed
+        }
+
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        return plain.date(from: rawValue)
     }
 
     private func currentAuthUser() async -> User? {
@@ -602,6 +659,11 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         {
             return .invalidOTPCode
         }
+        if message.contains("row-level security policy")
+            || message.contains("violates row-level security")
+        {
+            return .unknown("Permission denied. Please sign in again and retry.")
+        }
         if message.contains("invalid login")
             || message.contains("invalid email or password")
             || message.contains("invalid credentials")
@@ -625,17 +687,20 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Sendable {
     private enum Keys {
         static let deviceToken = "sunnad.device.push-token"
+        static let oneSignalSubscriptionID = "sunnad.device.onesignal-subscription-id"
     }
 
     private struct DeviceTokenRow: Encodable {
         let userID: UUID
         let platform: String
         let token: String
+        let oneSignalSubscriptionID: String?
 
         enum CodingKeys: String, CodingKey {
             case userID = "user_id"
             case platform
             case token
+            case oneSignalSubscriptionID = "onesignal_subscription_id"
         }
     }
 
@@ -654,13 +719,21 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
     }
 
     func syncCurrentDeviceToken(for userID: UUID) async {
-        let token = resolveDeviceToken()
-        guard let token, !token.isEmpty else {
+        let registration = resolveRegistration()
+        let resolvedToken = registration.token
+        let oneSignalSubscriptionID = registration.oneSignalSubscriptionID
+
+        guard let resolvedToken, !resolvedToken.isEmpty else {
             logger.log(.syncFinished, metadata: ["scope": "device_token", "status": "skipped_no_token"])
             return
         }
 
-        let row = DeviceTokenRow(userID: userID, platform: "ios", token: token)
+        let row = DeviceTokenRow(
+            userID: userID,
+            platform: "ios",
+            token: resolvedToken,
+            oneSignalSubscriptionID: oneSignalSubscriptionID
+        )
 
         do {
             try await client
@@ -668,7 +741,14 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
                 .upsert(row, onConflict: "user_id,token")
                 .execute()
 
-            logger.log(.syncFinished, metadata: ["scope": "device_token", "status": "upserted"])
+            logger.log(
+                .syncFinished,
+                metadata: [
+                    "scope": "device_token",
+                    "status": "upserted",
+                    "onesignal": oneSignalSubscriptionID == nil ? "none" : "present"
+                ]
+            )
         } catch {
             logger.log(
                 .storageFailure,
@@ -680,11 +760,76 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
         }
     }
 
+    func setGroupRemindersEnabled(_ enabled: Bool, for userID: UUID) async {
+        guard enabled else {
+            let registration = resolveRegistration()
+            guard let token = registration.token, !token.isEmpty else {
+                logger.log(
+                    .syncFinished,
+                    metadata: ["scope": "device_token_group_receive", "status": "skipped_no_token"]
+                )
+                return
+            }
+
+            do {
+                try await client
+                    .from("device_tokens")
+                    .delete()
+                    .eq("user_id", value: userID)
+                    .eq("token", value: token)
+                    .execute()
+
+                logger.log(
+                    .syncFinished,
+                    metadata: ["scope": "device_token_group_receive", "status": "disabled"]
+                )
+            } catch {
+                logger.log(
+                    .storageFailure,
+                    metadata: [
+                        "scope": "device_token_group_receive_disable",
+                        "error": error.localizedDescription
+                    ]
+                )
+            }
+            return
+        }
+
+        await syncCurrentDeviceToken(for: userID)
+    }
+
+    private func resolveRegistration() -> (token: String?, oneSignalSubscriptionID: String?) {
+        let token = resolveDeviceToken()
+        let oneSignalSubscriptionID = resolveOneSignalSubscriptionID()
+
+        if let token, !token.isEmpty {
+            return (token, oneSignalSubscriptionID)
+        }
+        if let oneSignalSubscriptionID, !oneSignalSubscriptionID.isEmpty {
+            // Keep a stable PK row for users where only OneSignal subscription ID is available.
+            return ("onesignal-subscription:\(oneSignalSubscriptionID)", oneSignalSubscriptionID)
+        }
+        return (nil, oneSignalSubscriptionID)
+    }
+
     private func resolveDeviceToken() -> String? {
         if let override = ProcessInfo.processInfo.environment["SUNNAD_DEBUG_DEVICE_TOKEN"], !override.isEmpty {
             return override
         }
 
         return userDefaults.string(forKey: Keys.deviceToken)
+    }
+
+    private func resolveOneSignalSubscriptionID() -> String? {
+        if let override = ProcessInfo.processInfo.environment["SUNNAD_DEBUG_ONESIGNAL_SUBSCRIPTION_ID"], !override.isEmpty {
+            return override
+        }
+        if let value = ProcessInfo.processInfo.environment["SUNNAD_ONESIGNAL_SUBSCRIPTION_ID"], !value.isEmpty {
+            return value
+        }
+        if let value = userDefaults.string(forKey: Keys.oneSignalSubscriptionID), !value.isEmpty {
+            return value
+        }
+        return nil
     }
 }

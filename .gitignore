@@ -1,2 +1,12 @@
 *.react
 *.artifacts
+
+node_modules/
+**/node_modules/
+.next/
+admin/.next/
+admin/.vercel/
+admin/.env.local
+admin/.env.dev
+admin/.env
+*.tsbuildinfo

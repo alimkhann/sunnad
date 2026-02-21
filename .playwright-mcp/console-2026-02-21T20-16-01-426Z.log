@@ -1,0 +1,2 @@
+[    2282ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://artwfvypcdacdpqhciqt.supabase.co/functions/v1/admin-quotes/quotes:0
+[  136037ms] [ERROR] Failed to load resource: the server responded with a status of 429 () @ https://artwfvypcdacdpqhciqt.supabase.co/auth/v1/otp?redirect_to=https%3A%2F%2Fsunnad-admin.vercel.app:0

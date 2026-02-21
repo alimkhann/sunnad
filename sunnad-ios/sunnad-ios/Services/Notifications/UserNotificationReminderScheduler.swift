@@ -19,6 +19,11 @@ extension UNUserNotificationCenter: UserNotificationCenterClient {
 }
 
 final class UserNotificationReminderScheduler: LocalReminderScheduling, ReminderSchedulingDebugInspectable, @unchecked Sendable {
+    private enum IdentifierPrefix {
+        static let habit = "habit-reminder-"
+        static let quote = "quote-reminder-"
+    }
+
     private let center: UserNotificationCenterClient
     private let logger: AnalyticsLogging
 
@@ -43,7 +48,7 @@ final class UserNotificationReminderScheduler: LocalReminderScheduling, Reminder
 
     func syncReminders(for habits: [Habit], enabled: Bool, excludingHabitIDs: Set<UUID>) async {
         let requests = await center.fetchPendingNotificationRequests()
-        let existingIDs = Set(requests.map(\.identifier).filter { $0.hasPrefix("habit-reminder-") })
+        let existingIDs = Set(requests.map(\.identifier).filter { $0.hasPrefix(IdentifierPrefix.habit) })
 
         guard enabled else {
             if !existingIDs.isEmpty {
@@ -64,6 +69,32 @@ final class UserNotificationReminderScheduler: LocalReminderScheduling, Reminder
         }
 
         logger.log(.reminderSynced, metadata: ["enabled": "true", "count": "\(desiredIDs.count)"])
+    }
+
+    func syncQuoteReminders(enabled: Bool, plans: [QuoteReminderPlan]) async {
+        let requests = await center.fetchPendingNotificationRequests()
+        let existingIDs = Set(requests.map(\.identifier).filter { $0.hasPrefix(IdentifierPrefix.quote) })
+
+        guard enabled else {
+            if !existingIDs.isEmpty {
+                center.removePendingNotificationRequests(withIdentifiers: Array(existingIDs))
+            }
+            logger.log(.reminderSynced, metadata: ["scope": "quote", "enabled": "false", "count": "0"])
+            return
+        }
+
+        let desiredIDs = Set(plans.map(\.identifier))
+        let staleIDs = existingIDs.subtracting(desiredIDs)
+        if !staleIDs.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: Array(staleIDs))
+        }
+
+        for plan in plans {
+            let trigger = UNCalendarNotificationTrigger(dateMatching: plan.dateComponents, repeats: false)
+            await addQuoteRequest(id: plan.identifier, body: plan.body, trigger: trigger)
+        }
+
+        logger.log(.reminderSynced, metadata: ["scope": "quote", "enabled": "true", "count": "\(desiredIDs.count)"])
     }
 
     func removeReminder(habitID: UUID) async {
@@ -159,12 +190,40 @@ final class UserNotificationReminderScheduler: LocalReminderScheduling, Reminder
     }
 
     private func reminderPrefix(for habitID: UUID) -> String {
-        "habit-reminder-\(habitID.uuidString)"
+        "\(IdentifierPrefix.habit)\(habitID.uuidString)"
+    }
+
+    private func addQuoteRequest(id: String, body: String, trigger: UNNotificationTrigger) async {
+        let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedBody.isEmpty else {
+            return
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = L10n.t("notifications.quote_reminder")
+        content.body = trimmedBody
+        content.sound = .default
+        content.userInfo = ["type": "quote_of_day"]
+
+        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+
+        do {
+            try await center.add(request)
+        } catch {
+            logger.log(
+                .storageFailure,
+                metadata: [
+                    "scope": "schedule_quote_reminder",
+                    "request_id": id,
+                    "error": error.localizedDescription
+                ]
+            )
+        }
     }
 
     func debugPendingReminderRequestIdentifiers() async -> [String] {
         await center.fetchPendingNotificationRequests()
             .map(\.identifier)
-            .filter { $0.hasPrefix("habit-reminder-") }
+            .filter { $0.hasPrefix(IdentifierPrefix.habit) || $0.hasPrefix(IdentifierPrefix.quote) }
     }
 }

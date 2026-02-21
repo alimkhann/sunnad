@@ -1,0 +1,368 @@
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+
+type SupportedLocale = "en" | "ru" | "kk";
+
+type TranslatePayload = {
+  /** @deprecated use `text` + `source_locale` instead */
+  text_kk?: string;
+  /** Source text to translate from */
+  text?: string;
+  /** Locale of the source text (default: "kk") */
+  source_locale?: SupportedLocale;
+  /** Target locales to translate into (default: complement of source_locale) */
+  target_locales?: SupportedLocale[];
+  source?: string;
+  /** Source attribution text to translate alongside the quote */
+  source_text?: string;
+  context?: string;
+};
+
+type TranslateResponse = {
+  [K in SupportedLocale]?: string;
+} & {
+  sources?: { [K in SupportedLocale]?: string };
+  model: string;
+};
+
+type AuthContext = {
+  userID: string;
+  admin: SupabaseClient;
+};
+
+const ALL_LOCALES: SupportedLocale[] = ["en", "ru", "kk"];
+
+const jsonHeaders = {
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST,OPTIONS",
+};
+
+Deno.serve(async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: jsonHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
+
+  const auth = await requireAdmin(req);
+  if (auth instanceof Response) {
+    return auth;
+  }
+
+  let payload: TranslatePayload;
+  try {
+    payload = await req.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  // Backwards-compat: text_kk → text + source_locale=kk
+  const sourceLocale: SupportedLocale = payload.source_locale ?? "kk";
+  const mainText = normalizeText(payload.text ?? payload.text_kk);
+
+  if (!mainText) {
+    return json({ error: "text (or text_kk) is required" }, 400);
+  }
+
+  if (!ALL_LOCALES.includes(sourceLocale)) {
+    return json(
+      { error: `source_locale must be one of: ${ALL_LOCALES.join(", ")}` },
+      400,
+    );
+  }
+
+  const targetLocales: SupportedLocale[] = payload.target_locales?.length
+    ? payload.target_locales.filter(
+        (l) => ALL_LOCALES.includes(l) && l !== sourceLocale,
+      )
+    : ALL_LOCALES.filter((l) => l !== sourceLocale);
+
+  if (targetLocales.length === 0) {
+    return json({ error: "No valid target locales specified" }, 400);
+  }
+
+  const source = normalizeText(payload.source);
+  const sourceText = normalizeText(payload.source_text);
+  const context = normalizeText(payload.context);
+
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
+
+  if (!apiKey) {
+    return json({ error: "GEMINI_API_KEY is not configured" }, 500);
+  }
+
+  const prompt = buildPrompt({
+    sourceText: mainText,
+    sourceLocale,
+    targetLocales,
+    source,
+    context,
+    sourceAttribution: sourceText,
+  });
+  const result = await callGemini({
+    prompt,
+    apiKey,
+    model,
+    targetLocales,
+    hasSourceAttribution: !!sourceText,
+  });
+
+  if (result instanceof Response) {
+    return result;
+  }
+
+  return json(result, 200);
+});
+
+const LOCALE_NAMES: Record<SupportedLocale, string> = {
+  en: "English",
+  ru: "Russian",
+  kk: "Kazakh",
+};
+
+function buildPrompt(input: {
+  sourceText: string;
+  sourceLocale: SupportedLocale;
+  targetLocales: SupportedLocale[];
+  source: string | null;
+  context: string | null;
+  sourceAttribution: string | null;
+}): string {
+  const contextLine = input.context
+    ? `Context from editor: ${input.context}`
+    : "Context from editor: none";
+
+  const sourceLine = input.source
+    ? `Original source attribution: ${input.source}`
+    : "Original source attribution: not provided";
+
+  const targetNames = input.targetLocales
+    .map((l) => `${LOCALE_NAMES[l]} (${l})`)
+    .join(", ");
+  const outputKeys = input.targetLocales.join(", ");
+
+  const lines = [
+    "You are translating Islamic motivational quotes for a mobile habit app.",
+    "Preserve meaning, tone, and respectfulness. Avoid slang or loose paraphrasing.",
+    "If the text has religious wording, keep faithful terms and avoid changing doctrinal meaning.",
+  ];
+
+  if (input.sourceAttribution) {
+    lines.push(
+      `Output strict JSON only with keys: ${outputKeys}, sources.`,
+      `The "sources" key must be an object with keys: ${outputKeys} containing translated versions of the source attribution.`,
+      "Keep honorifics like \u{FDFA} (\u{FE0E}) as-is. Do not translate proper names (e.g. Prophet Muhammad). Translate descriptive parts only.",
+    );
+  } else {
+    lines.push(`Output strict JSON only with keys: ${outputKeys}.`);
+  }
+
+  lines.push(
+    "No markdown, no explanations, no extra keys.",
+    contextLine,
+    sourceLine,
+    `Source language: ${LOCALE_NAMES[input.sourceLocale]}`,
+    `Target languages: ${targetNames}`,
+    `Quote: ${input.sourceText}`,
+  );
+
+  if (input.sourceAttribution) {
+    lines.push(`Source attribution to translate: ${input.sourceAttribution}`);
+  }
+
+  return lines.join("\n");
+}
+
+async function callGemini(args: {
+  prompt: string;
+  apiKey: string;
+  model: string;
+  targetLocales: SupportedLocale[];
+  hasSourceAttribution: boolean;
+}): Promise<TranslateResponse | Response> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${args.model}:generateContent?key=${args.apiKey}`;
+
+  const body = {
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: args.prompt }],
+      },
+    ],
+    generationConfig: {
+      responseMimeType: "application/json",
+      temperature: 0.2,
+      maxOutputTokens: 2048,
+    },
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    return json({ error: `Gemini request failed: ${errorText}` }, 502);
+  }
+
+  const raw = await response.json();
+  const text = extractGeminiText(raw);
+  if (!text) {
+    return json({ error: "Gemini response did not contain text" }, 502);
+  }
+
+  // Strip potential markdown code blocks that Gemini sometimes wraps around JSON
+  const cleaned = text
+    .replace(/^```(?:json)?\s*\n?/i, "")
+    .replace(/\n?\s*```\s*$/i, "")
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return json(
+      {
+        error: "Gemini response is not valid JSON",
+        raw_text: cleaned.substring(0, 200),
+      },
+      502,
+    );
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    return json({ error: "Gemini response has invalid structure" }, 502);
+  }
+
+  const result: TranslateResponse = { model: args.model };
+  for (const locale of args.targetLocales) {
+    const value = normalizeText((parsed as Record<string, unknown>)[locale]);
+    if (!value) {
+      return json(
+        { error: `Gemini response must include non-empty ${locale}` },
+        502,
+      );
+    }
+    result[locale] = value;
+  }
+
+  // Parse source translations if requested
+  if (args.hasSourceAttribution) {
+    const sourcesRaw = (parsed as Record<string, unknown>).sources;
+    if (sourcesRaw && typeof sourcesRaw === "object") {
+      const sources: Record<string, string> = {};
+      for (const locale of args.targetLocales) {
+        const value = normalizeText(
+          (sourcesRaw as Record<string, unknown>)[locale],
+        );
+        if (value) {
+          sources[locale] = value;
+        }
+      }
+      if (Object.keys(sources).length > 0) {
+        result.sources = sources as TranslateResponse["sources"];
+      }
+    }
+  }
+
+  return result;
+}
+
+function extractGeminiText(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const candidates = (raw as Record<string, unknown>).candidates;
+  if (!Array.isArray(candidates) || candidates.length === 0) return null;
+
+  const first = candidates[0];
+  if (!first || typeof first !== "object") return null;
+
+  // Check finishReason — if MAX_TOKENS, the response was truncated
+  const finishReason = (first as Record<string, unknown>).finishReason;
+  if (finishReason === "MAX_TOKENS") {
+    console.warn("Gemini response truncated due to MAX_TOKENS");
+  }
+
+  const content = (first as Record<string, unknown>).content;
+  if (!content || typeof content !== "object") return null;
+
+  const parts = (content as Record<string, unknown>).parts;
+  if (!Array.isArray(parts) || parts.length === 0) return null;
+
+  const text = (parts[0] as Record<string, unknown>)?.text;
+  return typeof text === "string" ? text : null;
+}
+
+async function requireAdmin(req: Request): Promise<AuthContext | Response> {
+  const supabaseURL = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const authorization = req.headers.get("Authorization");
+
+  if (!supabaseURL || !supabaseAnonKey || !serviceRoleKey) {
+    return json({ error: "Function is not configured" }, 500);
+  }
+
+  if (!authorization) {
+    return json({ error: "Missing authorization" }, 401);
+  }
+
+  const authClient = createClient(supabaseURL, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: authorization,
+      },
+    },
+  });
+
+  const {
+    data: { user },
+    error: userError,
+  } = await authClient.auth.getUser();
+
+  if (userError || !user) {
+    return json({ error: "Unauthorized" }, 401);
+  }
+
+  const admin = createClient(supabaseURL, serviceRoleKey);
+  const allowResult = await admin.rpc("is_allowlisted_admin", {
+    p_user_id: user.id,
+  });
+
+  if (allowResult.error) {
+    return json({ error: allowResult.error.message }, 500);
+  }
+
+  if (allowResult.data !== true) {
+    return json({ error: "Forbidden" }, 403);
+  }
+
+  return {
+    userID: user.id,
+    admin,
+  };
+}
+
+function normalizeText(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function json(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: jsonHeaders,
+  });
+}

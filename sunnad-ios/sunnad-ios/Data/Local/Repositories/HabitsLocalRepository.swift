@@ -5,14 +5,22 @@ import SwiftData
 final class HabitsLocalRepository: HabitsRepository {
     private let modelContext: ModelContext
     private let logger: AnalyticsLogging
+    private let ownerScopeProvider: LocalOwnerScopeProviding
 
-    init(modelContext: ModelContext, logger: AnalyticsLogging) {
+    init(
+        modelContext: ModelContext,
+        logger: AnalyticsLogging,
+        ownerScopeProvider: LocalOwnerScopeProviding
+    ) {
         self.modelContext = modelContext
         self.logger = logger
+        self.ownerScopeProvider = ownerScopeProvider
     }
 
     func fetchHabits(includeArchived: Bool) async throws -> [Habit] {
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
         let descriptor = FetchDescriptor<HabitEntity>(
+            predicate: #Predicate { $0.ownerScope == ownerScope },
             sortBy: [
                 SortDescriptor(\.sortOrder, order: .forward),
                 SortDescriptor(\.createdAt, order: .forward)
@@ -36,16 +44,18 @@ final class HabitsLocalRepository: HabitsRepository {
     }
 
     func saveHabit(_ habit: Habit) async throws {
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
         let descriptor = FetchDescriptor<HabitEntity>(
-            predicate: #Predicate { $0.id == habit.id }
+            predicate: #Predicate { $0.id == habit.id && $0.ownerScope == ownerScope }
         )
 
         if let existing = try modelContext.fetch(descriptor).first {
-            existing.apply(habit)
+            existing.apply(habit, ownerScope: ownerScope)
             logger.log(.habitUpdated, metadata: ["habit_id": habit.id.uuidString])
         } else {
             let entity = HabitEntity(
                 id: habit.id,
+                ownerScope: ownerScope,
                 name: habit.name,
                 icon: habit.icon,
                 categoryRaw: habit.category.rawValue,
@@ -70,7 +80,8 @@ final class HabitsLocalRepository: HabitsRepository {
     }
 
     func deleteHabit(id: UUID) async throws {
-        let descriptor = FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.id == id })
+        let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
+        let descriptor = FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.id == id && $0.ownerScope == ownerScope })
         guard let entity = try modelContext.fetch(descriptor).first else {
             return
         }

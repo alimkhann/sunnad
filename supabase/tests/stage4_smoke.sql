@@ -9,7 +9,8 @@ set local role postgres;
 with u as (
   select
     gen_random_uuid() as owner_id,
-    gen_random_uuid() as member_id
+    gen_random_uuid() as member_id,
+    gen_random_uuid() as outsider_id
 )
 insert into auth.users (
   id,
@@ -47,18 +48,35 @@ select
   now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
   '{}'::jsonb
+from u
+union all
+select
+  outsider_id,
+  'authenticated',
+  'authenticated',
+  'stage4-outsider@example.com',
+  crypt('password', gen_salt('bf')),
+  now(),
+  now(),
+  now(),
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{}'::jsonb
 from u;
 
 do $$
 declare
   v_owner_id uuid;
   v_member_id uuid;
+  v_outsider_id uuid;
   v_group_id uuid;
   v_joined_group_id uuid;
   v_code text;
   v_mixed_code text;
+  v_rotated_code text;
   v_habit_id uuid;
   v_shared_count int;
+  v_blocked boolean;
+  v_denied boolean;
 begin
   select id into v_owner_id
   from auth.users
@@ -70,7 +88,12 @@ begin
   where email = 'stage4-member@example.com'
   limit 1;
 
-  if v_owner_id is null or v_member_id is null then
+  select id into v_outsider_id
+  from auth.users
+  where email = 'stage4-outsider@example.com'
+  limit 1;
+
+  if v_owner_id is null or v_member_id is null or v_outsider_id is null then
     raise exception 'Failed to set up test profiles';
   end if;
 
@@ -110,7 +133,116 @@ begin
     raise exception 'Member was not inserted into group_members';
   end if;
 
+  -- Owner governance actions: rename + lock + rotate + unlock
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claim.sub', v_owner_id::text, true);
+
+  perform public.rename_group(v_group_id, 'Renamed Smoke Group');
+  if not exists (
+    select 1 from public.groups where id = v_group_id and name = 'Renamed Smoke Group'
+  ) then
+    raise exception 'rename_group did not update group name';
+  end if;
+
+  perform public.set_group_join_lock(v_group_id, true);
+  if not exists (
+    select 1 from public.groups where id = v_group_id and join_locked = true
+  ) then
+    raise exception 'set_group_join_lock(true) did not persist';
+  end if;
+
+  -- Locked groups reject new joins
+  v_blocked := false;
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claim.sub', v_outsider_id::text, true);
+  begin
+    perform public.join_group_by_code(v_mixed_code);
+  exception
+    when others then
+      v_blocked := true;
+  end;
+  if not v_blocked then
+    raise exception 'join_group_by_code should fail while group is locked';
+  end if;
+
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claim.sub', v_owner_id::text, true);
+  select public.rotate_group_invite_code(v_group_id) into v_rotated_code;
+  if v_rotated_code is null or v_rotated_code = '' or upper(v_rotated_code) = upper(v_code) then
+    raise exception 'rotate_group_invite_code did not return a new code';
+  end if;
+
+  perform public.set_group_join_lock(v_group_id, false);
+  if not exists (
+    select 1 from public.groups where id = v_group_id and join_locked = false
+  ) then
+    raise exception 'set_group_join_lock(false) did not persist';
+  end if;
+
+  -- Non-owner governance must be denied
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claim.sub', v_member_id::text, true);
+
+  v_denied := false;
+  begin
+    perform public.rename_group(v_group_id, 'Not Allowed');
+  exception
+    when others then v_denied := true;
+  end;
+  if not v_denied then
+    raise exception 'Non-owner rename_group unexpectedly succeeded';
+  end if;
+
+  v_denied := false;
+  begin
+    perform public.set_group_join_lock(v_group_id, true);
+  exception
+    when others then v_denied := true;
+  end;
+  if not v_denied then
+    raise exception 'Non-owner set_group_join_lock unexpectedly succeeded';
+  end if;
+
+  v_denied := false;
+  begin
+    perform public.rotate_group_invite_code(v_group_id);
+  exception
+    when others then v_denied := true;
+  end;
+  if not v_denied then
+    raise exception 'Non-owner rotate_group_invite_code unexpectedly succeeded';
+  end if;
+
+  -- Old code must fail after rotation
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claim.sub', v_outsider_id::text, true);
+
+  v_blocked := false;
+  begin
+    perform public.join_group_by_code(v_code);
+  exception
+    when others then
+      v_blocked := true;
+  end;
+  if not v_blocked then
+    raise exception 'Old invite code should fail after rotation';
+  end if;
+
+  select public.join_group_by_code(v_rotated_code) into v_joined_group_id;
+  if v_joined_group_id is distinct from v_group_id then
+    raise exception 'Outsider could not join with rotated invite code';
+  end if;
+
   -- Member creates a habit and shares it with group
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claim.sub', v_member_id::text, true);
+
   insert into public.habits (
     user_id,
     name,
