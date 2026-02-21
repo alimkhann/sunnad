@@ -1,0 +1,275 @@
+/*
+ * Sunnad Landing — Global Styles
+ * Each variant injects its own CSS custom properties via a data-variant attribute.
+ * This file provides the shared reset and base defaults.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ */
+/*  Base / Default (Variant 1: Soft Glass)                             */
+/* ------------------------------------------------------------------ */
+:root {
+  --background: 0 0% 98%;
+  --foreground: 220 20% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 20% 10%;
+  --border: 220 10% 90%;
+  --primary: 160 60% 42%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 220 10% 94%;
+  --muted-foreground: 220 10% 46%;
+  --accent: 160 60% 42%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 160 60% 42%;
+  --radius: 1rem;
+
+  --font-heading: "SF Pro Display", "Inter", system-ui, sans-serif;
+  --font-body: "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-mono: "SF Mono", "Fira Code", monospace;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Variant 2: Editorial Serif                                         */
+/* ------------------------------------------------------------------ */
+[data-variant="2"] {
+  --background: 38 50% 96%;
+  --foreground: 240 20% 12%;
+  --card: 38 40% 99%;
+  --card-foreground: 240 20% 12%;
+  --border: 38 25% 85%;
+  --primary: 40 45% 55%;
+  --primary-foreground: 240 20% 8%;
+  --muted: 38 20% 92%;
+  --muted-foreground: 240 10% 44%;
+  --accent: 40 45% 55%;
+  --accent-foreground: 240 20% 8%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 40 45% 55%;
+  --radius: 0.5rem;
+
+  --font-heading: "Playfair Display", "Georgia", serif;
+  --font-body: "Source Serif 4", "Georgia", serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Variant 3: Geometric Clean                                         */
+/* ------------------------------------------------------------------ */
+[data-variant="3"] {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 5%;
+  --card: 0 0% 98%;
+  --card-foreground: 0 0% 5%;
+  --border: 0 0% 90%;
+  --primary: 160 84% 39%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 0 0% 95%;
+  --muted-foreground: 0 0% 40%;
+  --accent: 160 84% 39%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 160 84% 39%;
+  --radius: 0.25rem;
+
+  --font-heading: "DM Sans", "Helvetica Neue", sans-serif;
+  --font-body: "DM Sans", "Helvetica Neue", sans-serif;
+  --font-mono: "Space Mono", monospace;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Variant 4: Warm Tactile                                            */
+/* ------------------------------------------------------------------ */
+[data-variant="4"] {
+  --background: 30 40% 95%;
+  --foreground: 30 30% 12%;
+  --card: 30 35% 98%;
+  --card-foreground: 30 30% 12%;
+  --border: 30 25% 85%;
+  --primary: 16 60% 50%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 30 20% 90%;
+  --muted-foreground: 30 15% 44%;
+  --accent: 140 40% 28%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 16 60% 50%;
+  --radius: 1.25rem;
+
+  --font-heading: "Nunito", "Trebuchet MS", sans-serif;
+  --font-body: "Quicksand", "Trebuchet MS", sans-serif;
+  --font-mono: "Fira Code", monospace;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Variant 5: Dark Cosmic                                             */
+/* ------------------------------------------------------------------ */
+[data-variant="5"] {
+  --background: 235 60% 8%;
+  --foreground: 240 10% 92%;
+  --card: 235 40% 12%;
+  --card-foreground: 240 10% 92%;
+  --border: 235 25% 22%;
+  --primary: 263 70% 50%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 235 25% 16%;
+  --muted-foreground: 240 10% 60%;
+  --accent: 187 80% 48%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 263 70% 50%;
+  --radius: 0.75rem;
+
+  --font-heading: "Outfit", "Poppins", sans-serif;
+  --font-body: "Outfit", "Poppins", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Shared base                                                        */
+/* ------------------------------------------------------------------ */
+* {
+  @apply border-border;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body {
+  @apply min-h-full bg-background text-foreground antialiased;
+  font-family: var(--font-body);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+code, pre, kbd {
+  font-family: var(--font-mono);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Utility classes for variants                                       */
+/* ------------------------------------------------------------------ */
+.glass-card {
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  background: hsla(var(--card), 0.7);
+  border: 1px solid hsla(var(--border), 0.5);
+}
+
+.phone-frame {
+  border-radius: 2.5rem;
+  border: 6px solid hsl(var(--foreground) / 0.12);
+  box-shadow:
+    0 0 0 1px hsl(var(--foreground) / 0.04),
+    0 25px 50px -12px hsl(var(--foreground) / 0.15);
+  overflow: hidden;
+  aspect-ratio: 9 / 19.5;
+}
+
+/* Staggered animation delays */
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+.stagger-6 { animation-delay: 0.6s; }
+
+/* Scrollbar styling for carousels */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Star field for variant 5 */
+[data-variant="5"] .star-field {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+[data-variant="5"] .star-field::before,
+[data-variant="5"] .star-field::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  animation: pulse-soft 4s ease-in-out infinite;
+}
+
+[data-variant="5"] .star-field::before {
+  width: 600px;
+  height: 600px;
+  top: -200px;
+  right: -100px;
+  background: radial-gradient(circle, hsla(263, 70%, 50%, 0.15), transparent 70%);
+}
+
+[data-variant="5"] .star-field::after {
+  width: 500px;
+  height: 500px;
+  bottom: -150px;
+  left: -100px;
+  background: radial-gradient(circle, hsla(187, 80%, 48%, 0.1), transparent 70%);
+  animation-delay: 2s;
+}
+
+/* Variant 1 frosted background blobs */
+[data-variant="1"] .frost-bg {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+[data-variant="1"] .frost-bg::before {
+  content: "";
+  position: absolute;
+  width: 40vw;
+  height: 40vw;
+  top: -10vw;
+  right: -5vw;
+  border-radius: 50%;
+  background: radial-gradient(circle, hsla(160, 60%, 42%, 0.12), transparent 70%);
+  animation: float 12s ease-in-out infinite;
+}
+
+[data-variant="1"] .frost-bg::after {
+  content: "";
+  position: absolute;
+  width: 35vw;
+  height: 35vw;
+  bottom: -8vw;
+  left: -5vw;
+  border-radius: 50%;
+  background: radial-gradient(circle, hsla(200, 50%, 60%, 0.08), transparent 70%);
+  animation: float 15s ease-in-out infinite reverse;
+}
+
+/* Variant 2 editorial accent line */
+[data-variant="2"] .editorial-rule {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    hsl(var(--primary) / 0.4),
+    transparent
+  );
+}
+
+/* Variant 4 paper texture */
+[data-variant="4"] .paper-texture {
+  background-image:
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
