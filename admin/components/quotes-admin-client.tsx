@@ -186,7 +186,7 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
       const { error: signInError } = await supabase.auth.signInWithOtp({
         email: loginEmail.trim(),
         options: {
-          emailRedirectTo: typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined,
+          emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
         },
       });
 
