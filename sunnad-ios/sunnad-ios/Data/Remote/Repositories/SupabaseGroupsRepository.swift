@@ -337,15 +337,61 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
     }
 
     func sendNudge(groupID: UUID, toUserID: UUID, habitID: UUID) async throws -> GroupNudgeStatus {
-        let response: NudgeFunctionResponse = try await client.functions.invoke(
-            "send-nudge-push",
-            options: FunctionInvokeOptions(
-                method: .post,
-                body: NudgeFunctionPayload(groupID: groupID, toUserID: toUserID, habitID: habitID)
+        do {
+            let response = try await invokeNudgeFunction(
+                groupID: groupID,
+                toUserID: toUserID,
+                habitID: habitID,
+                forceRefresh: false
             )
-        )
-        logger.log(.syncFinished, metadata: ["scope": "groups_send_nudge", "status": response.status.rawValue])
-        return response.status
+            logger.log(.syncFinished, metadata: ["scope": "groups_send_nudge", "status": response.status.rawValue])
+            return response.status
+        } catch FunctionsError.httpError(let code, _) where code == 401 {
+            do {
+                let response = try await invokeNudgeFunction(
+                    groupID: groupID,
+                    toUserID: toUserID,
+                    habitID: habitID,
+                    forceRefresh: true
+                )
+                logger.log(
+                    .syncFinished,
+                    metadata: [
+                        "scope": "groups_send_nudge",
+                        "status": response.status.rawValue,
+                        "retry": "refresh_session"
+                    ]
+                )
+                return response.status
+            } catch FunctionsError.httpError(_, let retryData) {
+                if let status = decodeNudgeStatus(fromErrorData: retryData) {
+                    logger.log(
+                        .syncFinished,
+                        metadata: [
+                            "scope": "groups_send_nudge",
+                            "status": status.rawValue,
+                            "retry": "refresh_session"
+                        ]
+                    )
+                    return status
+                }
+                throw NSError(
+                    domain: "SupabaseGroupsRepository",
+                    code: 401,
+                    userInfo: [NSLocalizedDescriptionKey: "Session expired. Please sign in again."]
+                )
+            }
+        } catch FunctionsError.httpError(_, let data) {
+            if let status = decodeNudgeStatus(fromErrorData: data) {
+                logger.log(.syncFinished, metadata: ["scope": "groups_send_nudge", "status": status.rawValue])
+                return status
+            }
+            throw NSError(
+                domain: "SupabaseGroupsRepository",
+                code: 500,
+                userInfo: [NSLocalizedDescriptionKey: "Could not send reminder. Try again."]
+            )
+        }
     }
 
     private func fetchGroupRows() async throws -> [GroupRow] {
@@ -524,6 +570,43 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         value
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .uppercased()
+    }
+
+    private func invokeNudgeFunction(
+        groupID: UUID,
+        toUserID: UUID,
+        habitID: UUID,
+        forceRefresh: Bool
+    ) async throws -> NudgeFunctionResponse {
+        let accessToken = try await resolveAccessToken(forceRefresh: forceRefresh)
+        return try await client.functions.invoke(
+            "send-nudge-push",
+            options: FunctionInvokeOptions(
+                method: .post,
+                headers: ["Authorization": "Bearer \(accessToken)"],
+                body: NudgeFunctionPayload(groupID: groupID, toUserID: toUserID, habitID: habitID)
+            )
+        )
+    }
+
+    private func resolveAccessToken(forceRefresh: Bool) async throws -> String {
+        if forceRefresh {
+            return try await client.auth.refreshSession().accessToken
+        }
+
+        if let token = client.auth.currentSession?.accessToken, !token.isEmpty {
+            return token
+        }
+
+        let session = try await client.auth.session
+        return session.accessToken
+    }
+
+    private func decodeNudgeStatus(fromErrorData data: Data) -> GroupNudgeStatus? {
+        guard let response = try? decoder.decode(NudgeFunctionResponse.self, from: data) else {
+            return nil
+        }
+        return response.status
     }
 
     private func refreshGroupWithRetry(groupID: UUID, maxAttempts: Int = 6) async throws -> Group? {

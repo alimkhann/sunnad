@@ -130,6 +130,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .maybeSingle();
 
   const habitName = habitResult.data?.name ?? "your habit";
+  const notificationBody = pickFriendlyNudgeBody({
+    habitName,
+    groupID: group_id,
+    senderID,
+    recipientID: to_user_id,
+    dayUTC: todayUTC,
+  });
 
   const tokensResult = await admin
     .from("device_tokens")
@@ -163,7 +170,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       app_id: oneSignalAppID,
       include_subscription_ids: subscriptionIDs,
       headings: { en: "Sunnad" },
-      contents: { en: `Your friend reminded you to complete: ${habitName}` },
+      contents: { en: notificationBody },
       data: {
         type: "group_nudge",
         group_id,
@@ -187,4 +194,44 @@ function json(body: NudgeResponse, status: number): Response {
       "Content-Type": "application/json",
     },
   });
+}
+
+type NudgeMessageSeed = {
+  habitName: string;
+  groupID: string;
+  senderID: string;
+  recipientID: string;
+  dayUTC: string;
+};
+
+function pickFriendlyNudgeBody(seed: NudgeMessageSeed): string {
+  const safeHabitName = sanitizeHabitName(seed.habitName);
+  const variants = [
+    `A gentle reminder from your Sunnad group: ${safeHabitName}.`,
+    `Your group is cheering you on. Time for: ${safeHabitName}.`,
+    `Quick nudge from your Sunnad group: ${safeHabitName}.`,
+    `Kind reminder from a friend: ${safeHabitName}.`,
+    `Small step, big barakah inshaAllah: ${safeHabitName}.`,
+  ];
+
+  const key = `${seed.groupID}|${seed.senderID}|${seed.recipientID}|${seed.dayUTC}|${safeHabitName.toLowerCase()}`;
+  const index = stableIndex(key, variants.length);
+  return variants[index];
+}
+
+function sanitizeHabitName(name: string): string {
+  const trimmed = name.trim().replace(/\s+/g, " ");
+  if (!trimmed) {
+    return "your habit";
+  }
+
+  return trimmed.length > 80 ? `${trimmed.slice(0, 77)}...` : trimmed;
+}
+
+function stableIndex(seed: string, modulo: number): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return modulo > 0 ? hash % modulo : 0;
 }
