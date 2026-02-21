@@ -29,6 +29,11 @@ final class AppRouteState: ObservableObject {
         }
     }
 
+    private enum GuestPromotionMode {
+        case none
+        case signup
+    }
+
     @Published var language: AppLanguage = .en {
         didSet {
             L10n.setLanguage(code: language.localeIdentifier)
@@ -130,6 +135,7 @@ final class AppRouteState: ObservableObject {
     private let userDefaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
     private var persistTasks: [UUID: Task<Void, Never>] = [:]
+    private var replaceLocalHabitsTask: Task<Void, Never>?
     private let avatarUploadLimitBytes = 5 * 1024 * 1024
     private let avatarMaxDimension: CGFloat = 2048
     private let avatarMinDimension: CGFloat = 640
@@ -297,7 +303,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await syncSignedInSession(sessionUser, trigger: .auth)
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .none)
                 markOnboardingCompleted()
                 activeTab = .today
             } catch {
@@ -340,7 +346,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await syncSignedInSession(sessionUser, trigger: .auth)
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .signup)
                 markOnboardingCompleted()
                 activeTab = .today
                 onboardingStep = .joinGroups
@@ -664,7 +670,7 @@ final class AppRouteState: ObservableObject {
                 fullScreen = nil
                 activeTab = .today
                 userDefaults.set(false, forKey: LocalStateKeys.pendingPasswordRecovery)
-                await syncSignedInSession(sessionUser, trigger: .auth)
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .none)
                 await profileViewModel.load()
             } catch {
                 authSuccessMessage = nil
@@ -706,7 +712,10 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await syncSignedInSession(sessionUser, trigger: .auth)
+                let promotionMode: GuestPromotionMode = shouldOpenRecoveryPassword
+                    ? .none
+                    : (Self.isSignupCallbackURL(url) ? .signup : .none)
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: promotionMode)
                 markOnboardingCompleted()
                 activeTab = .today
 
@@ -744,7 +753,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await syncSignedInSession(sessionUser, trigger: .auth)
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .none)
                 markOnboardingCompleted()
                 fullScreen = nil
             } catch {
@@ -771,7 +780,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await syncSignedInSession(sessionUser, trigger: .auth)
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .signup)
                 markOnboardingCompleted()
                 fullScreen = nil
             } catch {
@@ -965,7 +974,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await syncSignedInSession(sessionUser, trigger: .auth)
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .none)
                 markOnboardingCompleted()
                 activeTab = .today
                 if fromProfileSurface {
@@ -1015,7 +1024,8 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await syncSignedInSession(sessionUser, trigger: .auth)
+                let promotionMode: GuestPromotionMode = otpFlowMode == .signup ? .signup : .none
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: promotionMode)
             } catch {
                 authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
@@ -1264,6 +1274,7 @@ final class AppRouteState: ObservableObject {
         persistTasks[habit.id]?.cancel()
         persistTasks[habit.id] = Task { @MainActor [weak self] in
             guard let self else { return }
+            let initialOwnerScope = self.dependencies.ownerScopeResolver.currentOwnerScopeRawValue
             var domain = habit.asDomainHabit()
 
             if let index = self.habits.firstIndex(where: { $0.id == habit.id }) {
@@ -1271,6 +1282,9 @@ final class AppRouteState: ObservableObject {
             }
 
             do {
+                guard self.dependencies.ownerScopeResolver.currentOwnerScopeRawValue == initialOwnerScope else {
+                    return
+                }
                 try await self.dependencies.habitsRepository.saveHabit(domain)
 
                 if habit.isDhikr {
@@ -1284,6 +1298,9 @@ final class AppRouteState: ObservableObject {
                         completedAt: value > 0 ? now : nil,
                         updatedAt: now
                     )
+                    guard self.dependencies.ownerScopeResolver.currentOwnerScopeRawValue == initialOwnerScope else {
+                        return
+                    }
                     try await self.dependencies.completionsRepository.upsertCompletion(
                         completion,
                         calendar: .current,
@@ -1295,6 +1312,9 @@ final class AppRouteState: ObservableObject {
                     return
                 }
 
+                guard self.dependencies.ownerScopeResolver.currentOwnerScopeRawValue == initialOwnerScope else {
+                    return
+                }
                 await self.loadTodayData()
             } catch is CancellationError {
                 return
@@ -1364,7 +1384,7 @@ final class AppRouteState: ObservableObject {
             authErrorMessage = nil
             authSuccessMessage = nil
             user = sessionUser.asUIUserState
-            await syncSignedInSession(sessionUser, trigger: .restore)
+            await syncSignedInSession(sessionUser, trigger: .restore, promotionMode: .none)
             markOnboardingCompleted()
             dependencies.analyticsLogger.log(.syncFinished, metadata: ["scope": "auth_restore", "status": "restored"])
         } else {
@@ -1373,8 +1393,15 @@ final class AppRouteState: ObservableObject {
         }
     }
 
-    private func syncSignedInSession(_ sessionUser: SessionUser, trigger: SyncTrigger) async {
-        await dependencies.syncCoordinator.promoteGuestDataIfNeeded(to: sessionUser.id)
+    private func syncSignedInSession(
+        _ sessionUser: SessionUser,
+        trigger: SyncTrigger,
+        promotionMode: GuestPromotionMode
+    ) async {
+        if promotionMode == .signup {
+            await settleLocalHabitPersistenceBeforePromotion()
+            await dependencies.syncCoordinator.promoteGuestDataIfNeeded(to: sessionUser.id)
+        }
         await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
         await dependencies.syncCoordinator.setSignedInUserID(sessionUser.id)
         await dependencies.syncCoordinator.promoteLocalDataIfNeeded()
@@ -1479,6 +1506,11 @@ final class AppRouteState: ObservableObject {
         return raw.contains("type=recovery")
     }
 
+    private static func isSignupCallbackURL(_ url: URL) -> Bool {
+        let raw = url.absoluteString.lowercased()
+        return raw.contains("type=signup") || raw.contains("type=magiclink")
+    }
+
     private static func lastSevenMarks(
         for habit: Habit,
         completions: [HabitCompletion],
@@ -1512,7 +1544,8 @@ final class AppRouteState: ObservableObject {
     }
 
     private func replaceLocalHabits(with habits: [UIHabit]) {
-        Task {
+        replaceLocalHabitsTask?.cancel()
+        replaceLocalHabitsTask = Task {
             cancelAllPersistTasks()
             do {
                 let existing = try await dependencies.habitsRepository.fetchHabits(includeArchived: true)
@@ -1533,11 +1566,30 @@ final class AppRouteState: ObservableObject {
         }
     }
 
+    private func settleLocalHabitPersistenceBeforePromotion() async {
+        if let replaceLocalHabitsTask {
+            await replaceLocalHabitsTask.value
+            self.replaceLocalHabitsTask = nil
+        }
+
+        while !persistTasks.isEmpty {
+            let pending = Array(persistTasks.values)
+            if pending.isEmpty {
+                break
+            }
+            for task in pending {
+                await task.value
+            }
+        }
+    }
+
     private func cancelAllPersistTasks() {
         for task in persistTasks.values {
             task.cancel()
         }
         persistTasks.removeAll()
+        replaceLocalHabitsTask?.cancel()
+        replaceLocalHabitsTask = nil
     }
 
     private func refreshDebugReminderCountIfNeeded() async {
