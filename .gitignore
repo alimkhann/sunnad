@@ -8,3 +8,4 @@ admin/.next/
 admin/.vercel/
 admin/.env.local
 admin/.env
+*.tsbuildinfo
