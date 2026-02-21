@@ -55,7 +55,7 @@
       </Testables>
    </TestAction>
    <LaunchAction
-      buildConfiguration = "Debug"
+      buildConfiguration = "Local"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       launchStyle = "0"
@@ -74,18 +74,6 @@
             ReferencedContainer = "container:sunnad-ios.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <EnvironmentVariables>
-         <EnvironmentVariable
-            key = "SUNNAD_SUPABASE_PUBLISHABLE_KEY"
-            value = "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "SUNNAD_SUPABASE_URL"
-            value = "http://127.0.0.1:55421&#10;&#10;http://127.0.0.1:55421&#10;&#10;"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -105,7 +93,7 @@
       </BuildableProductRunnable>
    </ProfileAction>
    <AnalyzeAction
-      buildConfiguration = "Debug">
+      buildConfiguration = "Local">
    </AnalyzeAction>
    <ArchiveAction
       buildConfiguration = "Release"

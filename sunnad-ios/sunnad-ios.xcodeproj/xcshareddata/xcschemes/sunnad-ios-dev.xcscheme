@@ -50,18 +50,6 @@
             ReferencedContainer = "container:sunnad-ios.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <EnvironmentVariables>
-         <EnvironmentVariable
-            key = "SUNNAD_SUPABASE_URL"
-            value = "https://wejnrzlxnesqhbtvgdga.supabase.co"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "SUNNAD_SUPABASE_ANON_KEY"
-            value = "sb_publishable_cXKO2pyGC65YX_bRJ1h1DQ_Ip3iWbib"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

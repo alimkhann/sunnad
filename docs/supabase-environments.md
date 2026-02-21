@@ -48,42 +48,55 @@ Create `dev` and `prod` GitHub environments with:
 - `SUPABASE_FUNCTIONS_ONESIGNAL_APP_ID` (only if deploying `send-nudge-push`)
 - `SUPABASE_FUNCTIONS_ONESIGNAL_REST_API_KEY` (only if deploying `send-nudge-push`)
 
-## iOS Xcode env vars (Run/Test scheme)
-Set these in `Edit Scheme` -> `Run` -> `Arguments` -> `Environment Variables`.
+## iOS runtime config model (build-time first, env second)
+The app now reads Supabase/OAuth config from `Info.plist` bundle keys first.
 
-### Local Supabase
-- `SUNNAD_SUPABASE_URL=http://127.0.0.1:55421`
-- `SUNNAD_SUPABASE_ANON_KEY=<local publishable/anon key from supabase start>`
-- `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
-- `SUNNAD_AUTH_GOOGLE_ENABLED=1`
-- `SUNNAD_AUTH_APPLE_ENABLED=0`
-- `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=120`
-- `SUNNAD_ENABLE_LOCAL_SUPABASE_FALLBACK=1` (optional; only for local convenience)
-- `SUNNAD_DEBUG_ONESIGNAL_SUBSCRIPTION_ID=<optional debug subscription id>`
+Bundle keys:
+- `SunnadSupabaseURL`
+- `SunnadSupabaseAnonKey`
+- `SunnadAuthRedirectURL`
+- `SunnadAuthGoogleEnabled`
+- `SunnadAuthAppleEnabled`
+- `SunnadAuthResendCooldownSeconds`
+- `SunnadStorageNamespace`
 
-### Hosted dev project
-- `SUNNAD_SUPABASE_URL=https://wejnrzlxnesqhbtvgdga.supabase.co`
-- `SUNNAD_SUPABASE_ANON_KEY=<sunnad-dev anon/publishable key>`
-- `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
-- `SUNNAD_AUTH_GOOGLE_ENABLED=1`
-- `SUNNAD_AUTH_APPLE_ENABLED=0`
-- `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=120`
-- `SUNNAD_DEBUG_ONESIGNAL_SUBSCRIPTION_ID=<optional debug subscription id>`
+Debug-only environment overrides are supported for temporary troubleshooting:
+- `SUNNAD_SUPABASE_URL`
+- `SUNNAD_SUPABASE_ANON_KEY` (or `SUNNAD_SUPABASE_PUBLISHABLE_KEY`)
+- `SUNNAD_AUTH_REDIRECT_URL`
+- `SUNNAD_AUTH_GOOGLE_ENABLED`
+- `SUNNAD_AUTH_APPLE_ENABLED`
+- `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS`
+- `SUNNAD_STORAGE_NAMESPACE`
 
-### Hosted prod project
-- `SUNNAD_SUPABASE_URL=https://artwfvypcdacdpqhciqt.supabase.co`
-- `SUNNAD_SUPABASE_ANON_KEY=<sunnad-prod anon/publishable key>`
-- `SUNNAD_AUTH_REDIRECT_URL=sunnad://auth-callback`
-- `SUNNAD_AUTH_GOOGLE_ENABLED=1`
-- `SUNNAD_AUTH_APPLE_ENABLED=0`
-- `SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS=180`
-- `SUNNAD_DEBUG_ONESIGNAL_SUBSCRIPTION_ID=<optional debug subscription id>`
+Debug-only fallback flags:
+- `SUNNAD_ENABLE_LOCAL_SUPABASE_FALLBACK=1` enables explicit local URL fallback.
+- `SUNNAD_ALLOW_CACHED_SUPABASE_CONFIG=1` enables cached Supabase config fallback.
+- Both are off by default.
 
-Notes:
-- `SUNNAD_SUPABASE_PUBLISHABLE_KEY` is also supported; `SUNNAD_SUPABASE_ANON_KEY` is preferred in app setup.
-- Do not wrap values in quotes in Xcode env rows.
-- Hosted env validation now fails fast by default if URL/key are missing.
-- Set `SUNNAD_ENABLE_LOCAL_SUPABASE_FALLBACK=1` only when you intentionally want automatic local fallback in debug.
+## Xcode scheme -> build configuration mapping
+- `sunnad-ios` (local): `Local`
+- `sunnad-ios-dev`: `Debug`
+- `sunnad-ios-prod`: `Release`
+
+Configured bundle IDs:
+- local: `com.arystan.almasuly.sunnad-ios.local`
+- dev: `com.arystan.almasuly.sunnad-ios.dev`
+- prod: `com.arystan.almasuly.sunnad-ios`
+
+Configured Supabase endpoints:
+- local (`Local`): `http://127.0.0.1:55421`
+- dev (`Debug`): `https://wejnrzlxnesqhbtvgdga.supabase.co`
+- prod (`Release`): `https://artwfvypcdacdpqhciqt.supabase.co`
+
+Configured storage namespaces:
+- local: `local`
+- dev: `dev`
+- prod: `prod`
+
+## App Store note
+- App Store builds use `Release` configuration, so Supabase values come from build settings embedded in `Info.plist`.
+- No Xcode Run environment variables are available in App Store launch context.
 
 ## Auth settings required for OTP/recovery (all envs)
 - Auth -> Sign In / Providers:
