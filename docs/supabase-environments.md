@@ -200,6 +200,19 @@ Hosted dev/prod parity steps:
 - Deploy manually:
   - `supabase functions deploy delete-account --project-ref <ref>`
   - `supabase functions deploy send-nudge-push --project-ref <ref>`
+- Behavior notes:
+  - `delete-account` now removes profile avatar storage objects (`avatars/profiles/<user_id>/...`) before user deletion.
+  - `send-nudge-push` requires authenticated bearer token; if iOS logs show `groups_send_nudge 401`, verify session refresh + function deployment parity.
+
+## Notification toggles contract (iOS)
+- Habit reminders toggle:
+  - controls local `habit-reminder-*` requests.
+- Quote reminder toggle:
+  - controls local `quote-reminder-*` requests.
+  - schedules a rolling 7-day window at `09:00` local using quote snippets.
+- Group reminders toggle (receive-only):
+  - when disabled, current device registration is removed from `device_tokens`.
+  - when enabled, current device registration is upserted again.
 
 ## Sync engine (Stage 7)
 - Local SwiftData remains source-of-truth.

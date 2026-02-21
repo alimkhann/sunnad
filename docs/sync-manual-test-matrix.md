@@ -45,6 +45,7 @@ Validate outbox push/pull behavior, foreground/background triggers, and two-devi
 1. Sign in and send app to background.
 2. Wait for BG refresh window.
 3. Check logs for `sync_bg_schedule` and `sync_cycle trigger=background`.
+4. Simulator caveat: `BGTaskSchedulerErrorDomain error 1` can appear and is non-blocking for release behavior.
 
 ## 7) Guest isolation
 1. Sign out to guest.
@@ -66,6 +67,7 @@ Validate outbox push/pull behavior, foreground/background triggers, and two-devi
 2. Sign out, sign in as user B and create a different set.
 3. Relaunch app and verify user B scope never shows user A rows.
 4. Sign out to guest and verify guest rows are isolated from both A and B.
+5. Confirm guest-to-account promotion happens only on sign-up intent, not on normal sign-in.
 
 ## 10) Delete Data scope semantics
 1. While signed in as user A, trigger `Delete Data`.
@@ -78,3 +80,9 @@ Validate outbox push/pull behavior, foreground/background triggers, and two-devi
 2. Complete one daily habit once for today.
 3. Run a sync push/pull cycle and relaunch.
 4. Verify only one completion exists for that day and streak remains `1`.
+
+## 12) Groups sync + nudge auth path
+1. Create/join a group with two members and pull-to-refresh list/detail.
+2. Confirm group details include member avatars when `profiles.avatar_path` exists.
+3. Send nudge from one member to another and verify no `401` on function invocation.
+4. Toggle group reminders off for recipient account and confirm nudge delivery is suppressed (no active token row).

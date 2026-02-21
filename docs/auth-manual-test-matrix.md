@@ -55,6 +55,11 @@
 1. Google button:
 - enabled in envs where configured
 - successful sign-in routes to Today tab
+2. Google sign-up intent from onboarding/profile:
+- start in guest, create at least one habit/template selection
+- tap Google Sign Up (not Sign In)
+- after callback, confirm guest onboarding data is present in signed-in scope
+- sign out, sign back in with Google Sign In, confirm no additional guest import happens
 2. Apple button:
 - visible but disabled while `SUNNAD_AUTH_APPLE_ENABLED=0`
 - helper text indicates unavailable/coming soon
@@ -97,6 +102,7 @@
 3. Confirm app transitions to guest mode without onboarding reset.
 4. Confirm local habits/quotes still exist on device.
 5. Confirm old credentials no longer authenticate against that environment.
+6. Confirm avatar object is removed from `avatars` storage bucket for deleted user.
 
 ## 10) Execution matrix
 Run sections 1-9 in:
@@ -118,6 +124,15 @@ For dev/prod, run each row in both launch modes:
 5. Verify group rename/lock/rotate actions still work.
 6. If network enrichment fails, verify user sees a recoverable error message (not silent empty state).
 7. Verify bell nudge action shows recoverable status (sent/duplicate/forbidden/error).
+8. Verify member avatars render in group detail (fallback to initials when avatar is missing).
+
+## 14) Notification toggles (all three)
+1. In Profile -> Notifications, toggle `Habit reminders` off and verify pending `habit-reminder-*` requests are removed.
+2. Toggle `Habit reminders` on and verify due habits recreate pending requests.
+3. Toggle `Quote of the day reminder` on and verify pending `quote-reminder-*` requests are scheduled at `09:00` local.
+4. Toggle `Quote of the day reminder` off and verify `quote-reminder-*` requests are removed.
+5. Toggle `Group reminders` off while signed in and verify current device token/subscription is de-registered in `device_tokens`.
+6. Toggle `Group reminders` on and verify token/subscription row is re-registered.
 
 ## 12) Guest promotion + streak sanity
 1. As guest, create a habit and mark one completion for today.

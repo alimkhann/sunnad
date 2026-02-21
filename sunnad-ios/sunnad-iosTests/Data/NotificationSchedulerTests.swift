@@ -142,6 +142,49 @@ struct NotificationSchedulerTests {
 
         #expect(center.pending.isEmpty)
     }
+
+    @Test
+    func quoteRemindersScheduleAtNineAM() async {
+        let center = FakeNotificationCenter()
+        let scheduler = UserNotificationReminderScheduler(center: center, logger: TestLogger())
+
+        let plans = [
+            QuoteReminderPlan(
+                identifier: "quote-reminder-2026-02-21",
+                body: "The best deeds are consistent, even if small.",
+                dateComponents: DateComponents(year: 2026, month: 2, day: 21, hour: 9, minute: 0)
+            )
+        ]
+
+        await scheduler.syncQuoteReminders(enabled: true, plans: plans)
+
+        let request = center.pending["quote-reminder-2026-02-21"]
+        let trigger = request?.trigger as? UNCalendarNotificationTrigger
+        #expect(request != nil)
+        #expect(trigger?.dateComponents.hour == 9)
+        #expect(trigger?.dateComponents.minute == 0)
+        #expect(request?.content.body == plans[0].body)
+    }
+
+    @Test
+    func disablingQuoteRemindersRemovesPendingRequests() async {
+        let center = FakeNotificationCenter()
+        let scheduler = UserNotificationReminderScheduler(center: center, logger: TestLogger())
+
+        let plans = [
+            QuoteReminderPlan(
+                identifier: "quote-reminder-2026-02-22",
+                body: "Verily, with hardship comes ease.",
+                dateComponents: DateComponents(year: 2026, month: 2, day: 22, hour: 9, minute: 0)
+            )
+        ]
+
+        await scheduler.syncQuoteReminders(enabled: true, plans: plans)
+        #expect(center.pending["quote-reminder-2026-02-22"] != nil)
+
+        await scheduler.syncQuoteReminders(enabled: false, plans: [])
+        #expect(center.pending["quote-reminder-2026-02-22"] == nil)
+    }
 }
 
 final class FakeNotificationCenter: UserNotificationCenterClient, @unchecked Sendable {
