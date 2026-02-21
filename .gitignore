@@ -7,5 +7,6 @@ node_modules/
 admin/.next/
 admin/.vercel/
 admin/.env.local
+admin/.env.dev
 admin/.env
 *.tsbuildinfo

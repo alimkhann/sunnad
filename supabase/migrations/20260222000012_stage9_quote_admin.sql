@@ -83,7 +83,7 @@ create index if not exists quotes_quote_set_active_idx
 -- ------------------------------------------------------------
 -- 3) Admin identity helper for allowlist+role gate
 -- ------------------------------------------------------------
-create or replace function public.is_allowlisted_admin(p_user_id uuid default (select auth.uid()))
+create or replace function public.is_allowlisted_admin(p_user_id uuid default null)
 returns boolean
 language sql
 security definer
@@ -97,7 +97,7 @@ as $$
       on u.id = p.id
     join public.admin_allowlist aa
       on aa.email = lower(trim(coalesce(u.email, '')))
-    where p.id = p_user_id
+    where p.id = coalesce(p_user_id, auth.uid())
       and p.is_admin = true
   );
 $$;
