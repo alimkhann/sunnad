@@ -534,8 +534,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 await enqueueCompletionUpsert(
                     habitID: completion.habitID,
                     dayDate: completion.dayDate,
-                    calendar: .gregorianUTC,
-                    timeZone: .utc
+                    calendar: .current,
+                    timeZone: .current
                 )
             }
 
@@ -592,7 +592,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 timeZone: timeZone
             ),
             habitID: habitID,
-            dayDate: Self.dayDateString(for: dayDate, calendar: calendar, timeZone: timeZone)
+            dayDate: Self.syncDayDateString(for: dayDate, calendar: calendar, timeZone: timeZone)
         )
         await enqueue(type: .upsertCompletion, payload: payload)
     }
@@ -888,10 +888,10 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private func pullCompletions(activeUserID: UUID, cursorString: String) async throws {
-        let windowStart = Self.dayDateString(
+        let windowStart = Self.syncDayDateString(
             for: Date().addingTimeInterval(-40 * 24 * 60 * 60),
-            calendar: .gregorianUTC,
-            timeZone: .utc
+            calendar: .current,
+            timeZone: .current
         )
 
         let response = try await client
@@ -914,13 +914,15 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
 
     private func mergeCompletion(_ row: CompletionPullRow) throws {
         let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
-        guard let dayDate = Self.dayDate(from: row.dayDate) else { return }
+        let calendar = Calendar.current
+        let timeZone = TimeZone.current
+        guard let dayDate = Self.syncDayDate(row.dayDate, calendar: calendar, timeZone: timeZone) else { return }
         let key = CompletionsLocalRepository.key(
             habitID: row.habitID,
             day: dayDate,
             ownerScope: ownerScope,
-            calendar: .gregorianUTC,
-            timeZone: .utc
+            calendar: calendar,
+            timeZone: timeZone
         )
         let updatedAt = Self.timestamp(from: row.updatedAt) ?? Date()
         let completedAt = row.completedAt.flatMap(Self.timestamp(from:))
@@ -1218,24 +1220,32 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         return (hour, minute)
     }
 
-    private static func dayDateString(for date: Date, calendar: Calendar, timeZone: TimeZone) -> String {
+    static func syncDayDateString(for date: Date, calendar: Calendar, timeZone: TimeZone) -> String {
         var calendar = calendar
         calendar.timeZone = timeZone
-        let day = calendar.startOfDay(for: date)
-
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: day)
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        let year = components.year ?? 0
+        let month = components.month ?? 0
+        let day = components.day ?? 0
+        return String(format: "%04d-%02d-%02d", year, month, day)
     }
 
-    private static func dayDate(from value: String) -> Date? {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: value)
+    static func syncDayDate(_ value: String, calendar: Calendar, timeZone: TimeZone) -> Date? {
+        let parts = value.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: true)
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2]) else {
+            return nil
+        }
+
+        var normalizedCalendar = calendar
+        normalizedCalendar.timeZone = timeZone
+        let components = DateComponents(timeZone: timeZone, year: year, month: month, day: day)
+        guard let materialized = normalizedCalendar.date(from: components) else {
+            return nil
+        }
+        return normalizedCalendar.startOfDay(for: materialized)
     }
 
     private static func timestampString(_ date: Date) -> String {
@@ -1269,19 +1279,5 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
 
     private static func savedQuoteMatchKey(_ quoteID: UUID?) -> String {
         quoteID?.uuidString.lowercased() ?? "nil"
-    }
-}
-
-private extension Calendar {
-    static var gregorianUTC: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .utc
-        return calendar
-    }
-}
-
-private extension TimeZone {
-    static var utc: TimeZone {
-        TimeZone(secondsFromGMT: 0)!
     }
 }
