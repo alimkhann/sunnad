@@ -69,6 +69,10 @@
 2. Prod scheme uses prod URL/key only.
 3. User created in dev does not exist in prod.
 4. Email template behavior (link + code) is identical in local/dev/prod.
+5. Installed app name matches scheme environment:
+- local: `Sunnad Local`
+- dev: `Sunnad Dev`
+- prod: `Sunnad`
 
 ## 7.1) Launch-mode parity checks (critical)
 1. Launch from Xcode and sign in.
@@ -84,6 +88,8 @@
 4. Try invalid username (uppercase/spaces/symbols/too short) and confirm save remains disabled or fails with validation.
 5. Upload avatar image and confirm card updates.
 6. Remove avatar and confirm default icon restores.
+7. Pull down to refresh Profile and confirm username/avatar remain consistent with remote state.
+8. Confirm debug diagnostics line (debug builds) shows `bundle id | supabase host | namespace`.
 
 ## 9) Delete account semantics
 1. While signed in, use `Delete Account`.
@@ -108,5 +114,13 @@ For dev/prod, run each row in both launch modes:
 1. Sign in and open Groups tab.
 2. Pull down to refresh group list.
 3. Open a group detail and pull down to refresh detail.
-4. Verify group rename/lock/rotate actions still work.
-5. Verify bell nudge action shows recoverable status (sent/duplicate/forbidden/error).
+4. Verify group create/join entries appear without relaunch.
+5. Verify group rename/lock/rotate actions still work.
+6. If network enrichment fails, verify user sees a recoverable error message (not silent empty state).
+7. Verify bell nudge action shows recoverable status (sent/duplicate/forbidden/error).
+
+## 12) Guest promotion + streak sanity
+1. As guest, create a habit and mark one completion for today.
+2. Sign up/sign in and verify guest data appears immediately in signed-in scope.
+3. Sign out and verify guest scope still has original guest data.
+4. In a non-UTC timezone, verify a single completion yields streak `1` (never `2`) after sync and relaunch.

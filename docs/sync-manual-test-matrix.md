@@ -50,13 +50,15 @@ Validate outbox push/pull behavior, foreground/background triggers, and two-devi
 1. Sign out to guest.
 2. Modify habits/completions offline.
 3. Verify no Supabase traffic is required.
-4. Sign in again and confirm promotion + sync succeeds.
+4. Sign in again and confirm promotion + sync succeeds before scope switch.
+5. Verify promoted guest habits/completions/saved quotes appear immediately after first auth.
 
 ## 8) Failure and retry
 1. Disconnect network and perform habit/completion updates while signed in.
 2. Reconnect network and foreground app.
 3. Verify pending outbox events flush successfully.
 4. Verify retries survive app relaunch.
+5. Verify one failed outbox item does not permanently block newer events.
 
 ## 9) Account-switch isolation
 1. Sign in as user A and create distinct habits/completions/saved quotes.
@@ -69,3 +71,9 @@ Validate outbox push/pull behavior, foreground/background triggers, and two-devi
 2. Verify only user A local scope clears immediately.
 3. Foreground sync and verify remote rows repopulate local scope for user A.
 4. Sign out/in to user B and verify user B local scope remains unchanged.
+
+## 11) Day-key and streak correctness
+1. Use a non-UTC timezone device/simulator (for example, `Asia/Almaty`).
+2. Complete one daily habit once for today.
+3. Run a sync push/pull cycle and relaunch.
+4. Verify only one completion exists for that day and streak remains `1`.

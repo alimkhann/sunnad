@@ -79,6 +79,11 @@ Debug-only fallback flags:
 - `sunnad-ios-dev`: `Debug`
 - `sunnad-ios-prod`: `Release`
 
+Configured app display names:
+- local: `Sunnad Local`
+- dev: `Sunnad Dev`
+- prod: `Sunnad`
+
 Configured bundle IDs:
 - local: `com.arystan.almasuly.sunnad-ios.local`
 - dev: `com.arystan.almasuly.sunnad-ios.dev`
@@ -94,9 +99,20 @@ Configured storage namespaces:
 - dev: `dev`
 - prod: `prod`
 
+In-app debug diagnostics (debug builds only) now show:
+- `bundle id | supabase host | namespace`
+- Use this on Profile screen to quickly confirm wrong-env launches.
+
 ## App Store note
 - App Store builds use `Release` configuration, so Supabase values come from build settings embedded in `Info.plist`.
 - No Xcode Run environment variables are available in App Store launch context.
+
+## Reliability checks required per release candidate
+1. Launch from Xcode and from installed icon for each environment scheme.
+2. Confirm auth session restore behavior is identical in both launch modes.
+3. Confirm group list/detail pull-to-refresh works and surfaces errors when enrichment fails.
+4. Confirm profile pull-to-refresh reflects remote username/avatar changes.
+5. Confirm guest data promotion runs once on first auth for a user and does not regress streak counts.
 
 ## Auth settings required for OTP/recovery (all envs)
 - Auth -> Sign In / Providers:
