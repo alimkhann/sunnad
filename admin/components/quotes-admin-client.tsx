@@ -385,6 +385,8 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
 
   const generateDrafts = useCallback(async () => {
     if (!accessToken) return;
+
+    // Find the first locale that has text → treat it as source
     let sourceLocale: QuoteLocale | null = null;
     let sourceText = "";
     for (const lang of localeOrder) {
@@ -399,9 +401,49 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
       setError(t.errors.kazakhRequired);
       return;
     }
-    const targetLocales = localeOrder.filter((l) => l !== sourceLocale);
-    const sourceAttribution =
-      translations[sourceLocale].source?.trim() || undefined;
+
+    // Only request translation for locales that have EMPTY text
+    const targetLocales = localeOrder.filter(
+      (l) => l !== sourceLocale && !translations[l].text.trim(),
+    );
+
+    // Determine source attribution logic:
+    // Count how many locales already have a source filled
+    const filledSourceCount = localeOrder.filter(
+      (l) => translations[l].source.trim(),
+    ).length;
+    // Only translate sources when 1–2 are filled (not 0 and not 3)
+    const shouldTranslateSources =
+      filledSourceCount >= 1 && filledSourceCount < 3;
+
+    // Find the first filled source to use as the attribution to translate from
+    let sourceAttribution: string | undefined;
+    if (shouldTranslateSources) {
+      for (const lang of localeOrder) {
+        const src = translations[lang].source.trim();
+        if (src) {
+          sourceAttribution = src;
+          break;
+        }
+      }
+    }
+
+    // If no missing texts and no missing sources → nothing to do
+    const missingSourceLocales = shouldTranslateSources
+      ? localeOrder.filter((l) => !translations[l].source.trim())
+      : [];
+    if (targetLocales.length === 0 && missingSourceLocales.length === 0) {
+      showNotice(t.messages.translated);
+      return;
+    }
+
+    // If we only need sources (all texts filled), we still need to call the API
+    // with at least one target locale so Gemini has something to translate.
+    // Use all non-source locales for the API call, but only apply missing fields.
+    const apiTargetLocales =
+      targetLocales.length > 0
+        ? targetLocales
+        : localeOrder.filter((l) => l !== sourceLocale);
 
     setBusy(true);
     setError(null);
@@ -411,7 +453,7 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
         {
           text: sourceText,
           source_locale: sourceLocale,
-          target_locales: targetLocales,
+          target_locales: apiTargetLocales,
           source: sourceAttribution,
           source_text: sourceAttribution,
           context: t.translationContext,
@@ -420,14 +462,20 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
 
       setTranslations((current) => {
         const next = { ...current };
-        for (const lang of targetLocales) {
-          const value = result[lang];
-          if (value) {
-            next[lang] = { ...current[lang], text: value };
+        for (const lang of apiTargetLocales) {
+          // Only fill text if it was empty
+          if (!current[lang].text.trim()) {
+            const value = result[lang];
+            if (value) {
+              next[lang] = { ...next[lang], text: value };
+            }
           }
-          const sourceValue = result.sources?.[lang];
-          if (sourceValue) {
-            next[lang] = { ...next[lang], source: sourceValue };
+          // Only fill source if it was empty AND we're translating sources
+          if (shouldTranslateSources && !current[lang].source.trim()) {
+            const sourceValue = result.sources?.[lang];
+            if (sourceValue) {
+              next[lang] = { ...next[lang], source: sourceValue };
+            }
           }
         }
         return next;
@@ -748,10 +796,14 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
       {/* Set password inline form */}
       {showSetPassword && (
         <div className="rounded-md border border-border/70 bg-muted/30 p-4">
-          <p className="mb-3 text-sm font-semibold">{t.auth.setPasswordTitle}</p>
+          <p className="mb-3 text-sm font-semibold">
+            {t.auth.setPasswordTitle}
+          </p>
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
-              <Label htmlFor="new-pw" className="text-xs">{t.auth.newPassword}</Label>
+              <Label htmlFor="new-pw" className="text-xs">
+                {t.auth.newPassword}
+              </Label>
               <Input
                 id="new-pw"
                 type="password"
@@ -762,7 +814,9 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="confirm-pw" className="text-xs">{t.auth.confirmPassword}</Label>
+              <Label htmlFor="confirm-pw" className="text-xs">
+                {t.auth.confirmPassword}
+              </Label>
               <Input
                 id="confirm-pw"
                 type="password"

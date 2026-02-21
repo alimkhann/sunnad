@@ -141,7 +141,8 @@ const dictionaries: Record<Locale, Dictionary> = {
       confirmPassword: "Confirm password",
       confirmPasswordPlaceholder: "Re-enter password",
       setPassword: "Set password",
-      passwordSet: "Password set successfully. You can now sign in with password.",
+      passwordSet:
+        "Password set successfully. You can now sign in with password.",
       passwordMismatch: "Passwords do not match.",
       passwordTooShort: "Password must be at least 8 characters.",
       setPasswordFailed: "Could not set password.",
