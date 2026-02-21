@@ -18,6 +18,7 @@ export type Dictionary = {
   auth: {
     title: string;
     hint: string;
+    configError: string;
     emailLabel: string;
     emailPlaceholder: string;
     sendMagicLink: string;
@@ -95,6 +96,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     auth: {
       title: "Sign in",
       hint: "This admin panel is restricted to allowlisted admins.",
+      configError: "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Configure env vars first.",
       emailLabel: "Admin email",
       emailPlaceholder: "editor@example.com",
       sendMagicLink: "Send magic link",
@@ -170,6 +172,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     auth: {
       title: "Вход",
       hint: "Доступ только для администраторов из allowlist.",
+      configError: "Отсутствуют NEXT_PUBLIC_SUPABASE_URL или NEXT_PUBLIC_SUPABASE_ANON_KEY. Сначала настройте env.",
       emailLabel: "Email администратора",
       emailPlaceholder: "editor@example.com",
       sendMagicLink: "Отправить magic link",
@@ -245,6 +248,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     auth: {
       title: "Кіру",
       hint: "Қолжетімділік тек allowlist-тегі әкімшілерге берілген.",
+      configError: "NEXT_PUBLIC_SUPABASE_URL немесе NEXT_PUBLIC_SUPABASE_ANON_KEY жоқ. Алдымен env баптаңыз.",
       emailLabel: "Әкімші email",
       emailPlaceholder: "editor@example.com",
       sendMagicLink: "Magic link жіберу",

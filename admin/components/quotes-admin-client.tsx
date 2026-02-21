@@ -38,6 +38,7 @@ const localeOrder: QuoteLocale[] = ["kk", "ru", "en"];
 
 export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const hasConfig = supabase !== null;
   const [session, setSession] = useState<Session | null>(null);
   const [loginEmail, setLoginEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -101,6 +102,10 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
   }, [accessToken, selectedSetID, syncFormFromSet, t.errors.loadFailed]);
 
   useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
     const bootstrap = async (): Promise<void> => {
       const { data } = await supabase.auth.getSession();
       setSession(data.session);
@@ -171,6 +176,10 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
   }, [accessToken, selectedSetID, status, t.errors.kazakhRequired, t.errors.saveFailed, t.messages.created, t.messages.saved, reload, resetForm, translations]);
 
   const signIn = useCallback(async () => {
+    if (!supabase) {
+      setError(t.auth.configError);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -190,9 +199,13 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
     } finally {
       setBusy(false);
     }
-  }, [loginEmail, supabase, t.errors.signInFailed, t.messages.magicLinkSent]);
+  }, [loginEmail, supabase, t.auth.configError, t.errors.signInFailed, t.messages.magicLinkSent]);
 
   const signOut = useCallback(async () => {
+    if (!supabase) {
+      setError(t.auth.configError);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -206,7 +219,7 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
     } finally {
       setBusy(false);
     }
-  }, [supabase, t.errors.signOutFailed, t.messages.signedOut]);
+  }, [supabase, t.auth.configError, t.errors.signOutFailed, t.messages.signedOut]);
 
   const generateDrafts = useCallback(async () => {
     if (!accessToken) return;
@@ -330,11 +343,13 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
                 value={loginEmail}
                 onChange={(event) => setLoginEmail(event.target.value)}
                 placeholder={t.auth.emailPlaceholder}
+                disabled={!hasConfig}
               />
             </div>
-            <Button disabled={busy || !loginEmail.trim()} onClick={() => void signIn()}>
+            <Button disabled={busy || !loginEmail.trim() || !hasConfig} onClick={() => void signIn()}>
               {t.auth.sendMagicLink}
             </Button>
+            {!hasConfig ? <p className="text-sm text-red-400">{t.auth.configError}</p> : null}
             {notice ? <p className="text-sm text-primary">{notice}</p> : null}
             {error ? <p className="text-sm text-red-400">{error}</p> : null}
           </CardContent>
