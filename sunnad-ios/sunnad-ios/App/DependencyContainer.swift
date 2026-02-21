@@ -1,8 +1,14 @@
 import Combine
 import Foundation
 import SwiftData
+import Supabase
 
 final class DependencyContainer {
+    private enum CachedSupabaseKeys {
+        static let url = "sunnad.cached.supabase.url"
+        static let key = "sunnad.cached.supabase.key"
+    }
+
     let environment: AppEnvironment
     let modelContainer: ModelContainer
 
@@ -12,24 +18,39 @@ final class DependencyContainer {
     let quotesRepository: QuotesLocalRepository
     let groupsRepository: GroupsLocalRepository
     let reminderScheduler: LocalReminderScheduling
+    let authService: AuthService
+    let deviceTokenSyncService: DeviceTokenSyncing
+    private let userDefaults: UserDefaults
 
-    init(environment: AppEnvironment = .current) {
+    init(
+        environment: AppEnvironment = .current,
+        modelContainer: ModelContainer? = nil,
+        authService: AuthService? = nil,
+        deviceTokenSyncService: DeviceTokenSyncing? = nil
+    ) {
         self.environment = environment
+        self.userDefaults = .standard
 
-        do {
-            modelContainer = try ModelContainer(
-                for: HabitEntity.self,
-                CompletionEntity.self,
-                QuoteEntity.self,
-                SavedQuoteEntity.self,
-                DiagnosticEventEntity.self
-            )
-        } catch {
-            fatalError("Failed to initialize SwiftData container: \(error)")
+        if let modelContainer {
+            self.modelContainer = modelContainer
+        } else {
+            do {
+                self.modelContainer = try ModelContainer(
+                    for: HabitEntity.self,
+                    CompletionEntity.self,
+                    QuoteEntity.self,
+                    SavedQuoteEntity.self,
+                    DiagnosticEventEntity.self
+                )
+            } catch {
+                fatalError("Failed to initialize SwiftData container: \(error)")
+            }
         }
 
-        let modelContext = modelContainer.mainContext
-        let diagnosticsStore = LocalDiagnosticsStore(modelContext: modelContext)
+        let modelContext = self.modelContainer.mainContext
+        let diagnosticsStore: LocalDiagnosticsStore? = Self.isRunningUnitTests
+            ? nil
+            : LocalDiagnosticsStore(modelContext: modelContext)
         let logger = OSLogAnalyticsLogger(diagnosticsStore: diagnosticsStore)
 
         analyticsLogger = logger
@@ -39,7 +60,90 @@ final class DependencyContainer {
         groupsRepository = GroupsLocalRepository()
         reminderScheduler = UserNotificationReminderScheduler(logger: logger)
 
+        let resolvedSupabase = Self.resolvedSupabaseConfig(
+            environment: environment,
+            userDefaults: userDefaults
+        )
+
+        if let authService {
+            self.authService = authService
+        } else if let config = resolvedSupabase {
+            let client = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
+            self.authService = SupabaseAuthService(
+                client: client,
+                supabaseURL: config.url,
+                authRedirectURL: environment.authRedirectURL
+            )
+            #if DEBUG
+            NSLog("Sunnad auth configured with Supabase URL: \(config.url.absoluteString)")
+            #endif
+        } else {
+            self.authService = UnconfiguredAuthService()
+            #if DEBUG
+            NSLog("Sunnad auth is UNCONFIGURED. Set SUNNAD_SUPABASE_URL and SUNNAD_SUPABASE_PUBLISHABLE_KEY (or SUNNAD_SUPABASE_ANON_KEY).")
+            #endif
+        }
+
+        if let deviceTokenSyncService {
+            self.deviceTokenSyncService = deviceTokenSyncService
+        } else if let config = resolvedSupabase {
+            let client = SupabaseClient(supabaseURL: config.url, supabaseKey: config.anonKey)
+            self.deviceTokenSyncService = SupabaseDeviceTokenSyncService(client: client, logger: logger)
+        } else {
+            self.deviceTokenSyncService = NoOpDeviceTokenSyncService()
+        }
+
         seedLocalDataIfNeeded()
+    }
+
+    private static func resolvedSupabaseConfig(
+        environment: AppEnvironment,
+        userDefaults: UserDefaults
+    ) -> AppEnvironment.SupabaseConfig? {
+        if let config = environment.supabaseConfig {
+            userDefaults.set(config.url.absoluteString, forKey: CachedSupabaseKeys.url)
+            userDefaults.set(config.anonKey, forKey: CachedSupabaseKeys.key)
+            return config
+        }
+
+        guard shouldUseCachedSupabaseConfig else {
+            #if DEBUG
+            if
+                let cachedURL = userDefaults.string(forKey: CachedSupabaseKeys.url),
+                !cachedURL.isEmpty
+            {
+                NSLog("Sunnad auth ignored cached Supabase config because SUNNAD_ALLOW_CACHED_SUPABASE_CONFIG is not enabled.")
+            }
+            #endif
+            return nil
+        }
+
+        if
+            let urlString = userDefaults.string(forKey: CachedSupabaseKeys.url),
+            let key = userDefaults.string(forKey: CachedSupabaseKeys.key),
+            let url = URL(string: urlString),
+            !key.isEmpty
+        {
+            #if DEBUG
+            NSLog("Sunnad auth configured from cached Supabase config: \(url.absoluteString)")
+            #endif
+            return .init(url: url, anonKey: key)
+        }
+
+        return nil
+    }
+
+    private static var shouldUseCachedSupabaseConfig: Bool {
+        #if DEBUG
+        guard let raw = ProcessInfo.processInfo.environment["SUNNAD_ALLOW_CACHED_SUPABASE_CONFIG"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() else {
+            return false
+        }
+        return raw == "1" || raw == "true" || raw == "yes"
+        #else
+        return false
+        #endif
     }
 
     func seedLocalDataIfNeeded() {
@@ -156,5 +260,9 @@ final class DependencyContainer {
             Quote(locale: "kk", text: "Ең жақсы амалдар - аз болса да, тұрақты жасалатындар.", source: "Мұхаммад Пайғамбар ﷺ (Бұхари және Мүслім)", sortOrder: 0, active: true),
             Quote(locale: "kk", text: "Қиыншылықпен бірге жеңілдік бар.", source: "Құран 94:6", sortOrder: 1, active: true)
         ]
+    }
+
+    private static var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 }

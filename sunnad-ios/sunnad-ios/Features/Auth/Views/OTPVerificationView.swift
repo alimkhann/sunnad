@@ -2,13 +2,39 @@ import SwiftUI
 
 struct OTPVerificationView: View {
     let email: String
+    let flowMode: OTPFlowMode
+    let resendSecondsRemaining: Int
     let onBack: () -> Void
-    let onVerify: () -> Void
+    let onVerify: (String) -> Void
+    let onResend: () -> Void
+    var authErrorMessage: String? = nil
+    var onClearMessage: (() -> Void)? = nil
     var showsBackButton: Bool = true
     var onClose: (() -> Void)? = nil
 
     @State private var code = ""
     @FocusState private var isCodeFieldFocused: Bool
+
+    private var resendEnabled: Bool {
+        resendSecondsRemaining <= 0
+    }
+
+    private var subtitlePrefix: String {
+        switch flowMode {
+        case .signup:
+            return L10n.t("auth.otp.subtitle_prefix.signup")
+        case .recovery:
+            return L10n.t("auth.otp.subtitle_prefix.recovery")
+        }
+    }
+
+    private var resendLabel: String {
+        if resendEnabled {
+            return L10n.t("auth.otp.resend")
+        }
+
+        return L10n.t("auth.otp.resend_in", resendSecondsRemaining)
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -44,8 +70,17 @@ struct OTPVerificationView: View {
 
                 VStack(spacing: 0) {
                     VStack(spacing: 24) {
+                        if let authErrorMessage, !authErrorMessage.isEmpty {
+                            OTPStatusToast(
+                                message: authErrorMessage,
+                                icon: "exclamationmark.triangle.fill",
+                                accent: .red
+                            )
+                            .padding(.horizontal, 24)
+                        }
+
                         VStack(spacing: 4) {
-                            Text(L10n.t("auth.otp.subtitle_prefix"))
+                            Text(subtitlePrefix)
                                 .font(.title3)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
@@ -61,16 +96,23 @@ struct OTPVerificationView: View {
                             placeholder: L10n.t("auth.otp.placeholder")
                         )
 
-                        Button(L10n.t("auth.otp.resend")) {}
+                        Button(resendLabel, action: onResend)
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(SunnadTheme.primary)
+                            .disabled(!resendEnabled)
+                            .opacity(resendEnabled ? 1 : 0.55)
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 34)
 
                     Spacer(minLength: 20)
 
-                    PrimaryButton(title: L10n.t("auth.otp.verify"), action: onVerify)
+                    PrimaryButton(
+                        title: L10n.t("auth.otp.verify"),
+                        isEnabled: code.count == 6
+                    ) {
+                        onVerify(code)
+                    }
                         .padding(.horizontal, 24)
                         .padding(.bottom, max(16, proxy.safeAreaInsets.bottom + 8))
                 }
@@ -83,6 +125,9 @@ struct OTPVerificationView: View {
                 }
                 #endif
                 isCodeFieldFocused = true
+            }
+            .onChange(of: code) { _, _ in
+                onClearMessage?()
             }
         }
     }
@@ -150,5 +195,32 @@ private struct OTPCodeBoxesView: View {
             return nil
         }
         return code.count
+    }
+}
+
+private struct OTPStatusToast: View {
+    let message: String
+    let icon: String
+    let accent: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(accent)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.primary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(accent.opacity(0.25), lineWidth: 1)
+        )
     }
 }

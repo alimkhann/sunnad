@@ -2,21 +2,29 @@ import SwiftUI
 
 struct SignInView: View {
     @Environment(\.colorScheme) private var colorScheme
-    @State private var username = ""
+    @State private var identifier = ""
     @State private var password = ""
 
     let onBack: () -> Void
     let onSwitchToSignUp: () -> Void
     let onSubmit: (String, String) -> Void
+    let onGoogle: () -> Void
+    let onApple: () -> Void
+    var isGoogleEnabled: Bool = true
+    var isAppleEnabled: Bool = false
+    var authErrorMessage: String? = nil
+    var authSuccessMessage: String? = nil
+    var onClearError: (() -> Void)? = nil
+    var onForgotPassword: ((String) -> Void)? = nil
     var showsBackButton: Bool = true
     var onClose: (() -> Void)? = nil
 
-    private var trimmedUsername: String {
-        username.trimmingCharacters(in: .whitespacesAndNewlines)
+    private var trimmedIdentifier: String {
+        identifier.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var canSubmit: Bool {
-        !trimmedUsername.isEmpty && !password.isEmpty
+        !trimmedIdentifier.isEmpty && !password.isEmpty
     }
 
     var body: some View {
@@ -46,9 +54,34 @@ struct SignInView: View {
                 Spacer()
                     .frame(height: 32)
 
+                if let authErrorMessage, !authErrorMessage.isEmpty {
+                    AuthStatusToast(
+                        message: authErrorMessage,
+                        icon: "exclamationmark.triangle.fill",
+                        accent: .red
+                    )
+                        .padding(.bottom, 6)
+                } else if let authSuccessMessage, !authSuccessMessage.isEmpty {
+                    AuthStatusToast(
+                        message: authSuccessMessage,
+                        icon: "checkmark.circle.fill",
+                        accent: .green
+                    )
+                    .padding(.bottom, 6)
+                }
+
                 fieldsCard
+                if let onForgotPassword {
+                    Button(L10n.t("auth.forgot_password")) {
+                        onForgotPassword(trimmedIdentifier)
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(SunnadTheme.primary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.top, 4)
+                }
                 PrimaryButton(title: L10n.t("auth.sign_in"), isEnabled: canSubmit) {
-                    onSubmit(trimmedUsername, password)
+                    onSubmit(trimmedIdentifier, password)
                 }
                 .padding(.top, 2)
 
@@ -74,6 +107,12 @@ struct SignInView: View {
             .padding(.top, 8)
             .padding(.bottom, max(10, proxy.safeAreaInsets.bottom + 4))
             .background(SunnadTheme.background.ignoresSafeArea())
+            .onChange(of: identifier) { _, _ in
+                onClearError?()
+            }
+            .onChange(of: password) { _, _ in
+                onClearError?()
+            }
         }
     }
 
@@ -81,9 +120,10 @@ struct SignInView: View {
         Card(contentPadding: 0) {
             VStack(spacing: 0) {
                 LabeledTextFieldRow(
-                    label: L10n.t("auth.username"),
-                    placeholder: L10n.t("auth.username.placeholder"),
-                    value: $username
+                    label: "\(L10n.t("auth.email")) / \(L10n.t("auth.username"))",
+                    placeholder: L10n.t("auth.email.placeholder"),
+                    value: $identifier,
+                    keyboardType: .default
                 )
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
@@ -119,7 +159,7 @@ struct SignInView: View {
     private var socialButtons: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                onSubmit("apple_user", "apple")
+                onApple()
             } label: {
                 HStack(spacing: 8) {
                     Spacer()
@@ -138,9 +178,11 @@ struct SignInView: View {
                 )
             }
             .buttonStyle(.plain)
+            .disabled(!isAppleEnabled)
+            .opacity(isAppleEnabled ? 1 : 0.55)
 
             Button {
-                onSubmit("google_user", "google")
+                onGoogle()
             } label: {
                 HStack(spacing: 8) {
                     Spacer()
@@ -161,7 +203,44 @@ struct SignInView: View {
                 )
             }
             .buttonStyle(.plain)
+            .disabled(!isGoogleEnabled)
+            .opacity(isGoogleEnabled ? 1 : 0.55)
+
+            if !isAppleEnabled {
+                Text(L10n.t("auth.apple_coming_soon"))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 4)
+            }
         }
     }
 
+}
+
+private struct AuthStatusToast: View {
+    let message: String
+    let icon: String
+    let accent: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(accent)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.primary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(accent.opacity(0.25), lineWidth: 1)
+        )
+    }
 }

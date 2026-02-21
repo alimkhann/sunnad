@@ -14,6 +14,12 @@ struct SunnadRootView: View {
                     step: $state.onboardingStep,
                     selectedTemplateIDs: $state.selectedTemplateIDs,
                     pendingEmail: state.pendingSignUpEmail,
+                    otpFlowMode: state.otpFlowMode,
+                    otpResendSecondsRemaining: state.otpResendSecondsRemaining,
+                    authErrorMessage: state.authErrorMessage,
+                    authSuccessMessage: state.authSuccessMessage,
+                    googleAuthEnabled: state.isGoogleAuthEnabled,
+                    appleAuthEnabled: state.isAppleAuthEnabled,
                     onOpenLanguagePicker: { state.rootSheet = .languagePicker },
                     onCompleteTemplateSelection: { state.completeTemplateSelection() },
                     onEnableNotifications: state.enableOnboardingNotifications,
@@ -23,7 +29,14 @@ struct SunnadRootView: View {
                     onOpenSignUp: state.openSignUp,
                     onSignIn: state.handleSignIn,
                     onSignUp: state.handleSignUp,
-                    onOTPVerify: state.verifyOTP
+                    onGoogleSignIn: state.handleGoogleSignIn,
+                    onGoogleSignUp: state.handleGoogleSignIn,
+                    onAppleSignIn: state.handleAppleSignIn,
+                    onAppleSignUp: state.handleAppleSignIn,
+                    onOTPVerify: state.verifyOTP,
+                    onResendOTP: state.resendOTP,
+                    onOpenForgotPassword: state.openOnboardingForgotPassword,
+                    onClearAuthError: state.clearAuthError
                 )
             } else {
                 mainTabs
@@ -33,6 +46,7 @@ struct SunnadRootView: View {
         .preferredColorScheme(state.appearance.colorScheme)
         .sheet(item: $state.rootSheet, content: sheetView)
         .fullScreenCover(item: $state.fullScreen, content: fullScreenView)
+        .onOpenURL(perform: state.handleIncomingURL)
     }
 
     private var mainTabs: some View {
@@ -95,6 +109,8 @@ struct SunnadRootView: View {
                     onOpenInsights: { state.fullScreen = .insightsPlaceholder },
                     onSignIn: state.openProfileSignIn,
                     onSignOut: state.signOut,
+                    onEditProfile: state.openProfileEditor,
+                    onChangePassword: state.openChangePassword,
                     onDeleteData: state.deleteData,
                     onDeleteAccount: state.deleteAccount,
                     privacyURL: state.privacyURL,
@@ -209,6 +225,14 @@ struct SunnadRootView: View {
                 onBack: {},
                 onSwitchToSignUp: state.openProfileSignUp,
                 onSubmit: state.handleProfileSignIn,
+                onGoogle: state.handleGoogleProfileSignIn,
+                onApple: state.handleAppleProfileSignIn,
+                isGoogleEnabled: state.isGoogleAuthEnabled,
+                isAppleEnabled: state.isAppleAuthEnabled,
+                authErrorMessage: state.authErrorMessage,
+                authSuccessMessage: state.authSuccessMessage,
+                onClearError: state.clearAuthError,
+                onForgotPassword: state.openProfileForgotPassword,
                 showsBackButton: false,
                 onClose: { state.fullScreen = nil }
             )
@@ -217,14 +241,85 @@ struct SunnadRootView: View {
                 onBack: state.openProfileSignIn,
                 onSwitchToSignIn: state.openProfileSignIn,
                 onSubmit: state.handleProfileSignUp,
+                onGoogle: state.handleGoogleProfileSignIn,
+                onApple: state.handleAppleProfileSignIn,
+                isGoogleEnabled: state.isGoogleAuthEnabled,
+                isAppleEnabled: state.isAppleAuthEnabled,
+                authErrorMessage: state.authErrorMessage,
+                onClearError: state.clearAuthError,
                 showsBackButton: false,
                 onClose: { state.fullScreen = nil }
+            )
+        case .forgotPasswordOnboarding:
+            ForgotPasswordView(
+                initialEmail: state.pendingPasswordResetEmail,
+                onBack: state.closeOnboardingForgotPassword,
+                onSubmit: state.submitPasswordResetRequest,
+                authErrorMessage: state.authErrorMessage,
+                authSuccessMessage: state.authSuccessMessage,
+                onClearMessage: state.clearAuthError
+            )
+        case .forgotPasswordProfile:
+            ForgotPasswordView(
+                initialEmail: state.pendingPasswordResetEmail,
+                onBack: state.closeProfileForgotPassword,
+                onSubmit: state.submitPasswordResetRequest,
+                authErrorMessage: state.authErrorMessage,
+                authSuccessMessage: state.authSuccessMessage,
+                onClearMessage: state.clearAuthError
+            )
+        case .changePassword:
+            ChangePasswordView(
+                onBack: { state.fullScreen = nil },
+                onSubmit: state.submitChangePassword,
+                authErrorMessage: state.authErrorMessage,
+                onClearMessage: state.clearAuthError
+            )
+        case .editProfile:
+            EditProfileView(
+                user: state.user,
+                authErrorMessage: state.authErrorMessage,
+                authSuccessMessage: state.authSuccessMessage,
+                onBack: { state.fullScreen = nil },
+                onSaveUsername: state.submitProfileUsername,
+                onUploadAvatar: state.uploadProfileAvatar,
+                onRemoveAvatar: state.removeProfileAvatar,
+                onClearMessage: state.clearAuthError
             )
         case .profileOTP:
             OTPVerificationView(
                 email: state.pendingSignUpEmail,
+                flowMode: state.otpFlowMode,
+                resendSecondsRemaining: state.otpResendSecondsRemaining,
                 onBack: state.openProfileSignUp,
                 onVerify: state.verifyProfileOTP,
+                onResend: state.resendProfileOTP,
+                authErrorMessage: state.authErrorMessage,
+                onClearMessage: state.clearAuthError,
+                showsBackButton: false,
+                onClose: { state.fullScreen = nil }
+            )
+        case .forgotPasswordOTPOnboarding:
+            OTPVerificationView(
+                email: state.pendingPasswordResetEmail,
+                flowMode: .recovery,
+                resendSecondsRemaining: state.otpResendSecondsRemaining,
+                onBack: state.closeOnboardingForgotPasswordOTP,
+                onVerify: state.verifyOTP,
+                onResend: state.resendOTP,
+                authErrorMessage: state.authErrorMessage,
+                onClearMessage: state.clearAuthError
+            )
+        case .forgotPasswordOTPProfile:
+            OTPVerificationView(
+                email: state.pendingPasswordResetEmail,
+                flowMode: .recovery,
+                resendSecondsRemaining: state.otpResendSecondsRemaining,
+                onBack: state.closeProfileForgotPasswordOTP,
+                onVerify: state.verifyProfileOTP,
+                onResend: state.resendProfileOTP,
+                authErrorMessage: state.authErrorMessage,
+                onClearMessage: state.clearAuthError,
                 showsBackButton: false,
                 onClose: { state.fullScreen = nil }
             )

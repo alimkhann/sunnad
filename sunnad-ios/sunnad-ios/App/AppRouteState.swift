@@ -7,6 +7,26 @@ import UIKit
 final class AppRouteState: ObservableObject {
     private enum LocalStateKeys {
         static let onboardingCompleted = "sunnad.onboarding.completed"
+        static let pendingPasswordRecovery = "sunnad.auth.pending-password-recovery"
+    }
+
+    private enum PasswordRecoverySource {
+        case onboarding
+        case profile
+    }
+
+    private enum OAuthProvider {
+        case google
+        case apple
+
+        var scope: String {
+            switch self {
+            case .google:
+                return "google"
+            case .apple:
+                return "apple"
+            }
+        }
     }
 
     @Published var language: AppLanguage = .en {
@@ -49,7 +69,12 @@ final class AppRouteState: ObservableObject {
     @Published var selectedTemplateIDs: Set<String> = []
     @Published var pendingSignUpEmail = ""
     @Published var pendingSignUpUsername = ""
+    @Published var pendingPasswordResetEmail = ""
+    @Published var otpFlowMode: OTPFlowMode = .signup
     @Published var todayQuote: UIQuote = UIFixtures.dailyQuote
+    @Published private(set) var authErrorMessage: String?
+    @Published private(set) var authSuccessMessage: String?
+    @Published private(set) var otpResendSecondsRemaining = 0
     @Published private(set) var todayHabitsData: [UIHabit] = []
     @Published private(set) var completionMarksByHabit: [UUID: [Bool]] = [:]
     @Published private(set) var debugPendingReminderCount = 0
@@ -74,6 +99,14 @@ final class AppRouteState: ObservableObject {
         #endif
     }
 
+    var isGoogleAuthEnabled: Bool {
+        dependencies.environment.oauthConfig.googleEnabled
+    }
+
+    var isAppleAuthEnabled: Bool {
+        dependencies.environment.oauthConfig.appleEnabled
+    }
+
     let todayViewModel: TodayViewModel
     let groupsViewModel: GroupsViewModel
     let profileViewModel: ProfileViewModel
@@ -83,10 +116,14 @@ final class AppRouteState: ObservableObject {
     private let userDefaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
     private var persistTasks: [UUID: Task<Void, Never>] = [:]
+    private var passwordRecoverySource: PasswordRecoverySource = .onboarding
+    private var otpResendCooldownsByKey: [String: Date] = [:]
+    private var activeOTPResendKey: String?
+    private var otpResendTimerTask: Task<Void, Never>?
 
-    init(dependencies: DependencyContainer) {
+    init(dependencies: DependencyContainer, userDefaults: UserDefaults = .standard) {
         self.dependencies = dependencies
-        self.userDefaults = .standard
+        self.userDefaults = userDefaults
 
         let initialHabits = UIFixtures.initialHabits
 
@@ -128,8 +165,13 @@ final class AppRouteState: ObservableObject {
         #endif
 
         Task {
+            await restoreAuthSessionIfNeeded()
             await loadTodayData()
         }
+    }
+
+    deinit {
+        otpResendTimerTask?.cancel()
     }
 
     var todayHabits: [UIHabit] {
@@ -178,10 +220,12 @@ final class AppRouteState: ObservableObject {
     }
 
     func openSignIn() {
+        clearAuthError()
         onboardingStep = .signIn
     }
 
     func openSignUp() {
+        clearAuthError()
         onboardingStep = .signUp
     }
 
@@ -226,36 +270,90 @@ final class AppRouteState: ObservableObject {
         Task { await loadTodayData() }
     }
 
-    func handleSignIn(username: String, password: String) {
-        let email: String
-        if password == "apple" || password == "google" {
-            email = "\(username.lowercased())@example.com"
-        } else {
-            email = "user@example.com"
+    func handleSignIn(identifier: String, password: String) {
+        Task {
+            do {
+                let sessionUser = try await dependencies.authService.signIn(
+                    identifier: identifier.trimmingCharacters(in: .whitespacesAndNewlines),
+                    password: password
+                )
+                authErrorMessage = nil
+                authSuccessMessage = nil
+                user = sessionUser.asUIUserState
+                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                markOnboardingCompleted()
+                activeTab = .today
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_sign_in", "error": error.localizedDescription]
+                )
+            }
         }
-
-        user = UIUserState(isGuest: false, name: username, email: email)
-        markOnboardingCompleted()
-        activeTab = .today
     }
 
-    func handleSignUp(email: String, username: String, password: String, method: String) {
-        if method == "email" {
-            pendingSignUpEmail = email
-            pendingSignUpUsername = username
-            onboardingStep = .otp
-            return
-        }
-
-        user = UIUserState(isGuest: false, name: username.isEmpty ? "User" : username, email: email.isEmpty ? "user@example.com" : email)
-        markOnboardingCompleted()
-        activeTab = .today
+    func handleGoogleSignIn() {
+        handleOAuthSignIn(using: .google, fromProfileSurface: false)
     }
 
-    func verifyOTP() {
-        user = UIUserState(isGuest: false, name: pendingSignUpUsername, email: pendingSignUpEmail)
-        markOnboardingCompleted()
-        activeTab = .today
+    func handleGoogleProfileSignIn() {
+        handleOAuthSignIn(using: .google, fromProfileSurface: true)
+    }
+
+    func handleAppleSignIn() {
+        handleOAuthSignIn(using: .apple, fromProfileSurface: false)
+    }
+
+    func handleAppleProfileSignIn() {
+        handleOAuthSignIn(using: .apple, fromProfileSurface: true)
+    }
+
+    func handleSignUp(email: String, username: String, password: String, method: String = "email") {
+        Task {
+            let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            do {
+                let sessionUser = try await dependencies.authService.signUp(
+                    email: normalizedEmail,
+                    password: password,
+                    username: normalizedUsername
+                )
+                authErrorMessage = nil
+                authSuccessMessage = nil
+                user = sessionUser.asUIUserState
+                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                markOnboardingCompleted()
+                activeTab = .today
+                onboardingStep = .joinGroups
+            } catch {
+                if case AuthServiceError.emailNotConfirmed = error {
+                    pendingSignUpEmail = normalizedEmail
+                    pendingSignUpUsername = normalizedUsername
+                    otpFlowMode = .signup
+                    activateOTPCooldown(flow: .signup, email: normalizedEmail)
+                    authErrorMessage = nil
+                    authSuccessMessage = L10n.t("auth.otp.sent")
+                    onboardingStep = .otp
+                    return
+                }
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_sign_up", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func verifyOTP(code: String) {
+        verifyOTP(code: code, fromProfileSurface: false)
+    }
+
+    func resendOTP() {
+        resendOTP(fromProfileSurface: false)
     }
 
     func toggleTodayHabit(_ habitID: UUID) {
@@ -369,39 +467,332 @@ final class AppRouteState: ObservableObject {
     }
 
     func openProfileSignIn() {
+        clearAuthError()
         fullScreen = .profileSignIn
     }
 
     func openProfileSignUp() {
+        clearAuthError()
         fullScreen = .profileSignUp
     }
 
-    func handleProfileSignIn(username: String, password: String) {
-        handleSignIn(username: username, password: password)
+    func openProfileEditor() {
+        guard !user.isGuest else {
+            return
+        }
+        clearAuthError()
+        fullScreen = .editProfile
+    }
+
+    func clearAuthError() {
+        authErrorMessage = nil
+        authSuccessMessage = nil
+    }
+
+    func submitProfileUsername(_ username: String) {
+        Task {
+            do {
+                let sessionUser = try await dependencies.authService.updateUsername(username)
+                user = sessionUser.asUIUserState
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("profile.edit.saved")
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "profile_update_username", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func uploadProfileAvatar(data: Data, mimeType: String) {
+        Task {
+            guard let compressed = compressedAvatarPayload(from: data, preferredMimeType: mimeType) else {
+                authSuccessMessage = nil
+                authErrorMessage = L10n.t("profile.edit.avatar.invalid")
+                return
+            }
+
+            do {
+                let sessionUser = try await dependencies.authService.uploadAvatar(
+                    data: compressed.data,
+                    mimeType: compressed.mimeType
+                )
+                user = sessionUser.asUIUserState
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("profile.edit.avatar.updated")
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "profile_upload_avatar", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func removeProfileAvatar() {
+        Task {
+            do {
+                let sessionUser = try await dependencies.authService.removeAvatar()
+                user = sessionUser.asUIUserState
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("profile.edit.avatar.removed")
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "profile_remove_avatar", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func openOnboardingForgotPassword(prefill identifier: String) {
+        pendingPasswordResetEmail = resolveEmailFromIdentifier(identifier)
+        passwordRecoverySource = .onboarding
+        clearAuthError()
+        fullScreen = .forgotPasswordOnboarding
+    }
+
+    func openProfileForgotPassword(prefill identifier: String) {
+        pendingPasswordResetEmail = resolveEmailFromIdentifier(identifier)
+        passwordRecoverySource = .profile
+        clearAuthError()
+        fullScreen = .forgotPasswordProfile
+    }
+
+    func closeOnboardingForgotPassword() {
+        clearAuthError()
         fullScreen = nil
     }
 
-    func handleProfileSignUp(email: String, username: String, password: String, method: String) {
-        if method == "email" {
-            pendingSignUpEmail = email
-            pendingSignUpUsername = username
-            fullScreen = .profileOTP
+    func closeProfileForgotPassword() {
+        clearAuthError()
+        fullScreen = .profileSignIn
+    }
+
+    func closeOnboardingForgotPasswordOTP() {
+        clearAuthError()
+        fullScreen = .forgotPasswordOnboarding
+    }
+
+    func closeProfileForgotPasswordOTP() {
+        clearAuthError()
+        fullScreen = .forgotPasswordProfile
+    }
+
+    func submitPasswordResetRequest(email: String) {
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalizedEmail.contains("@") else {
+            authSuccessMessage = nil
+            authErrorMessage = AuthServiceError.invalidCredentials.localizedDescription
+            return
+        }
+        pendingPasswordResetEmail = normalizedEmail
+
+        Task {
+            do {
+                try await dependencies.authService.requestPasswordReset(
+                    email: normalizedEmail,
+                    redirectTo: dependencies.environment.authRedirectURL
+                )
+                userDefaults.set(true, forKey: LocalStateKeys.pendingPasswordRecovery)
+                otpFlowMode = .recovery
+                activateOTPCooldown(flow: .recovery, email: normalizedEmail)
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("auth.forgot_password.sent")
+                fullScreen = passwordRecoverySource == .onboarding
+                    ? .forgotPasswordOTPOnboarding
+                    : .forgotPasswordOTPProfile
+                dependencies.analyticsLogger.log(
+                    .syncFinished,
+                    metadata: ["scope": "auth_password_reset", "status": "email_sent"]
+                )
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_password_reset", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func openChangePassword() {
+        clearAuthError()
+        fullScreen = .changePassword
+    }
+
+    func submitChangePassword(newPassword: String) {
+        Task {
+            do {
+                let sessionUser = try await dependencies.authService.updatePassword(newPassword: newPassword)
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("auth.change_password.updated")
+                user = sessionUser.asUIUserState
+                fullScreen = nil
+                activeTab = .today
+                userDefaults.set(false, forKey: LocalStateKeys.pendingPasswordRecovery)
+                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                await profileViewModel.load()
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_change_password", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func handleIncomingURL(_ url: URL) {
+        guard isPotentialAuthCallbackURL(url) else {
             return
         }
 
-        user = UIUserState(isGuest: false, name: username.isEmpty ? "User" : username, email: email.isEmpty ? "user@example.com" : email)
-        markOnboardingCompleted()
-        fullScreen = nil
+        let hasAuthPayload = Self.hasCallbackAuthPayload(url)
+        guard hasAuthPayload else {
+            authSuccessMessage = nil
+            authErrorMessage = AuthServiceError.invalidRecoveryLink.localizedDescription
+            dependencies.analyticsLogger.log(
+                .storageFailure,
+                metadata: ["scope": "auth_callback_missing_payload", "reason": "missing_auth_payload"]
+            )
+            return
+        }
+
+        let recoveryPending = userDefaults.bool(forKey: LocalStateKeys.pendingPasswordRecovery)
+        let isRecoveryCallback = Self.isRecoveryCallbackURL(url)
+        let shouldOpenRecoveryPassword = isRecoveryCallback || (recoveryPending && hasAuthPayload)
+
+        Task {
+            do {
+                guard let sessionUser = try await dependencies.authService.handleAuthCallback(url: url) else {
+                    return
+                }
+
+                authErrorMessage = nil
+                authSuccessMessage = nil
+                user = sessionUser.asUIUserState
+                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                markOnboardingCompleted()
+                activeTab = .today
+
+                if shouldOpenRecoveryPassword {
+                    userDefaults.set(false, forKey: LocalStateKeys.pendingPasswordRecovery)
+                    pendingPasswordResetEmail = sessionUser.email ?? pendingPasswordResetEmail
+                    otpFlowMode = .recovery
+                    fullScreen = .changePassword
+                } else {
+                    fullScreen = nil
+                }
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                if shouldOpenRecoveryPassword {
+                    fullScreen = passwordRecoverySource == .profile
+                        ? .forgotPasswordOTPProfile
+                        : .forgotPasswordOTPOnboarding
+                }
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_callback", "error": error.localizedDescription]
+                )
+            }
+        }
     }
 
-    func verifyProfileOTP() {
-        user = UIUserState(isGuest: false, name: pendingSignUpUsername, email: pendingSignUpEmail)
-        markOnboardingCompleted()
-        fullScreen = nil
+    func handleProfileSignIn(identifier: String, password: String) {
+        Task {
+            do {
+                let sessionUser = try await dependencies.authService.signIn(
+                    identifier: identifier.trimmingCharacters(in: .whitespacesAndNewlines),
+                    password: password
+                )
+                authErrorMessage = nil
+                authSuccessMessage = nil
+                user = sessionUser.asUIUserState
+                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                markOnboardingCompleted()
+                fullScreen = nil
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_profile_sign_in", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func handleProfileSignUp(email: String, username: String, password: String, method: String = "email") {
+        Task {
+            let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            do {
+                let sessionUser = try await dependencies.authService.signUp(
+                    email: normalizedEmail,
+                    password: password,
+                    username: normalizedUsername
+                )
+                authErrorMessage = nil
+                authSuccessMessage = nil
+                user = sessionUser.asUIUserState
+                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                markOnboardingCompleted()
+                fullScreen = nil
+            } catch {
+                if case AuthServiceError.emailNotConfirmed = error {
+                    pendingSignUpEmail = normalizedEmail
+                    pendingSignUpUsername = normalizedUsername
+                    otpFlowMode = .signup
+                    activateOTPCooldown(flow: .signup, email: normalizedEmail)
+                    authErrorMessage = nil
+                    authSuccessMessage = L10n.t("auth.otp.sent")
+                    fullScreen = .profileOTP
+                    return
+                }
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_profile_sign_up", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    func verifyProfileOTP(code: String) {
+        verifyOTP(code: code, fromProfileSurface: true)
+    }
+
+    func resendProfileOTP() {
+        resendOTP(fromProfileSurface: true)
     }
 
     func signOut() {
-        user = .guest
+        Task {
+            do {
+                try await dependencies.authService.signOut()
+            } catch {
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_sign_out", "error": error.localizedDescription]
+                )
+            }
+
+            authErrorMessage = nil
+            authSuccessMessage = nil
+            user = .guest
+        }
     }
 
     func deleteData() {
@@ -416,15 +807,27 @@ final class AppRouteState: ObservableObject {
 
     func deleteAccount() {
         Task {
-            await clearLocalData()
-            selectedTemplateIDs = []
-            pendingSignUpEmail = ""
-            pendingSignUpUsername = ""
+            do {
+                try await dependencies.authService.deleteAccount()
+            } catch {
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_delete_account", "error": error.localizedDescription]
+                )
+                return
+            }
+
+            pendingPasswordResetEmail = ""
+            otpFlowMode = .signup
             user = .guest
-            userDefaults.set(false, forKey: LocalStateKeys.onboardingCompleted)
-            showsOnboarding = true
-            onboardingStep = .welcome
-            activeTab = .today
+            authErrorMessage = nil
+            authSuccessMessage = nil
+            markOnboardingCompleted()
+            rootSheet = nil
+            fullScreen = nil
+            activeTab = .profile
+            await profileViewModel.load()
         }
     }
 
@@ -468,6 +871,197 @@ final class AppRouteState: ObservableObject {
         Task {
             await groupsViewModel.kickMember(groupID: groupID, memberID: memberID)
         }
+    }
+
+    private func handleOAuthSignIn(using provider: OAuthProvider, fromProfileSurface: Bool) {
+        switch provider {
+        case .google where !dependencies.environment.oauthConfig.googleEnabled:
+            authErrorMessage = AuthServiceError.providerUnavailable("Google").localizedDescription
+            return
+        case .apple where !dependencies.environment.oauthConfig.appleEnabled:
+            authErrorMessage = AuthServiceError.providerUnavailable("Apple").localizedDescription
+            return
+        default:
+            break
+        }
+
+        Task {
+            do {
+                let sessionUser: SessionUser
+                switch provider {
+                case .google:
+                    sessionUser = try await dependencies.authService.signInWithGoogle()
+                case .apple:
+                    sessionUser = try await dependencies.authService.signInWithApple()
+                }
+                authErrorMessage = nil
+                authSuccessMessage = nil
+                user = sessionUser.asUIUserState
+                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+                markOnboardingCompleted()
+                activeTab = .today
+                if fromProfileSurface {
+                    fullScreen = nil
+                }
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "auth_oauth_\(provider.scope)", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
+    private func verifyOTP(code: String, fromProfileSurface: Bool) {
+        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = currentOTPEmail().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !email.isEmpty else {
+            authErrorMessage = AuthServiceError.invalidCredentials.localizedDescription
+            return
+        }
+
+        Task {
+            do {
+                let sessionUser: SessionUser
+                switch otpFlowMode {
+                case .signup:
+                    sessionUser = try await dependencies.authService.verifyEmailOTP(
+                        email: email,
+                        code: normalizedCode
+                    )
+                    markOnboardingCompleted()
+                    activeTab = .today
+                    onboardingStep = .joinGroups
+                    fullScreen = nil
+                case .recovery:
+                    sessionUser = try await dependencies.authService.verifyRecoveryCode(
+                        email: email,
+                        code: normalizedCode
+                    )
+                    userDefaults.set(true, forKey: LocalStateKeys.pendingPasswordRecovery)
+                    fullScreen = .changePassword
+                }
+
+                authErrorMessage = nil
+                authSuccessMessage = nil
+                user = sessionUser.asUIUserState
+                await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+            } catch {
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: [
+                        "scope": fromProfileSurface ? "auth_profile_verify_otp" : "auth_verify_otp",
+                        "flow": otpFlowMode.rawValue,
+                        "error": error.localizedDescription
+                    ]
+                )
+            }
+        }
+    }
+
+    private func resendOTP(fromProfileSurface: Bool) {
+        guard otpResendSecondsRemaining <= 0 else {
+            return
+        }
+
+        let email = currentOTPEmail().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !email.isEmpty else {
+            authErrorMessage = AuthServiceError.invalidCredentials.localizedDescription
+            return
+        }
+
+        Task {
+            do {
+                switch otpFlowMode {
+                case .signup:
+                    try await dependencies.authService.resendSignUpOTP(
+                        email: email,
+                        redirectTo: dependencies.environment.authRedirectURL
+                    )
+                case .recovery:
+                    try await dependencies.authService.resendRecoveryCode(
+                        email: email,
+                        redirectTo: dependencies.environment.authRedirectURL
+                    )
+                }
+                activateOTPCooldown(flow: otpFlowMode, email: email)
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("auth.otp.resent")
+            } catch {
+                if case AuthServiceError.rateLimited = error {
+                    activateOTPCooldown(flow: otpFlowMode, email: email)
+                }
+                authSuccessMessage = nil
+                authErrorMessage = error.localizedDescription
+                dependencies.analyticsLogger.log(
+                    .storageFailure,
+                    metadata: [
+                        "scope": fromProfileSurface ? "auth_profile_resend_otp" : "auth_resend_otp",
+                        "flow": otpFlowMode.rawValue,
+                        "error": error.localizedDescription
+                    ]
+                )
+            }
+        }
+    }
+
+    private func currentOTPEmail() -> String {
+        switch otpFlowMode {
+        case .signup:
+            return pendingSignUpEmail
+        case .recovery:
+            return pendingPasswordResetEmail
+        }
+    }
+
+    private func activateOTPCooldown(flow: OTPFlowMode, email: String) {
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedEmail.isEmpty else {
+            otpResendSecondsRemaining = 0
+            return
+        }
+
+        let key = "\(flow.rawValue):\(normalizedEmail)"
+        let deadline = Date().addingTimeInterval(TimeInterval(dependencies.environment.otpResendCooldownSeconds))
+        otpResendCooldownsByKey[key] = deadline
+        activeOTPResendKey = key
+        updateOTPResendCountdown()
+        ensureOTPResendTimerRunning()
+    }
+
+    private func ensureOTPResendTimerRunning() {
+        guard otpResendTimerTask == nil else {
+            return
+        }
+
+        otpResendTimerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await MainActor.run {
+                    self?.updateOTPResendCountdown()
+                }
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
+    }
+
+    private func updateOTPResendCountdown() {
+        let now = Date()
+        otpResendCooldownsByKey = otpResendCooldownsByKey.filter { $0.value > now }
+
+        guard let key = activeOTPResendKey, let deadline = otpResendCooldownsByKey[key] else {
+            otpResendSecondsRemaining = 0
+            if otpResendCooldownsByKey.isEmpty {
+                otpResendTimerTask?.cancel()
+                otpResendTimerTask = nil
+            }
+            return
+        }
+
+        otpResendSecondsRemaining = max(Int(ceil(deadline.timeIntervalSince(now))), 0)
     }
 
     private func bindTodayViewModel() {
@@ -663,6 +1257,71 @@ final class AppRouteState: ObservableObject {
         showsOnboarding = false
     }
 
+    private func compressedAvatarPayload(
+        from data: Data,
+        preferredMimeType: String
+    ) -> (data: Data, mimeType: String)? {
+        guard let image = UIImage(data: data) else {
+            return nil
+        }
+
+        if let jpegData = image.jpegData(compressionQuality: 0.82) {
+            return (jpegData, "image/jpeg")
+        }
+
+        return (data, preferredMimeType)
+    }
+
+    private func restoreAuthSessionIfNeeded() async {
+        if let sessionUser = await dependencies.authService.currentUser() {
+            authErrorMessage = nil
+            authSuccessMessage = nil
+            user = sessionUser.asUIUserState
+            await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+            markOnboardingCompleted()
+            dependencies.analyticsLogger.log(.syncFinished, metadata: ["scope": "auth_restore", "status": "restored"])
+        } else {
+            dependencies.analyticsLogger.log(.syncFinished, metadata: ["scope": "auth_restore", "status": "no_session"])
+        }
+    }
+
+    private func resolveEmailFromIdentifier(_ identifier: String) -> String {
+        let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.contains("@") ? trimmed : ""
+    }
+
+    private func isPotentialAuthCallbackURL(_ url: URL) -> Bool {
+        if Self.hasCallbackAuthPayload(url) {
+            return true
+        }
+
+        let normalizedPath = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let normalizedHost = (url.host ?? "").lowercased()
+        let expected = dependencies.environment.authRedirectURL
+        let expectedPath = expected.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let expectedHost = (expected.host ?? "").lowercased()
+
+        return (url.scheme ?? "").lowercased() == (expected.scheme ?? "").lowercased()
+            && normalizedHost == expectedHost
+            && normalizedPath == expectedPath
+    }
+
+    private static func hasCallbackAuthPayload(_ url: URL) -> Bool {
+        let raw = url.absoluteString.lowercased()
+        return raw.contains("access_token=")
+            || raw.contains("refresh_token=")
+            || raw.contains("code=")
+            || raw.contains("token=")
+            || raw.contains("token_hash=")
+            || raw.contains("type=recovery")
+            || raw.contains("type=signup")
+    }
+
+    private static func isRecoveryCallbackURL(_ url: URL) -> Bool {
+        let raw = url.absoluteString.lowercased()
+        return raw.contains("type=recovery")
+    }
+
     private static func lastSevenMarks(
         for habit: Habit,
         completions: [HabitCompletion],
@@ -766,6 +1425,8 @@ final class AppRouteState: ObservableObject {
                 onboardingStep = .otp
                 pendingSignUpEmail = environment["SUNNAD_DEBUG_EMAIL"] ?? "alimkhan.ergebayev@gmail.com"
                 pendingSignUpUsername = environment["SUNNAD_DEBUG_USERNAME"] ?? "alimkhan"
+                otpFlowMode = .signup
+                activateOTPCooldown(flow: .signup, email: pendingSignUpEmail)
             default:
                 break
             }
@@ -852,4 +1513,10 @@ final class AppRouteState: ObservableObject {
         return normalized == "1" || normalized == "true" || normalized == "yes"
     }
     #endif
+}
+
+private extension SessionUser {
+    var asUIUserState: UIUserState {
+        UIUserState(isGuest: false, name: displayName, email: email, avatarURL: avatarURL)
+    }
 }

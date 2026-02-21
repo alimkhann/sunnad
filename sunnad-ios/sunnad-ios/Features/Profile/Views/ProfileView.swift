@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 struct ProfileView: View {
@@ -16,6 +17,8 @@ struct ProfileView: View {
     let onOpenInsights: () -> Void
     let onSignIn: () -> Void
     let onSignOut: () -> Void
+    let onEditProfile: () -> Void
+    let onChangePassword: () -> Void
     let onDeleteData: () -> Void
     let onDeleteAccount: () -> Void
     let privacyURL: URL
@@ -44,19 +47,27 @@ struct ProfileView: View {
                         action: onSignIn
                     )
                 } else {
-                    HStack(spacing: 12) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 42))
-                            .foregroundStyle(SunnadTheme.primary)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(user.name ?? "")
-                                .font(.body.weight(.semibold))
-                            Text(user.email ?? "")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                    Button(action: onEditProfile) {
+                        HStack(spacing: 12) {
+                            avatarView
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(user.name ?? "")
+                                    .font(.body.weight(.semibold))
+                                Text(user.email ?? "")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                Text(L10n.t("profile.edit.tap"))
+                                    .font(.caption)
+                                    .foregroundStyle(SunnadTheme.primary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
                         }
+                        .padding(16)
                     }
-                    .padding(16)
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -104,6 +115,13 @@ struct ProfileView: View {
                         title: L10n.t("profile.notifications"),
                         action: { showsNotificationSettings = true }
                     )
+                    if !user.isGuest {
+                        Divider().padding(.leading, 16)
+                        profileLinkRow(
+                            title: L10n.t("profile.change_password"),
+                            action: onChangePassword
+                        )
+                    }
                     Divider().padding(.leading, 16)
                     externalLinkRow(
                         title: L10n.t("profile.privacy"),
@@ -278,5 +296,231 @@ struct ProfileView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var avatarView: some View {
+        if let avatarURL = user.avatarURL {
+            AsyncImage(url: avatarURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    Image(systemName: "person.crop.circle.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(SunnadTheme.primary)
+                        .padding(4)
+                }
+            }
+            .frame(width: 42, height: 42)
+            .clipShape(Circle())
+        } else {
+            Image(systemName: "person.crop.circle.fill")
+                .font(.system(size: 42))
+                .foregroundStyle(SunnadTheme.primary)
+        }
+    }
+}
+
+struct EditProfileView: View {
+    let user: UIUserState
+    let authErrorMessage: String?
+    let authSuccessMessage: String?
+    let onBack: () -> Void
+    let onSaveUsername: (String) -> Void
+    let onUploadAvatar: (Data, String) -> Void
+    let onRemoveAvatar: () -> Void
+    let onClearMessage: () -> Void
+
+    @State private var username: String
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var isUploadingPhoto = false
+
+    init(
+        user: UIUserState,
+        authErrorMessage: String?,
+        authSuccessMessage: String?,
+        onBack: @escaping () -> Void,
+        onSaveUsername: @escaping (String) -> Void,
+        onUploadAvatar: @escaping (Data, String) -> Void,
+        onRemoveAvatar: @escaping () -> Void,
+        onClearMessage: @escaping () -> Void
+    ) {
+        self.user = user
+        self.authErrorMessage = authErrorMessage
+        self.authSuccessMessage = authSuccessMessage
+        self.onBack = onBack
+        self.onSaveUsername = onSaveUsername
+        self.onUploadAvatar = onUploadAvatar
+        self.onRemoveAvatar = onRemoveAvatar
+        self.onClearMessage = onClearMessage
+        _username = State(initialValue: user.name ?? "")
+    }
+
+    private var normalizedUsername: String {
+        username
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private var usernameIsValid: Bool {
+        let value = normalizedUsername
+        guard !value.isEmpty else {
+            return false
+        }
+        return value.range(of: "^[a-z0-9_]{3,20}$", options: .regularExpression) != nil
+    }
+
+    private var canSave: Bool {
+        usernameIsValid && normalizedUsername != (user.name ?? "").lowercased()
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    CompactBackButton(action: onBack)
+                    Text(L10n.t("profile.edit.title"))
+                        .font(.title.weight(.bold))
+                    Spacer(minLength: 0)
+                }
+
+                Text(L10n.t("profile.edit.subtitle"))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                if let authErrorMessage, !authErrorMessage.isEmpty {
+                    statusToast(message: authErrorMessage, icon: "exclamationmark.triangle.fill", accent: .red)
+                } else if let authSuccessMessage, !authSuccessMessage.isEmpty {
+                    statusToast(message: authSuccessMessage, icon: "checkmark.circle.fill", accent: .green)
+                }
+
+                Card {
+                    VStack(spacing: 14) {
+                        avatarView
+
+                        PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                            Text(L10n.t("profile.edit.avatar.change"))
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(SunnadTheme.primary)
+                        }
+                        .disabled(isUploadingPhoto)
+
+                        if user.avatarURL != nil {
+                            Button(L10n.t("profile.edit.avatar.remove"), role: .destructive) {
+                                onClearMessage()
+                                onRemoveAvatar()
+                            }
+                            .font(.footnote.weight(.semibold))
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+
+                Card(contentPadding: 0) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        LabeledTextFieldRow(
+                            label: L10n.t("auth.username"),
+                            placeholder: L10n.t("auth.username.placeholder"),
+                            value: $username
+                        )
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+
+                        Text(L10n.t("profile.edit.username.hint"))
+                            .font(.caption)
+                            .foregroundStyle(username.isEmpty || usernameIsValid ? Color.secondary : Color.red)
+                            .padding(.horizontal, 14)
+                            .padding(.bottom, 10)
+                    }
+                }
+
+                PrimaryButton(title: L10n.t("common.save"), isEnabled: canSave) {
+                    onClearMessage()
+                    onSaveUsername(normalizedUsername)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, max(10, proxy.safeAreaInsets.bottom + 4))
+            .background(SunnadTheme.background.ignoresSafeArea())
+            .onChange(of: username) { _, _ in
+                onClearMessage()
+            }
+            .onChange(of: selectedPhotoItem) { _, item in
+                guard let item else { return }
+                Task {
+                    isUploadingPhoto = true
+                    defer {
+                        isUploadingPhoto = false
+                        selectedPhotoItem = nil
+                    }
+
+                    guard let data = try? await item.loadTransferable(type: Data.self) else {
+                        onClearMessage()
+                        onUploadAvatar(Data(), "application/octet-stream")
+                        return
+                    }
+
+                    let mimeType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
+                    onClearMessage()
+                    onUploadAvatar(data, mimeType)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var avatarView: some View {
+        if let avatarURL = user.avatarURL {
+            AsyncImage(url: avatarURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    Image(systemName: "person.crop.circle.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(SunnadTheme.primary)
+                        .padding(8)
+                }
+            }
+            .frame(width: 92, height: 92)
+            .clipShape(Circle())
+        } else {
+            Image(systemName: "person.crop.circle.fill")
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(SunnadTheme.primary)
+                .frame(width: 92, height: 92)
+        }
+    }
+
+    private func statusToast(message: String, icon: String, accent: Color) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(accent)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.primary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(accent.opacity(0.25), lineWidth: 1)
+        )
     }
 }
