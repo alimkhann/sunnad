@@ -409,8 +409,8 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
 
     // Determine source attribution logic:
     // Count how many locales already have a source filled
-    const filledSourceCount = localeOrder.filter(
-      (l) => translations[l].source.trim(),
+    const filledSourceCount = localeOrder.filter((l) =>
+      translations[l].source.trim(),
     ).length;
     // Only translate sources when 1–2 are filled (not 0 and not 3)
     const shouldTranslateSources =
