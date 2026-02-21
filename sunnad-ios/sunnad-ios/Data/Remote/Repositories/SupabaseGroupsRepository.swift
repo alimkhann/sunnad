@@ -349,12 +349,33 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
     }
 
     private func fetchGroupRows() async throws -> [GroupRow] {
-        let response = try await client
-            .from("groups")
-            .select("id, owner_id, name, code, join_locked")
-            .order("created_at", ascending: true)
-            .execute()
-        return try decoder.decode([GroupRow].self, from: response.data)
+        do {
+            let response = try await client
+                .from("groups")
+                .select("id, owner_id, name, code, join_locked")
+                .order("created_at", ascending: true)
+                .execute()
+            return try decoder.decode([GroupRow].self, from: response.data)
+        } catch {
+            guard Self.isMissingJoinLockedColumnError(error) else {
+                throw error
+            }
+
+            logger.log(
+                .storageFailure,
+                metadata: [
+                    "scope": "groups_fetch_rows_join_locked_fallback",
+                    "error": error.localizedDescription
+                ]
+            )
+
+            let fallbackResponse = try await client
+                .from("groups")
+                .select("id, owner_id, name, code")
+                .order("created_at", ascending: true)
+                .execute()
+            return try decoder.decode([GroupRow].self, from: fallbackResponse.data)
+        }
     }
 
     private func fetchGroupMembers(groupID: UUID) async throws -> [GroupMemberRow] {
@@ -549,5 +570,13 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             )
         }
         return error
+    }
+
+    private static func isMissingJoinLockedColumnError(_ error: Error) -> Bool {
+        let message = error.localizedDescription.lowercased()
+        return message.contains("join_locked")
+            && (message.contains("does not exist")
+                || message.contains("undefined column")
+                || message.contains("42703"))
     }
 }

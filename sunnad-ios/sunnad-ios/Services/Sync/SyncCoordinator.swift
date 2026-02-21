@@ -1043,12 +1043,32 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private func pullGroups(activeUserID: UUID, cursorString: String) async throws {
-        let response = try await client
-            .from("groups")
-            .select("id,owner_id,name,code,join_locked,created_at,updated_at")
-            .gt("updated_at", value: cursorString)
-            .order("updated_at", ascending: true)
-            .execute()
+        let response: PostgrestResponse<Void>
+        do {
+            response = try await client
+                .from("groups")
+                .select("id,owner_id,name,code,join_locked,created_at,updated_at")
+                .gt("updated_at", value: cursorString)
+                .order("updated_at", ascending: true)
+                .execute()
+        } catch {
+            guard Self.isMissingJoinLockedColumnError(error) else {
+                throw error
+            }
+            logger.log(
+                .storageFailure,
+                metadata: [
+                    "scope": "sync_pull_groups_join_locked_fallback",
+                    "error": error.localizedDescription
+                ]
+            )
+            response = try await client
+                .from("groups")
+                .select("id,owner_id,name,code,created_at,updated_at")
+                .gt("updated_at", value: cursorString)
+                .order("updated_at", ascending: true)
+                .execute()
+        }
 
         let rows = try decoder.decode([GroupPullRow].self, from: response.data)
         for row in rows {
@@ -1275,6 +1295,14 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             return "\(targetScope)|\(existingID[existingID.index(after: separator)...])"
         }
         return existingID
+    }
+
+    private static func isMissingJoinLockedColumnError(_ error: Error) -> Bool {
+        let message = error.localizedDescription.lowercased()
+        return message.contains("join_locked")
+            && (message.contains("does not exist")
+                || message.contains("undefined column")
+                || message.contains("42703"))
     }
 
     private static func savedQuoteMatchKey(_ quoteID: UUID?) -> String {
