@@ -12,6 +12,7 @@ enum SyncTrigger: String, Sendable {
 
 protocol SyncCoordinating: Sendable {
     func setSignedInUserID(_ userID: UUID?) async
+    func promoteGuestDataIfNeeded(to userID: UUID) async
     func promoteLocalDataIfNeeded() async
     func runSyncCycle(trigger: SyncTrigger) async
     func enqueueHabitUpsert(habitID: UUID) async
@@ -24,6 +25,10 @@ protocol SyncCoordinating: Sendable {
 
 struct NoOpSyncCoordinator: SyncCoordinating {
     func setSignedInUserID(_ userID: UUID?) async {
+        _ = userID
+    }
+
+    func promoteGuestDataIfNeeded(to userID: UUID) async {
         _ = userID
     }
 
@@ -60,7 +65,8 @@ struct NoOpSyncCoordinator: SyncCoordinating {
 @MainActor
 final class SupabaseSyncCoordinator: SyncCoordinating {
     private enum Keys {
-        static let promotionPrefix = "sunnad.sync.promoted."
+        static let guestPromotionPrefix = "sunnad.sync.promoted.guest.v2."
+        static let outboxPromotionPrefix = "sunnad.sync.promoted.outbox.v2."
     }
 
     private enum Resource: String, CaseIterable {
@@ -365,11 +371,150 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         ownerScopeProvider.setSignedInUserID(userID)
     }
 
+    func promoteGuestDataIfNeeded(to userID: UUID) async {
+        let promotionKey = "\(Keys.guestPromotionPrefix)\(userID.uuidString.lowercased())"
+        guard !userDefaults.bool(forKey: promotionKey) else { return }
+
+        let guestScope = LocalOwnerScope.guest.rawValue
+        let userScope = LocalOwnerScope.user(userID).rawValue
+
+        do {
+            let guestHabits = try modelContext.fetch(
+                FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.ownerScope == guestScope })
+            )
+            let userHabits = try modelContext.fetch(
+                FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.ownerScope == userScope })
+            )
+            var userHabitsByID = Dictionary(uniqueKeysWithValues: userHabits.map { ($0.id, $0) })
+            for guestHabit in guestHabits {
+                if let existing = userHabitsByID[guestHabit.id] {
+                    guard guestHabit.updatedAt > existing.updatedAt else { continue }
+                    existing.ownerScope = userScope
+                    existing.name = guestHabit.name
+                    existing.icon = guestHabit.icon
+                    existing.categoryRaw = guestHabit.categoryRaw
+                    existing.typeRaw = guestHabit.typeRaw
+                    existing.targetCount = guestHabit.targetCount
+                    existing.scheduleFrequency = guestHabit.scheduleFrequency
+                    existing.weekdaysISO = guestHabit.weekdaysISO
+                    existing.reminderHour = guestHabit.reminderHour
+                    existing.reminderMinute = guestHabit.reminderMinute
+                    existing.selectedDhikrKey = guestHabit.selectedDhikrKey
+                    existing.dhikrCountsJSON = guestHabit.dhikrCountsJSON
+                    existing.sortOrder = guestHabit.sortOrder
+                    existing.archived = guestHabit.archived
+                    existing.createdAt = min(existing.createdAt, guestHabit.createdAt)
+                    existing.updatedAt = guestHabit.updatedAt
+                    continue
+                }
+
+                let inserted = HabitEntity(
+                    id: guestHabit.id,
+                    ownerScope: userScope,
+                    name: guestHabit.name,
+                    icon: guestHabit.icon,
+                    categoryRaw: guestHabit.categoryRaw,
+                    typeRaw: guestHabit.typeRaw,
+                    targetCount: guestHabit.targetCount,
+                    scheduleFrequency: guestHabit.scheduleFrequency,
+                    weekdaysISO: guestHabit.weekdaysISO,
+                    reminderHour: guestHabit.reminderHour,
+                    reminderMinute: guestHabit.reminderMinute,
+                    selectedDhikrKey: guestHabit.selectedDhikrKey,
+                    dhikrCountsJSON: guestHabit.dhikrCountsJSON,
+                    sortOrder: guestHabit.sortOrder,
+                    archived: guestHabit.archived,
+                    createdAt: guestHabit.createdAt,
+                    updatedAt: guestHabit.updatedAt
+                )
+                modelContext.insert(inserted)
+                userHabitsByID[guestHabit.id] = inserted
+            }
+
+            let guestCompletions = try modelContext.fetch(
+                FetchDescriptor<CompletionEntity>(predicate: #Predicate { $0.ownerScope == guestScope })
+            )
+            let userCompletions = try modelContext.fetch(
+                FetchDescriptor<CompletionEntity>(predicate: #Predicate { $0.ownerScope == userScope })
+            )
+            var userCompletionsByID = Dictionary(uniqueKeysWithValues: userCompletions.map { ($0.id, $0) })
+            for guestCompletion in guestCompletions {
+                let userCompletionID = completionID(
+                    from: guestCompletion.id,
+                    sourceScope: guestScope,
+                    targetScope: userScope
+                )
+                if let existing = userCompletionsByID[userCompletionID] {
+                    guard guestCompletion.updatedAt > existing.updatedAt else { continue }
+                    existing.ownerScope = userScope
+                    existing.habitID = guestCompletion.habitID
+                    existing.dayDate = guestCompletion.dayDate
+                    existing.value = guestCompletion.value
+                    existing.completedAt = guestCompletion.completedAt
+                    existing.updatedAt = guestCompletion.updatedAt
+                    continue
+                }
+
+                let inserted = CompletionEntity(
+                    id: userCompletionID,
+                    ownerScope: userScope,
+                    habitID: guestCompletion.habitID,
+                    dayDate: guestCompletion.dayDate,
+                    value: guestCompletion.value,
+                    completedAt: guestCompletion.completedAt,
+                    updatedAt: guestCompletion.updatedAt
+                )
+                modelContext.insert(inserted)
+                userCompletionsByID[userCompletionID] = inserted
+            }
+
+            let guestSavedQuotes = try modelContext.fetch(
+                FetchDescriptor<SavedQuoteEntity>(predicate: #Predicate { $0.ownerScope == guestScope })
+            )
+            let userSavedQuotes = try modelContext.fetch(
+                FetchDescriptor<SavedQuoteEntity>(predicate: #Predicate { $0.ownerScope == userScope })
+            )
+            var userSavedQuotesByKey = Dictionary(
+                uniqueKeysWithValues: userSavedQuotes.map { (Self.savedQuoteMatchKey($0.quoteID), $0) }
+            )
+            for guestSavedQuote in guestSavedQuotes {
+                let savedQuoteKey = Self.savedQuoteMatchKey(guestSavedQuote.quoteID)
+                if let existing = userSavedQuotesByKey[savedQuoteKey] {
+                    guard guestSavedQuote.savedAt > existing.savedAt else { continue }
+                    existing.text = guestSavedQuote.text
+                    existing.author = guestSavedQuote.author
+                    existing.savedAt = guestSavedQuote.savedAt
+                    continue
+                }
+
+                let inserted = SavedQuoteEntity(
+                    id: UUID(),
+                    ownerScope: userScope,
+                    quoteID: guestSavedQuote.quoteID,
+                    text: guestSavedQuote.text,
+                    author: guestSavedQuote.author,
+                    savedAt: guestSavedQuote.savedAt
+                )
+                modelContext.insert(inserted)
+                userSavedQuotesByKey[savedQuoteKey] = inserted
+            }
+
+            try modelContext.save()
+            userDefaults.set(true, forKey: promotionKey)
+            logger.log(.syncFinished, metadata: ["scope": "sync_promote_guest_to_user", "status": "copied"])
+        } catch {
+            logger.log(
+                .storageFailure,
+                metadata: ["scope": "sync_promote_guest_to_user", "error": error.localizedDescription]
+            )
+        }
+    }
+
     func promoteLocalDataIfNeeded() async {
         guard let activeUserID else { return }
         let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
 
-        let key = "\(Keys.promotionPrefix)\(activeUserID.uuidString)"
+        let key = "\(Keys.outboxPromotionPrefix)\(activeUserID.uuidString.lowercased())"
         if userDefaults.bool(forKey: key) {
             return
         }
@@ -1109,6 +1254,21 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         let plain = ISO8601DateFormatter()
         plain.formatOptions = [.withInternetDateTime]
         return plain.date(from: value)
+    }
+
+    private func completionID(from existingID: String, sourceScope: String, targetScope: String) -> String {
+        let sourcePrefix = "\(sourceScope)|"
+        if existingID.hasPrefix(sourcePrefix) {
+            return "\(targetScope)|\(existingID.dropFirst(sourcePrefix.count))"
+        }
+        if let separator = existingID.firstIndex(of: "|") {
+            return "\(targetScope)|\(existingID[existingID.index(after: separator)...])"
+        }
+        return existingID
+    }
+
+    private static func savedQuoteMatchKey(_ quoteID: UUID?) -> String {
+        quoteID?.uuidString.lowercased() ?? "nil"
     }
 }
 

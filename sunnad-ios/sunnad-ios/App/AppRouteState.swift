@@ -1317,6 +1317,7 @@ final class AppRouteState: ObservableObject {
     }
 
     private func syncSignedInSession(_ sessionUser: SessionUser, trigger: SyncTrigger) async {
+        await dependencies.syncCoordinator.promoteGuestDataIfNeeded(to: sessionUser.id)
         await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
         await dependencies.syncCoordinator.setSignedInUserID(sessionUser.id)
         await dependencies.syncCoordinator.promoteLocalDataIfNeeded()
