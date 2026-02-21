@@ -502,9 +502,9 @@ final class AppRouteState: ObservableObject {
             do {
                 let sessionUser = try await dependencies.authService.updateUsername(username)
                 user = sessionUser.asUIUserState
-                await refreshProfileFromRemote(showErrors: true)
                 authErrorMessage = nil
                 authSuccessMessage = L10n.t("profile.edit.saved")
+                await refreshProfileFromRemote(showErrors: false)
             } catch {
                 authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
@@ -530,9 +530,9 @@ final class AppRouteState: ObservableObject {
                     mimeType: compressed.mimeType
                 )
                 user = sessionUser.asUIUserState
-                await refreshProfileFromRemote(showErrors: true)
                 authErrorMessage = nil
                 authSuccessMessage = L10n.t("profile.edit.avatar.updated")
+                await refreshProfileFromRemote(showErrors: false)
             } catch {
                 authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
@@ -549,9 +549,9 @@ final class AppRouteState: ObservableObject {
             do {
                 let sessionUser = try await dependencies.authService.removeAvatar()
                 user = sessionUser.asUIUserState
-                await refreshProfileFromRemote(showErrors: true)
                 authErrorMessage = nil
                 authSuccessMessage = L10n.t("profile.edit.avatar.removed")
+                await refreshProfileFromRemote(showErrors: false)
             } catch {
                 authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
