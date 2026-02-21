@@ -150,7 +150,7 @@ async function callGemini(args: {
     generationConfig: {
       responseMimeType: "application/json",
       temperature: 0.2,
-      maxOutputTokens: 512,
+      maxOutputTokens: 2048,
     },
   };
 
@@ -173,11 +173,17 @@ async function callGemini(args: {
     return json({ error: "Gemini response did not contain text" }, 502);
   }
 
+  // Strip potential markdown code blocks that Gemini sometimes wraps around JSON
+  const cleaned = text
+    .replace(/^```(?:json)?\s*\n?/i, "")
+    .replace(/\n?\s*```\s*$/i, "")
+    .trim();
+
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(cleaned);
   } catch {
-    return json({ error: "Gemini response is not valid JSON" }, 502);
+    return json({ error: "Gemini response is not valid JSON", raw_text: cleaned.substring(0, 200) }, 502);
   }
 
   if (!parsed || typeof parsed !== "object") {
@@ -203,6 +209,12 @@ function extractGeminiText(raw: unknown): string | null {
 
   const first = candidates[0];
   if (!first || typeof first !== "object") return null;
+
+  // Check finishReason — if MAX_TOKENS, the response was truncated
+  const finishReason = (first as Record<string, unknown>).finishReason;
+  if (finishReason === "MAX_TOKENS") {
+    console.warn("Gemini response truncated due to MAX_TOKENS");
+  }
 
   const content = (first as Record<string, unknown>).content;
   if (!content || typeof content !== "object") return null;
