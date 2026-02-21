@@ -121,6 +121,7 @@ struct SunnadRootView: View {
                     onDeleteData: state.deleteData,
                     onDeleteAccount: state.deleteAccount,
                     onRefresh: state.refreshProfile,
+                    debugDiagnosticsText: state.profileDebugDiagnosticsText,
                     privacyURL: state.privacyURL,
                     helpURL: state.helpURL
                 )

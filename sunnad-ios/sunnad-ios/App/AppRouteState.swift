@@ -107,6 +107,20 @@ final class AppRouteState: ObservableObject {
         dependencies.environment.oauthConfig.appleEnabled
     }
 
+    var profileDebugDiagnosticsText: String? {
+        #if DEBUG
+        let bundleID = Bundle.main.bundleIdentifier ?? "unknown.bundle"
+        let supabaseURL = dependencies.environment.supabaseConfig?.url
+        let host = supabaseURL?.host ?? "supabase-unconfigured"
+        let port = supabaseURL?.port.map(String.init) ?? ""
+        let endpoint = port.isEmpty ? host : "\(host):\(port)"
+        let namespace = dependencies.environment.storageNamespace
+        return "\(bundleID) | \(endpoint) | \(namespace)"
+        #else
+        return nil
+        #endif
+    }
+
     let todayViewModel: TodayViewModel
     let groupsViewModel: GroupsViewModel
     let profileViewModel: ProfileViewModel

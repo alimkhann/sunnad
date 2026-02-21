@@ -22,6 +22,7 @@ struct ProfileView: View {
     let onDeleteData: () -> Void
     let onDeleteAccount: () -> Void
     let onRefresh: () async -> Void
+    let debugDiagnosticsText: String?
     let privacyURL: URL
     let helpURL: URL
 
@@ -176,6 +177,14 @@ struct ProfileView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 8)
+
+            if let debugDiagnosticsText, !debugDiagnosticsText.isEmpty {
+                Text(debugDiagnosticsText)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .multilineTextAlignment(.center)
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
         .sunnadSolidBars()
