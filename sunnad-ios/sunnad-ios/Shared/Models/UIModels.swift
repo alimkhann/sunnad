@@ -386,6 +386,7 @@ struct UISharedHabit: Identifiable, Hashable {
 struct UIGroupMember: Identifiable, Hashable {
     let id: UUID
     var name: String
+    var avatarURL: URL?
     var completedToday: Int
     var totalSharedHabits: Int
     var sharedHabits: [UISharedHabit]
@@ -393,12 +394,14 @@ struct UIGroupMember: Identifiable, Hashable {
     init(
         id: UUID = UUID(),
         name: String,
+        avatarURL: URL? = nil,
         completedToday: Int,
         totalSharedHabits: Int,
         sharedHabits: [UISharedHabit]
     ) {
         self.id = id
         self.name = name
+        self.avatarURL = avatarURL
         self.completedToday = completedToday
         self.totalSharedHabits = totalSharedHabits
         self.sharedHabits = sharedHabits

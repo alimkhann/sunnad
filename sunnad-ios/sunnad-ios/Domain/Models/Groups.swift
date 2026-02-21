@@ -36,6 +36,7 @@ struct SharedHabit: Identifiable, Codable, Hashable, Sendable {
 struct GroupMember: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     var name: String
+    var avatarURL: URL?
     var completedToday: Int
     var totalSharedHabits: Int
     var sharedHabits: [SharedHabit]
@@ -43,12 +44,14 @@ struct GroupMember: Identifiable, Codable, Hashable, Sendable {
     init(
         id: UUID = UUID(),
         name: String,
+        avatarURL: URL? = nil,
         completedToday: Int,
         totalSharedHabits: Int,
         sharedHabits: [SharedHabit]
     ) {
         self.id = id
         self.name = name
+        self.avatarURL = avatarURL
         self.completedToday = completedToday
         self.totalSharedHabits = totalSharedHabits
         self.sharedHabits = sharedHabits

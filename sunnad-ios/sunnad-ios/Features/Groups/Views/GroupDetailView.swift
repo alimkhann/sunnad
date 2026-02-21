@@ -293,11 +293,7 @@ struct GroupDetailView: View {
                     VStack(spacing: 0) {
                         HStack(spacing: 0) {
                             HStack(spacing: 12) {
-                                Text(String(member.name.prefix(1)).uppercased())
-                                    .font(.headline.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 40, height: 40)
-                                    .background(Circle().fill(SunnadTheme.primary))
+                                memberAvatarView(member)
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(member.name)
@@ -567,6 +563,19 @@ struct GroupDetailView: View {
 
     private func canKick(member: UIGroupMember, isCurrentUser: Bool) -> Bool {
         isCurrentUserOwner && !isCurrentUser
+    }
+
+    @ViewBuilder
+    private func memberAvatarView(_ member: UIGroupMember) -> some View {
+        if let avatarURL = member.avatarURL {
+            CachedAvatarView(url: avatarURL, size: 40, placeholderPadding: 4)
+        } else {
+            Text(String(member.name.prefix(1)).uppercased())
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .background(Circle().fill(SunnadTheme.primary))
+        }
     }
 
     private var resolvedCurrentUserMemberID: UUID {

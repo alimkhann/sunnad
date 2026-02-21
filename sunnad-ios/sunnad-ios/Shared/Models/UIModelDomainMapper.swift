@@ -142,6 +142,7 @@ extension UIGroupMember {
         GroupMember(
             id: id,
             name: name,
+            avatarURL: avatarURL,
             completedToday: completedToday,
             totalSharedHabits: totalSharedHabits,
             sharedHabits: sharedHabits.map { $0.asDomainSharedHabit() }
@@ -154,6 +155,7 @@ extension GroupMember {
         UIGroupMember(
             id: id,
             name: name,
+            avatarURL: avatarURL,
             completedToday: completedToday,
             totalSharedHabits: totalSharedHabits,
             sharedHabits: sharedHabits.map { $0.asUISharedHabit() }

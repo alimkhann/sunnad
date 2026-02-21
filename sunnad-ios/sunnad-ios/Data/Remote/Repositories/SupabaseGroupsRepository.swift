@@ -66,6 +66,37 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
 
     private struct ProfileRow: Decodable {
         let username: String?
+        let avatarPath: String?
+        let updatedAtRaw: String?
+
+        var updatedAt: Date? {
+            Self.parseProfileTimestamp(updatedAtRaw)
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case username
+            case avatarPath = "avatar_path"
+            case updatedAtRaw = "updated_at"
+        }
+
+        private static func parseProfileTimestamp(_ rawValue: String?) -> Date? {
+            guard let rawValue, !rawValue.isEmpty else { return nil }
+
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let parsed = fractional.date(from: rawValue) {
+                return parsed
+            }
+
+            let plain = ISO8601DateFormatter()
+            plain.formatOptions = [.withInternetDateTime]
+            return plain.date(from: rawValue)
+        }
+    }
+
+    private struct ResolvedProfile {
+        let name: String
+        let avatarURL: URL?
     }
 
     private struct GroupMutationRow: Encodable {
@@ -111,7 +142,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         let currentUserID = try await requireCurrentUserID()
         let groupRows = try await fetchGroupRows()
 
-        var profileNames: [UUID: String] = [:]
+        var profilesByUserID: [UUID: ResolvedProfile] = [:]
         var habitsByID: [UUID: HabitRow] = [:]
         var completionCache: [String: Bool] = [:]
         let todayDate = Self.utcDayDateString(for: Date())
@@ -136,7 +167,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
 
                 for member in members {
                     let memberID = member.userID
-                    let memberName = try await resolveProfileName(for: memberID, cache: &profileNames)
+                    let profile = try await resolveProfile(for: memberID, cache: &profilesByUserID)
                     let memberSharedRows = sharedForGroup.filter { $0.userID == memberID }
 
                     var memberSharedHabits: [SharedHabit] = []
@@ -168,7 +199,8 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                     domainMembers.append(
                         GroupMember(
                             id: memberID,
-                            name: memberName,
+                            name: profile.name,
+                            avatarURL: profile.avatarURL,
                             completedToday: memberSharedHabits.filter(\.completedToday).count,
                             totalSharedHabits: memberSharedHabits.count,
                             sharedHabits: memberSharedHabits
@@ -442,23 +474,53 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         return try decoder.decode([GroupSharedHabitRow].self, from: response.data)
     }
 
-    private func resolveProfileName(for userID: UUID, cache: inout [UUID: String]) async throws -> String {
+    private func resolveProfile(for userID: UUID, cache: inout [UUID: ResolvedProfile]) async throws -> ResolvedProfile {
         if let cached = cache[userID] {
             return cached
         }
 
         let response = try await client
             .from("profiles")
-            .select("username")
+            .select("username, avatar_path, updated_at")
             .eq("id", value: userID)
             .limit(1)
             .execute()
 
         let row = try decoder.decode([ProfileRow].self, from: response.data).first
         let name = row?.username?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolved = (name?.isEmpty == false ? name : nil) ?? "Member"
+        let avatarURL = profileAvatarURL(from: row?.avatarPath, updatedAt: row?.updatedAt)
+        let resolved = ResolvedProfile(
+            name: (name?.isEmpty == false ? name : nil) ?? "Member",
+            avatarURL: avatarURL
+        )
         cache[userID] = resolved
         return resolved
+    }
+
+    private func profileAvatarURL(from avatarPath: String?, updatedAt: Date?) -> URL? {
+        guard let avatarPath, !avatarPath.isEmpty else {
+            return nil
+        }
+
+        if avatarPath.lowercased().hasPrefix("http://") || avatarPath.lowercased().hasPrefix("https://") {
+            return URL(string: avatarPath)
+        }
+
+        guard var publicURL = try? client.storage.from("avatars").getPublicURL(path: avatarPath, download: false) else {
+            return nil
+        }
+
+        if let updatedAt {
+            var components = URLComponents(url: publicURL, resolvingAgainstBaseURL: false)
+            var queryItems = components?.queryItems ?? []
+            queryItems.append(URLQueryItem(name: "v", value: String(Int(updatedAt.timeIntervalSince1970))))
+            components?.queryItems = queryItems
+            if let cacheBusted = components?.url {
+                publicURL = cacheBusted
+            }
+        }
+
+        return publicURL
     }
 
     private func resolveHabit(_ habitID: UUID, cache: inout [UUID: HabitRow]) async throws -> HabitRow? {

@@ -242,6 +242,7 @@ final class GroupsViewModel: ObservableObject {
             let updatedMe = UIGroupMember(
                 id: myMemberID,
                 name: user.name ?? L10n.t("groups.you"),
+                avatarURL: user.avatarURL,
                 completedToday: myHabits.filter(\.completedToday).count,
                 totalSharedHabits: myHabits.count,
                 sharedHabits: mySharedHabits
