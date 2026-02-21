@@ -93,11 +93,12 @@ export function WaitlistForm({ variant, locale, t }: WaitlistFormProps): ReactNo
             },
             body: JSON.stringify({
               email,
+              turnstile_token: token,
               locale,
               platform,
-              source: "landing",
+              variant,
               timezone,
-              turnstileToken: token,
+              referral_source: "landing",
             }),
           },
         );
@@ -114,11 +115,11 @@ export function WaitlistForm({ variant, locale, t }: WaitlistFormProps): ReactNo
           return;
         }
 
-        const data = (await res.json()) as { ok: boolean; status: string };
+        const data = (await res.json()) as { status: string };
 
-        if (data.ok && data.status === "already_subscribed") {
+        if (data.status === "already_subscribed") {
           setStatus("already_subscribed");
-        } else if (data.ok) {
+        } else if (data.status === "subscribed") {
           setStatus("success");
         } else {
           setStatus("error");
@@ -226,5 +227,5 @@ function detectPlatform(): string {
   const ua = navigator.userAgent;
   if (/iPhone|iPad|iPod/.test(ua)) return "ios";
   if (/Android/.test(ua)) return "android";
-  return "web";
+  return "unknown";
 }
