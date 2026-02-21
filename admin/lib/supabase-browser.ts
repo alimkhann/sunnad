@@ -17,6 +17,7 @@ export function getSupabaseBrowserClient(): ReturnType<typeof createClient> | nu
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      flowType: "pkce",
     },
   });
 

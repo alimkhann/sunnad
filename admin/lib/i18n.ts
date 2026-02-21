@@ -28,6 +28,7 @@ export type Dictionary = {
     hint: string;
     empty: string;
     pinnedDays: string;
+    missing: string;
   };
   editor: {
     createTitle: string;
@@ -106,11 +107,12 @@ const dictionaries: Record<Locale, Dictionary> = {
       hint: "Select an existing set or create a new one.",
       empty: "No quote sets yet.",
       pinnedDays: "Pinned days",
+      missing: "(missing)",
     },
     editor: {
       createTitle: "Create quote set",
       editTitle: "Edit quote set",
-      hint: "Kazakh is primary. EN/RU can be generated then edited.",
+      hint: "Enter any language first. Other translations can be auto-generated.",
       statusLabel: "Status",
       quotePlaceholder: "Quote text",
       sourcePlaceholder: "Source (optional)",
@@ -130,7 +132,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       refresh: "Refresh",
       signOut: "Sign out",
       newSet: "New set",
-      generateDrafts: "Generate EN/RU drafts",
+      generateDrafts: "Generate translations",
       createSet: "Create",
       saveChanges: "Save",
       approve: "Approve",
@@ -158,7 +160,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       unpinFailed: "Could not remove day override.",
       selectSetFirst: "Select or create a quote set first.",
       dayRequired: "Select a date first.",
-      kazakhRequired: "Kazakh quote is required.",
+      kazakhRequired: "At least one translation is required.",
     },
     translationContext: "Translate for a respectful Islamic habits app. Keep meaning faithful.",
   },
@@ -182,11 +184,12 @@ const dictionaries: Record<Locale, Dictionary> = {
       hint: "Выберите существующий набор или создайте новый.",
       empty: "Наборов пока нет.",
       pinnedDays: "Закреплённые дни",
+      missing: "(отсутствует)",
     },
     editor: {
       createTitle: "Создать набор цитат",
       editTitle: "Редактировать набор цитат",
-      hint: "Основной язык — казахский. EN/RU можно сгенерировать и править.",
+      hint: "Введите текст на любом языке. Остальные можно сгенерировать.",
       statusLabel: "Статус",
       quotePlaceholder: "Текст цитаты",
       sourcePlaceholder: "Источник (необязательно)",
@@ -206,7 +209,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       refresh: "Обновить",
       signOut: "Выйти",
       newSet: "Новый набор",
-      generateDrafts: "Сгенерировать EN/RU",
+      generateDrafts: "Сгенерировать переводы",
       createSet: "Создать",
       saveChanges: "Сохранить",
       approve: "Утвердить",
@@ -234,7 +237,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       unpinFailed: "Не удалось снять закрепление дня.",
       selectSetFirst: "Сначала выберите или создайте набор.",
       dayRequired: "Сначала выберите дату.",
-      kazakhRequired: "Текст на казахском обязателен.",
+      kazakhRequired: "Нужна хотя бы одна цитата на любом языке.",
     },
     translationContext: "Перевод для исламского приложения привычек. Сохраняй точный смысл.",
   },
@@ -258,11 +261,12 @@ const dictionaries: Record<Locale, Dictionary> = {
       hint: "Бар жиынды таңдаңыз немесе жаңасын жасаңыз.",
       empty: "Әзірге жиын жоқ.",
       pinnedDays: "Бекітілген күндер",
+      missing: "(жоқ)",
     },
     editor: {
       createTitle: "Дәйексөз жиынын құру",
       editTitle: "Дәйексөз жиынын өңдеу",
-      hint: "Негізгі тіл — қазақша. EN/RU нобайларын жасап, өңдеуге болады.",
+      hint: "Кез келген тілде мәтін енгізіңіз. Қалғандарын автоматты жасауға болады.",
       statusLabel: "Күйі",
       quotePlaceholder: "Дәйексөз мәтіні",
       sourcePlaceholder: "Дереккөз (міндетті емес)",
@@ -282,7 +286,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       refresh: "Жаңарту",
       signOut: "Шығу",
       newSet: "Жаңа жиын",
-      generateDrafts: "EN/RU нобайын жасау",
+      generateDrafts: "Аудармалар жасау",
       createSet: "Құру",
       saveChanges: "Сақтау",
       approve: "Бекіту",
@@ -310,7 +314,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       unpinFailed: "Күн бекітуді алып тастау мүмкін болмады.",
       selectSetFirst: "Алдымен жиынды таңдаңыз немесе жасаңыз.",
       dayRequired: "Алдымен күнді таңдаңыз.",
-      kazakhRequired: "Қазақша мәтін міндетті.",
+      kazakhRequired: "Кемінде бір тілде мәтін керек.",
     },
     translationContext: "Исламдық әдеттер қосымшасына арналған аударма. Мағынасын дәл сақта.",
   },

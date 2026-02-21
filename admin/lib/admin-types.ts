@@ -30,7 +30,18 @@ export type QuoteCollectionResponse = {
 };
 
 export type TranslateResponse = {
-  en: string;
-  ru: string;
+  en?: string;
+  ru?: string;
+  kk?: string;
   model: string;
+};
+
+export type TranslatePayload = {
+  /** @deprecated use text + source_locale */
+  text_kk?: string;
+  text?: string;
+  source_locale?: QuoteLocale;
+  target_locales?: QuoteLocale[];
+  source?: string;
+  context?: string;
 };

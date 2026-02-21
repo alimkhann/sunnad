@@ -41,7 +41,7 @@ export async function unpinQuoteDay(params: AuthHeaderParams, day: string): Prom
 
 export async function generateDraftTranslations(
   params: AuthHeaderParams,
-  payload: { text_kk: string; source?: string; context?: string },
+  payload: { text_kk?: string; text?: string; source_locale?: string; target_locales?: string[]; source?: string; context?: string },
 ): Promise<TranslateResponse> {
   return request<TranslateResponse>("POST", "/translate-quote", params, payload);
 }

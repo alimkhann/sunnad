@@ -142,7 +142,7 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
       draft: translations[lang].draft,
     }));
 
-    if (!payloadTranslations.find((item) => item.locale === "kk")?.text.trim()) {
+    if (!payloadTranslations.some((item) => item.text.trim())) {
       setError(t.errors.kazakhRequired);
       return;
     }
@@ -186,7 +186,7 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
       const { error: signInError } = await supabase.auth.signInWithOtp({
         email: loginEmail.trim(),
         options: {
-          emailRedirectTo: typeof window !== "undefined" ? window.location.href : undefined,
+          emailRedirectTo: typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined,
         },
       });
 
@@ -223,11 +223,25 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
 
   const generateDrafts = useCallback(async () => {
     if (!accessToken) return;
-    const kazakh = translations.kk.text.trim();
-    if (!kazakh) {
+
+    // Determine source locale: prefer KK, fall back to EN, then RU
+    let sourceLocale: QuoteLocale | null = null;
+    let sourceText = "";
+    for (const lang of localeOrder) {
+      const text = translations[lang].text.trim();
+      if (text) {
+        sourceLocale = lang;
+        sourceText = text;
+        break;
+      }
+    }
+
+    if (!sourceLocale || !sourceText) {
       setError(t.errors.kazakhRequired);
       return;
     }
+
+    const targetLocales = localeOrder.filter((l) => l !== sourceLocale);
 
     setBusy(true);
     setError(null);
@@ -235,17 +249,24 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
       const result = await generateDraftTranslations(
         { accessToken },
         {
-          text_kk: kazakh,
-          source: translations.kk.source,
+          text: sourceText,
+          source_locale: sourceLocale,
+          target_locales: targetLocales,
+          source: translations[sourceLocale].source || undefined,
           context: t.translationContext,
         },
       );
 
-      setTranslations((current) => ({
-        ...current,
-        en: { ...current.en, text: result.en },
-        ru: { ...current.ru, text: result.ru },
-      }));
+      setTranslations((current) => {
+        const next = { ...current };
+        for (const lang of targetLocales) {
+          const value = result[lang];
+          if (value) {
+            next[lang] = { ...current[lang], text: value };
+          }
+        }
+        return next;
+      });
 
       setNotice(t.messages.translated);
     } catch (err) {
@@ -253,7 +274,7 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
     } finally {
       setBusy(false);
     }
-  }, [accessToken, t.errors.kazakhRequired, t.errors.translationFailed, t.messages.translated, t.translationContext, translations.kk.source, translations.kk.text]);
+  }, [accessToken, t.errors.kazakhRequired, t.errors.translationFailed, t.messages.translated, t.translationContext, translations]);
 
   const approve = useCallback(async () => {
     if (!accessToken || !selectedSetID) return;
@@ -404,7 +425,22 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
                     <p className="font-medium">{setRow.id.slice(0, 8).toUpperCase()}</p>
                     <span className="text-xs uppercase tracking-wide text-muted-foreground">{t.status[setRow.status]}</span>
                   </div>
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{previewText(setRow)}</p>
+                  <div className="mt-1.5 space-y-1">
+                    {localeOrder.map((lang) => {
+                      const tr = setRow.translations.find((item) => item.locale === lang);
+                      const text = tr?.text?.trim();
+                      return (
+                        <div key={lang} className="flex items-start gap-1.5 text-sm">
+                          <span className={`shrink-0 text-xs font-semibold uppercase ${text ? "text-muted-foreground" : "text-red-400/70"}`}>
+                            {lang}
+                          </span>
+                          <p className={`line-clamp-1 ${text ? "text-muted-foreground" : "italic text-red-400/50"}`}>
+                            {text || t.list.missing}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
                   {setRow.override_days.length > 0 ? (
                     <p className="mt-1 text-xs text-primary">{t.list.pinnedDays}: {setRow.override_days.join(", ")}</p>
                   ) : null}
