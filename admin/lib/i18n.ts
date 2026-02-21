@@ -27,6 +27,17 @@ export type Dictionary = {
     signInWithPassword: string;
     orUseMagicLink: string;
     orUsePassword: string;
+    setPasswordTitle: string;
+    newPassword: string;
+    newPasswordPlaceholder: string;
+    confirmPassword: string;
+    confirmPasswordPlaceholder: string;
+    setPassword: string;
+    passwordSet: string;
+    passwordMismatch: string;
+    passwordTooShort: string;
+    setPasswordFailed: string;
+    sessionExpired: string;
   };
   list: {
     title: string;
@@ -124,6 +135,17 @@ const dictionaries: Record<Locale, Dictionary> = {
       signInWithPassword: "Sign in with password",
       orUseMagicLink: "or use magic link",
       orUsePassword: "or use password",
+      setPasswordTitle: "Set password",
+      newPassword: "New password",
+      newPasswordPlaceholder: "At least 8 characters",
+      confirmPassword: "Confirm password",
+      confirmPasswordPlaceholder: "Re-enter password",
+      setPassword: "Set password",
+      passwordSet: "Password set successfully. You can now sign in with password.",
+      passwordMismatch: "Passwords do not match.",
+      passwordTooShort: "Password must be at least 8 characters.",
+      setPasswordFailed: "Could not set password.",
+      sessionExpired: "Session expired. Please sign in again.",
     },
     list: {
       title: "Quote Sets",
@@ -222,6 +244,17 @@ const dictionaries: Record<Locale, Dictionary> = {
       signInWithPassword: "Войти с паролем",
       orUseMagicLink: "или через magic link",
       orUsePassword: "или через пароль",
+      setPasswordTitle: "Установить пароль",
+      newPassword: "Новый пароль",
+      newPasswordPlaceholder: "Минимум 8 символов",
+      confirmPassword: "Подтвердите пароль",
+      confirmPasswordPlaceholder: "Повторите пароль",
+      setPassword: "Установить пароль",
+      passwordSet: "Пароль установлен. Теперь можно входить по паролю.",
+      passwordMismatch: "Пароли не совпадают.",
+      passwordTooShort: "Пароль должен быть не менее 8 символов.",
+      setPasswordFailed: "Не удалось установить пароль.",
+      sessionExpired: "Сессия истекла. Войдите снова.",
     },
     list: {
       title: "Наборы цитат",
@@ -320,6 +353,17 @@ const dictionaries: Record<Locale, Dictionary> = {
       signInWithPassword: "Құпия сөзбен кіру",
       orUseMagicLink: "немесе magic link арқылы",
       orUsePassword: "немесе құпия сөз арқылы",
+      setPasswordTitle: "Құпия сөз орнату",
+      newPassword: "Жаңа құпия сөз",
+      newPasswordPlaceholder: "Кемінде 8 таңба",
+      confirmPassword: "Құпия сөзді растау",
+      confirmPasswordPlaceholder: "Құпия сөзді қайта енгізіңіз",
+      setPassword: "Құпия сөзді орнату",
+      passwordSet: "Құпия сөз орнатылды. Енді құпия сөзбен кіруге болады.",
+      passwordMismatch: "Құпия сөздер сәйкес келмейді.",
+      passwordTooShort: "Құпия сөз кемінде 8 таңба болуы керек.",
+      setPasswordFailed: "Құпия сөзді орнату мүмкін болмады.",
+      sessionExpired: "Сессия мерзімі аяқталды. Қайта кіріңіз.",
     },
     list: {
       title: "Дәйексөз жиындары",

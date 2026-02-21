@@ -98,6 +98,11 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
   const [loginPassword, setLoginPassword] = useState("");
   const [authMode, setAuthMode] = useState<"magic" | "password">("password");
 
+  // Set password form
+  const [showSetPassword, setShowSetPassword] = useState(false);
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+
   // Loading / feedback
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -211,7 +216,22 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
     if (!supabase) return;
     const bootstrap = async (): Promise<void> => {
       const { data } = await supabase.auth.getSession();
-      setSession(data.session);
+      if (data.session) {
+        // Validate the token server-side; triggers refresh if needed
+        const { error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          // Token expired and refresh failed → sign out cleanly
+          await supabase.auth.signOut();
+          setSession(null);
+          setError(t.auth.sessionExpired);
+          return;
+        }
+        // After getUser() the client may have refreshed the token – re-read
+        const { data: freshData } = await supabase.auth.getSession();
+        setSession(freshData.session);
+      } else {
+        setSession(null);
+      }
     };
     void bootstrap();
     const {
@@ -334,6 +354,34 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
       setBusy(false);
     }
   }, [supabase, t, showNotice]);
+
+  const handleSetPassword = useCallback(async () => {
+    if (!supabase) return;
+    if (newPw.length < 8) {
+      setError(t.auth.passwordTooShort);
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setError(t.auth.passwordMismatch);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPw,
+      });
+      if (updateError) throw updateError;
+      setNewPw("");
+      setConfirmPw("");
+      setShowSetPassword(false);
+      showNotice(t.auth.passwordSet);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.auth.setPasswordFailed);
+    } finally {
+      setBusy(false);
+    }
+  }, [supabase, newPw, confirmPw, t, showNotice]);
 
   const generateDrafts = useCallback(async () => {
     if (!accessToken) return;
@@ -687,8 +735,56 @@ export function QuotesAdminClient({ locale, t }: Props): React.JSX.Element {
           >
             {t.actions.signOut}
           </Button>
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setShowSetPassword((v) => !v)}
+          >
+            🔑
+          </button>
         </div>
       </header>
+
+      {/* Set password inline form */}
+      {showSetPassword && (
+        <div className="rounded-md border border-border/70 bg-muted/30 p-4">
+          <p className="mb-3 text-sm font-semibold">{t.auth.setPasswordTitle}</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="new-pw" className="text-xs">{t.auth.newPassword}</Label>
+              <Input
+                id="new-pw"
+                type="password"
+                value={newPw}
+                onChange={(e) => setNewPw(e.target.value)}
+                placeholder={t.auth.newPasswordPlaceholder}
+                className="w-52"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="confirm-pw" className="text-xs">{t.auth.confirmPassword}</Label>
+              <Input
+                id="confirm-pw"
+                type="password"
+                value={confirmPw}
+                onChange={(e) => setConfirmPw(e.target.value)}
+                placeholder={t.auth.confirmPasswordPlaceholder}
+                className="w-52"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void handleSetPassword();
+                }}
+              />
+            </div>
+            <Button
+              size="sm"
+              disabled={busy || !newPw || !confirmPw}
+              onClick={() => void handleSetPassword()}
+            >
+              {t.auth.setPassword}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Content grid */}
       <section className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
