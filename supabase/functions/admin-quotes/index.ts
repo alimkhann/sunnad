@@ -95,6 +95,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return await handleApproveQuoteSet(auth, setID);
     }
 
+    if (req.method === "DELETE" && path.startsWith("/quotes/") && !path.includes("day-override")) {
+      const setID = path.replace("/quotes/", "").trim();
+      if (!setID) return json({ error: "Missing set id" }, 400);
+      return await handleDeleteQuoteSet(auth, setID);
+    }
+
+    if (req.method === "POST" && path === "/quotes/verify-source") {
+      return await handleVerifySource(req);
+    }
+
     if (req.method === "POST" && path === "/quotes/day-override") {
       return await handleUpsertDayOverride(req, auth);
     }
@@ -247,6 +257,119 @@ async function handlePatchQuoteSet(req: Request, auth: AuthContext, setID: strin
   }
 
   return json({ ok: true }, 200);
+}
+
+async function handleDeleteQuoteSet(auth: AuthContext, setID: string): Promise<Response> {
+  // Check that the set exists
+  const existing = await auth.admin
+    .from("quote_sets")
+    .select("id")
+    .eq("id", setID)
+    .maybeSingle();
+
+  if (existing.error) {
+    return json({ error: existing.error.message }, 500);
+  }
+  if (!existing.data) {
+    return json({ error: "Quote set not found" }, 404);
+  }
+
+  // Delete the set – child quotes are cascade-deleted via FK
+  const deleteResult = await auth.admin.from("quote_sets").delete().eq("id", setID);
+  if (deleteResult.error) {
+    return json({ error: deleteResult.error.message }, 500);
+  }
+
+  return json({ ok: true }, 200);
+}
+
+async function handleVerifySource(req: Request): Promise<Response> {
+  let body: { quote_text: string; source: string };
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const quoteText = body.quote_text?.trim();
+  const source = body.source?.trim();
+
+  if (!quoteText) {
+    return json({ error: "quote_text is required" }, 400);
+  }
+
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
+
+  if (!apiKey) {
+    return json({ error: "GEMINI_API_KEY is not configured" }, 500);
+  }
+
+  const prompt = [
+    "You are a scholarly fact-checker for Islamic quotes.",
+    "Verify whether the following quote is authentic and correctly attributed.",
+    "Search the web for reliable Islamic scholarship sources.",
+    "Provide: 1) Whether the attribution is likely CORRECT, INCORRECT, or UNCERTAIN",
+    "2) The most likely correct source if different",
+    "3) Brief evidence from web sources",
+    "Be concise (max 200 words).",
+    "",
+    `Quote: "${quoteText}"`,
+    source ? `Claimed source: ${source}` : "Source: not provided — try to identify the correct source",
+  ].join("\n");
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const geminiBody = {
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    tools: [{ google_search: {} }],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 1024,
+    },
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(geminiBody),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      return json({ error: `Gemini request failed: ${errText.substring(0, 300)}` }, 502);
+    }
+
+    const raw = await response.json();
+    const candidates = raw?.candidates;
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return json({ error: "No response from Gemini" }, 502);
+    }
+
+    const first = candidates[0];
+    const parts = first?.content?.parts;
+    let text = "";
+    if (Array.isArray(parts)) {
+      text = parts.map((p: { text?: string }) => p.text ?? "").join("\n").trim();
+    }
+
+    // Extract grounding metadata if present
+    const groundingMetadata = first?.groundingMetadata;
+    const searchQueries = groundingMetadata?.searchEntryPoint?.renderedContent ? true : false;
+    const groundingSupports = groundingMetadata?.groundingSupports ?? [];
+    const webSearchQueries = groundingMetadata?.webSearchQueries ?? [];
+
+    return json({
+      verification: text,
+      grounded: searchQueries || groundingSupports.length > 0,
+      search_queries: webSearchQueries,
+    }, 200);
+
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return json({ error: `Verification failed: ${message}` }, 502);
+  }
 }
 
 async function handleApproveQuoteSet(auth: AuthContext, setID: string): Promise<Response> {

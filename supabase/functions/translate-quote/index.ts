@@ -12,12 +12,17 @@ type TranslatePayload = {
   /** Target locales to translate into (default: complement of source_locale) */
   target_locales?: SupportedLocale[];
   source?: string;
+  /** Source attribution text to translate alongside the quote */
+  source_text?: string;
   context?: string;
 };
 
 type TranslateResponse = {
   [K in SupportedLocale]?: string;
-} & { model: string };
+} & {
+  sources?: { [K in SupportedLocale]?: string };
+  model: string;
+};
 
 type AuthContext = {
   userID: string;
@@ -56,9 +61,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // Backwards-compat: text_kk → text + source_locale=kk
   const sourceLocale: SupportedLocale = payload.source_locale ?? "kk";
-  const sourceText = normalizeText(payload.text ?? payload.text_kk);
+  const mainText = normalizeText(payload.text ?? payload.text_kk);
 
-  if (!sourceText) {
+  if (!mainText) {
     return json({ error: "text (or text_kk) is required" }, 400);
   }
 
@@ -75,6 +80,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const source = normalizeText(payload.source);
+  const sourceText = normalizeText(payload.source_text);
   const context = normalizeText(payload.context);
 
   const apiKey = Deno.env.get("GEMINI_API_KEY");
@@ -84,8 +90,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ error: "GEMINI_API_KEY is not configured" }, 500);
   }
 
-  const prompt = buildPrompt({ sourceText, sourceLocale, targetLocales, source, context });
-  const result = await callGemini({ prompt, apiKey, model, targetLocales });
+  const prompt = buildPrompt({ sourceText: mainText, sourceLocale, targetLocales, source, context, sourceAttribution: sourceText });
+  const result = await callGemini({ prompt, apiKey, model, targetLocales, hasSourceAttribution: !!sourceText });
 
   if (result instanceof Response) {
     return result;
@@ -106,6 +112,7 @@ function buildPrompt(input: {
   targetLocales: SupportedLocale[];
   source: string | null;
   context: string | null;
+  sourceAttribution: string | null;
 }): string {
   const contextLine = input.context
     ? `Context from editor: ${input.context}`
@@ -118,18 +125,38 @@ function buildPrompt(input: {
   const targetNames = input.targetLocales.map((l) => `${LOCALE_NAMES[l]} (${l})`).join(", ");
   const outputKeys = input.targetLocales.join(", ");
 
-  return [
+  const lines = [
     "You are translating Islamic motivational quotes for a mobile habit app.",
     "Preserve meaning, tone, and respectfulness. Avoid slang or loose paraphrasing.",
     "If the text has religious wording, keep faithful terms and avoid changing doctrinal meaning.",
-    `Output strict JSON only with keys: ${outputKeys}.`,
+  ];
+
+  if (input.sourceAttribution) {
+    lines.push(
+      `Output strict JSON only with keys: ${outputKeys}, sources.`,
+      `The "sources" key must be an object with keys: ${outputKeys} containing translated versions of the source attribution.`,
+      "Keep honorifics like \u{FDFA} (\u{FE0E}) as-is. Do not translate proper names (e.g. Prophet Muhammad). Translate descriptive parts only.",
+    );
+  } else {
+    lines.push(
+      `Output strict JSON only with keys: ${outputKeys}.`,
+    );
+  }
+
+  lines.push(
     "No markdown, no explanations, no extra keys.",
     contextLine,
     sourceLine,
     `Source language: ${LOCALE_NAMES[input.sourceLocale]}`,
     `Target languages: ${targetNames}`,
     `Quote: ${input.sourceText}`,
-  ].join("\n");
+  );
+
+  if (input.sourceAttribution) {
+    lines.push(`Source attribution to translate: ${input.sourceAttribution}`);
+  }
+
+  return lines.join("\n");
 }
 
 async function callGemini(args: {
@@ -137,6 +164,7 @@ async function callGemini(args: {
   apiKey: string;
   model: string;
   targetLocales: SupportedLocale[];
+  hasSourceAttribution: boolean;
 }): Promise<TranslateResponse | Response> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${args.model}:generateContent?key=${args.apiKey}`;
 
@@ -197,6 +225,23 @@ async function callGemini(args: {
       return json({ error: `Gemini response must include non-empty ${locale}` }, 502);
     }
     result[locale] = value;
+  }
+
+  // Parse source translations if requested
+  if (args.hasSourceAttribution) {
+    const sourcesRaw = (parsed as Record<string, unknown>).sources;
+    if (sourcesRaw && typeof sourcesRaw === "object") {
+      const sources: Record<string, string> = {};
+      for (const locale of args.targetLocales) {
+        const value = normalizeText((sourcesRaw as Record<string, unknown>)[locale]);
+        if (value) {
+          sources[locale] = value;
+        }
+      }
+      if (Object.keys(sources).length > 0) {
+        result.sources = sources as TranslateResponse["sources"];
+      }
+    }
   }
 
   return result;

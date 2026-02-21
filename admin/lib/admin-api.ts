@@ -1,5 +1,5 @@
 import { adminConfig } from "@/lib/config";
-import type { QuoteCollectionResponse, QuoteStatus, QuoteTranslation, TranslateResponse } from "@/lib/admin-types";
+import type { QuoteCollectionResponse, QuoteStatus, QuoteTranslation, TranslateResponse, VerifySourceResponse } from "@/lib/admin-types";
 
 const baseFunctionURL = `${adminConfig.supabaseURL.replace(/\/$/, "")}/functions/v1`;
 
@@ -28,6 +28,17 @@ export async function approveQuoteSet(params: AuthHeaderParams, setID: string): 
   await request("POST", `/admin-quotes/quotes/${setID}/approve`, params);
 }
 
+export async function deleteQuoteSet(params: AuthHeaderParams, setID: string): Promise<void> {
+  await request("DELETE", `/admin-quotes/quotes/${setID}`, params);
+}
+
+export async function verifyQuoteSource(
+  params: AuthHeaderParams,
+  payload: { quote_text: string; source?: string },
+): Promise<VerifySourceResponse> {
+  return request<VerifySourceResponse>("POST", "/admin-quotes/quotes/verify-source", params, payload);
+}
+
 export async function pinQuoteDay(params: AuthHeaderParams, day: string, quoteSetID: string): Promise<void> {
   await request("POST", "/admin-quotes/quotes/day-override", params, {
     day_date: day,
@@ -41,7 +52,7 @@ export async function unpinQuoteDay(params: AuthHeaderParams, day: string): Prom
 
 export async function generateDraftTranslations(
   params: AuthHeaderParams,
-  payload: { text_kk?: string; text?: string; source_locale?: string; target_locales?: string[]; source?: string; context?: string },
+  payload: { text_kk?: string; text?: string; source_locale?: string; target_locales?: string[]; source?: string; source_text?: string; context?: string },
 ): Promise<TranslateResponse> {
   return request<TranslateResponse>("POST", "/translate-quote", params, payload);
 }

@@ -33,6 +33,7 @@ export type TranslateResponse = {
   en?: string;
   ru?: string;
   kk?: string;
+  sources?: { en?: string; ru?: string; kk?: string };
   model: string;
 };
 
@@ -43,5 +44,12 @@ export type TranslatePayload = {
   source_locale?: QuoteLocale;
   target_locales?: QuoteLocale[];
   source?: string;
+  source_text?: string;
   context?: string;
+};
+
+export type VerifySourceResponse = {
+  verification: string;
+  grounded: boolean;
+  search_queries: string[];
 };

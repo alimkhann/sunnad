@@ -22,6 +22,11 @@ export type Dictionary = {
     emailLabel: string;
     emailPlaceholder: string;
     sendMagicLink: string;
+    passwordLabel: string;
+    passwordPlaceholder: string;
+    signInWithPassword: string;
+    orUseMagicLink: string;
+    orUsePassword: string;
   };
   list: {
     title: string;
@@ -29,6 +34,10 @@ export type Dictionary = {
     empty: string;
     pinnedDays: string;
     missing: string;
+    filterAll: string;
+    filterDraft: string;
+    filterApproved: string;
+    filterArchived: string;
   };
   editor: {
     createTitle: string;
@@ -59,6 +68,9 @@ export type Dictionary = {
     approve: string;
     pinDay: string;
     unpinDay: string;
+    delete: string;
+    archive: string;
+    verifySource: string;
   };
   messages: {
     magicLinkSent: string;
@@ -69,6 +81,9 @@ export type Dictionary = {
     approved: string;
     dayPinned: string;
     dayUnpinned: string;
+    deleted: string;
+    confirmDelete: string;
+    confirmDeleteHint: string;
   };
   errors: {
     signInFailed: string;
@@ -82,6 +97,8 @@ export type Dictionary = {
     selectSetFirst: string;
     dayRequired: string;
     kazakhRequired: string;
+    deleteFailed: string;
+    verifyFailed: string;
   };
   translationContext: string;
 };
@@ -101,6 +118,11 @@ const dictionaries: Record<Locale, Dictionary> = {
       emailLabel: "Admin email",
       emailPlaceholder: "editor@example.com",
       sendMagicLink: "Send magic link",
+      passwordLabel: "Password",
+      passwordPlaceholder: "Enter password",
+      signInWithPassword: "Sign in with password",
+      orUseMagicLink: "or use magic link",
+      orUsePassword: "or use password",
     },
     list: {
       title: "Quote Sets",
@@ -108,6 +130,10 @@ const dictionaries: Record<Locale, Dictionary> = {
       empty: "No quote sets yet.",
       pinnedDays: "Pinned days",
       missing: "(missing)",
+      filterAll: "All",
+      filterDraft: "Drafts",
+      filterApproved: "Approved",
+      filterArchived: "Archived",
     },
     editor: {
       createTitle: "Create quote set",
@@ -138,6 +164,9 @@ const dictionaries: Record<Locale, Dictionary> = {
       approve: "Approve",
       pinDay: "Pin day",
       unpinDay: "Unpin day",
+      delete: "Delete",
+      archive: "Archive",
+      verifySource: "Verify source",
     },
     messages: {
       magicLinkSent: "Magic link sent to your email.",
@@ -148,6 +177,9 @@ const dictionaries: Record<Locale, Dictionary> = {
       approved: "Quote set approved.",
       dayPinned: "Day override saved.",
       dayUnpinned: "Day override removed.",
+      deleted: "Quote set permanently deleted.",
+      confirmDelete: "Permanently delete this quote set?",
+      confirmDeleteHint: "This cannot be undone. The quote and all translations will be removed from the database.",
     },
     errors: {
       signInFailed: "Sign in failed.",
@@ -161,6 +193,8 @@ const dictionaries: Record<Locale, Dictionary> = {
       selectSetFirst: "Select or create a quote set first.",
       dayRequired: "Select a date first.",
       kazakhRequired: "At least one translation is required.",
+      deleteFailed: "Could not delete quote set.",
+      verifyFailed: "Could not verify source.",
     },
     translationContext: "Translate for a respectful Islamic habits app. Keep meaning faithful.",
   },
@@ -178,6 +212,11 @@ const dictionaries: Record<Locale, Dictionary> = {
       emailLabel: "Email администратора",
       emailPlaceholder: "editor@example.com",
       sendMagicLink: "Отправить magic link",
+      passwordLabel: "Пароль",
+      passwordPlaceholder: "Введите пароль",
+      signInWithPassword: "Войти с паролем",
+      orUseMagicLink: "или через magic link",
+      orUsePassword: "или через пароль",
     },
     list: {
       title: "Наборы цитат",
@@ -185,6 +224,10 @@ const dictionaries: Record<Locale, Dictionary> = {
       empty: "Наборов пока нет.",
       pinnedDays: "Закреплённые дни",
       missing: "(отсутствует)",
+      filterAll: "Все",
+      filterDraft: "Черновики",
+      filterApproved: "Утверждённые",
+      filterArchived: "Архив",
     },
     editor: {
       createTitle: "Создать набор цитат",
@@ -215,6 +258,9 @@ const dictionaries: Record<Locale, Dictionary> = {
       approve: "Утвердить",
       pinDay: "Закрепить день",
       unpinDay: "Снять закрепление",
+      delete: "Удалить",
+      archive: "Архивировать",
+      verifySource: "Проверить источник",
     },
     messages: {
       magicLinkSent: "Magic link отправлен на email.",
@@ -225,6 +271,9 @@ const dictionaries: Record<Locale, Dictionary> = {
       approved: "Набор цитат утверждён.",
       dayPinned: "Закрепление дня сохранено.",
       dayUnpinned: "Закрепление дня удалено.",
+      deleted: "Набор цитат удалён навсегда.",
+      confirmDelete: "Удалить этот набор цитат навсегда?",
+      confirmDeleteHint: "Это действие нельзя отменить. Цитата и все переводы будут удалены из базы данных.",
     },
     errors: {
       signInFailed: "Ошибка входа.",
@@ -238,6 +287,8 @@ const dictionaries: Record<Locale, Dictionary> = {
       selectSetFirst: "Сначала выберите или создайте набор.",
       dayRequired: "Сначала выберите дату.",
       kazakhRequired: "Нужна хотя бы одна цитата на любом языке.",
+      deleteFailed: "Не удалось удалить набор цитат.",
+      verifyFailed: "Не удалось проверить источник.",
     },
     translationContext: "Перевод для исламского приложения привычек. Сохраняй точный смысл.",
   },
@@ -255,6 +306,11 @@ const dictionaries: Record<Locale, Dictionary> = {
       emailLabel: "Әкімші email",
       emailPlaceholder: "editor@example.com",
       sendMagicLink: "Magic link жіберу",
+      passwordLabel: "Құпия сөз",
+      passwordPlaceholder: "Құпия сөзді енгізіңіз",
+      signInWithPassword: "Құпия сөзбен кіру",
+      orUseMagicLink: "немесе magic link арқылы",
+      orUsePassword: "немесе құпия сөз арқылы",
     },
     list: {
       title: "Дәйексөз жиындары",
@@ -262,6 +318,10 @@ const dictionaries: Record<Locale, Dictionary> = {
       empty: "Әзірге жиын жоқ.",
       pinnedDays: "Бекітілген күндер",
       missing: "(жоқ)",
+      filterAll: "Барлығы",
+      filterDraft: "Нобайлар",
+      filterApproved: "Бекітілгендер",
+      filterArchived: "Мұрағат",
     },
     editor: {
       createTitle: "Дәйексөз жиынын құру",
@@ -292,6 +352,9 @@ const dictionaries: Record<Locale, Dictionary> = {
       approve: "Бекіту",
       pinDay: "Күнді бекіту",
       unpinDay: "Бекітуді алу",
+      delete: "Жою",
+      archive: "Мұрағатқа",
+      verifySource: "Дереккөзді тексеру",
     },
     messages: {
       magicLinkSent: "Magic link email-ге жіберілді.",
@@ -302,6 +365,9 @@ const dictionaries: Record<Locale, Dictionary> = {
       approved: "Дәйексөз жиыны бекітілді.",
       dayPinned: "Күнге бекіту сақталды.",
       dayUnpinned: "Күнге бекіту алынды.",
+      deleted: "Дәйексөз жиыны біржола жойылды.",
+      confirmDelete: "Бұл дәйексөз жиынын біржола жою керек пе?",
+      confirmDeleteHint: "Бұл әрекетті қайтару мүмкін емес. Дәйексөз бен барлық аудармалар деректер базасынан жойылады.",
     },
     errors: {
       signInFailed: "Кіру қатесі.",
@@ -315,6 +381,8 @@ const dictionaries: Record<Locale, Dictionary> = {
       selectSetFirst: "Алдымен жиынды таңдаңыз немесе жасаңыз.",
       dayRequired: "Алдымен күнді таңдаңыз.",
       kazakhRequired: "Кемінде бір тілде мәтін керек.",
+      deleteFailed: "Дәйексөз жиынын жою мүмкін болмады.",
+      verifyFailed: "Дереккөзді тексеру мүмкін болмады.",
     },
     translationContext: "Исламдық әдеттер қосымшасына арналған аударма. Мағынасын дәл сақта.",
   },
