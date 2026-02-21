@@ -441,7 +441,12 @@ final class AppRouteState: ObservableObject {
     }
 
     func deleteHabit(_ habitID: UUID) {
+        persistTasks[habitID]?.cancel()
+        persistTasks[habitID] = nil
         habits.removeAll(where: { $0.id == habitID })
+        if case .habitDetail(let selectedID) = rootSheet, selectedID == habitID {
+            rootSheet = nil
+        }
 
         Task {
             do {
@@ -793,11 +798,16 @@ final class AppRouteState: ObservableObject {
             authSuccessMessage = nil
             user = .guest
             await dependencies.syncCoordinator.setSignedInUserID(nil)
+            await loadTodayData()
         }
     }
 
     func deleteData() {
         Task {
+            cancelAllPersistTasks()
+            if case .habitDetail = rootSheet {
+                rootSheet = nil
+            }
             await clearLocalData()
             selectedTemplateIDs = []
             pendingSignUpEmail = ""
@@ -810,6 +820,7 @@ final class AppRouteState: ObservableObject {
         Task {
             do {
                 try await dependencies.authService.deleteAccount()
+                try? await dependencies.authService.signOut()
             } catch {
                 authErrorMessage = error.localizedDescription
                 dependencies.analyticsLogger.log(
@@ -830,6 +841,7 @@ final class AppRouteState: ObservableObject {
             activeTab = .profile
             await dependencies.syncCoordinator.setSignedInUserID(nil)
             await profileViewModel.load()
+            await loadTodayData()
         }
     }
 
@@ -1211,24 +1223,7 @@ final class AppRouteState: ObservableObject {
 
     private func clearLocalData() async {
         do {
-            let allHabits = try await dependencies.habitsRepository.fetchHabits(includeArchived: true)
-
-            for habit in allHabits {
-                let completions = try await dependencies.completionsRepository.fetchCompletions(for: habit.id)
-                for completion in completions {
-                    try await dependencies.completionsRepository.deleteCompletion(
-                        habitID: habit.id,
-                        on: completion.dayDate,
-                        calendar: .current,
-                        timeZone: .current
-                    )
-                }
-
-                await dependencies.reminderScheduler.removeReminder(habitID: habit.id)
-                try await dependencies.habitsRepository.deleteHabit(id: habit.id)
-            }
-
-            try await dependencies.quotesRepository.deleteAllSavedQuotes()
+            try await dependencies.clearLocalDataForCurrentScope()
 
             habits = []
             todayHabitsData = []
@@ -1326,6 +1321,10 @@ final class AppRouteState: ObservableObject {
         await dependencies.syncCoordinator.setSignedInUserID(sessionUser.id)
         await dependencies.syncCoordinator.promoteLocalDataIfNeeded()
         await dependencies.syncCoordinator.runSyncCycle(trigger: trigger)
+        await reloadAllHabitsFromStorage()
+        await todayViewModel.loadToday()
+        await profileViewModel.load()
+        await groupsViewModel.refresh()
     }
 
     private func resolveEmailFromIdentifier(_ identifier: String) -> String {
@@ -1399,6 +1398,7 @@ final class AppRouteState: ObservableObject {
 
     private func replaceLocalHabits(with habits: [UIHabit]) {
         Task {
+            cancelAllPersistTasks()
             do {
                 let existing = try await dependencies.habitsRepository.fetchHabits(includeArchived: true)
                 for habit in existing {
@@ -1416,6 +1416,13 @@ final class AppRouteState: ObservableObject {
                 dependencies.analyticsLogger.log(.storageFailure, metadata: ["scope": "replace_habits", "error": error.localizedDescription])
             }
         }
+    }
+
+    private func cancelAllPersistTasks() {
+        for task in persistTasks.values {
+            task.cancel()
+        }
+        persistTasks.removeAll()
     }
 
     private func refreshDebugReminderCountIfNeeded() async {
