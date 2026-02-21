@@ -136,6 +136,7 @@ final class AppRouteState: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var persistTasks: [UUID: Task<Void, Never>] = [:]
     private var replaceLocalHabitsTask: Task<Void, Never>?
+    private var deletedHabitIDs = Set<UUID>()
     private let avatarUploadLimitBytes = 5 * 1024 * 1024
     private let avatarMaxDimension: CGFloat = 2048
     private let avatarMinDimension: CGFloat = 640
@@ -214,15 +215,21 @@ final class AppRouteState: ObservableObject {
     }
 
     func bindingForHabit(habitID: UUID) -> Binding<UIHabit>? {
-        guard let index = habits.firstIndex(where: { $0.id == habitID }) else {
+        guard let fallbackHabit = habits.first(where: { $0.id == habitID }) else {
             return nil
         }
 
         return Binding(
-            get: { self.habits[index] },
-            set: {
-                self.habits[index] = $0
-                self.updateHabit($0)
+            get: { self.habits.first(where: { $0.id == habitID }) ?? fallbackHabit },
+            set: { updated in
+                guard !self.deletedHabitIDs.contains(habitID) else {
+                    return
+                }
+                guard let dynamicIndex = self.habits.firstIndex(where: { $0.id == habitID }) else {
+                    return
+                }
+                self.habits[dynamicIndex] = updated
+                self.updateHabit(updated)
             }
         )
     }
@@ -433,11 +440,15 @@ final class AppRouteState: ObservableObject {
             dhikrTarget: hasDhikrCounter ? 33 : 0
         )
 
+        deletedHabitIDs.remove(habit.id)
         habits.append(habit)
         persistHabit(habit)
     }
 
     func updateHabit(_ habit: UIHabit) {
+        guard !deletedHabitIDs.contains(habit.id) else {
+            return
+        }
         guard let index = habits.firstIndex(where: { $0.id == habit.id }) else {
             return
         }
@@ -464,12 +475,12 @@ final class AppRouteState: ObservableObject {
     }
 
     func deleteHabit(_ habitID: UUID) {
-        persistTasks[habitID]?.cancel()
-        persistTasks[habitID] = nil
-        habits.removeAll(where: { $0.id == habitID })
         if case .habitDetail(let selectedID) = rootSheet, selectedID == habitID {
             rootSheet = nil
         }
+        deletedHabitIDs.insert(habitID)
+        cancelAllPersistTasks()
+        habits.removeAll(where: { $0.id == habitID })
 
         Task {
             do {
@@ -1271,9 +1282,16 @@ final class AppRouteState: ObservableObject {
     }
 
     private func persistHabit(_ habit: UIHabit) {
+        guard !deletedHabitIDs.contains(habit.id) else {
+            return
+        }
         persistTasks[habit.id]?.cancel()
         persistTasks[habit.id] = Task { @MainActor [weak self] in
             guard let self else { return }
+            guard !self.deletedHabitIDs.contains(habit.id) else {
+                self.persistTasks[habit.id] = nil
+                return
+            }
             let initialOwnerScope = self.dependencies.ownerScopeResolver.currentOwnerScopeRawValue
             var domain = habit.asDomainHabit()
 
@@ -1283,6 +1301,7 @@ final class AppRouteState: ObservableObject {
 
             do {
                 guard self.dependencies.ownerScopeResolver.currentOwnerScopeRawValue == initialOwnerScope else {
+                    self.persistTasks[habit.id] = nil
                     return
                 }
                 try await self.dependencies.habitsRepository.saveHabit(domain)
@@ -1299,6 +1318,7 @@ final class AppRouteState: ObservableObject {
                         updatedAt: now
                     )
                     guard self.dependencies.ownerScopeResolver.currentOwnerScopeRawValue == initialOwnerScope else {
+                        self.persistTasks[habit.id] = nil
                         return
                     }
                     try await self.dependencies.completionsRepository.upsertCompletion(
@@ -1313,10 +1333,12 @@ final class AppRouteState: ObservableObject {
                 }
 
                 guard self.dependencies.ownerScopeResolver.currentOwnerScopeRawValue == initialOwnerScope else {
+                    self.persistTasks[habit.id] = nil
                     return
                 }
                 await self.loadTodayData()
             } catch is CancellationError {
+                self.persistTasks[habit.id] = nil
                 return
             } catch {
                 self.dependencies.analyticsLogger.log(.storageFailure, metadata: ["scope": "save_habit", "error": error.localizedDescription])
