@@ -719,18 +719,9 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
     }
 
     func syncCurrentDeviceToken(for userID: UUID) async {
-        let token = resolveDeviceToken()
-        let oneSignalSubscriptionID = resolveOneSignalSubscriptionID()
-
-        let resolvedToken: String?
-        if let token, !token.isEmpty {
-            resolvedToken = token
-        } else if let oneSignalSubscriptionID, !oneSignalSubscriptionID.isEmpty {
-            // Keep a stable PK row for users where only OneSignal subscription ID is available.
-            resolvedToken = "onesignal-subscription:\(oneSignalSubscriptionID)"
-        } else {
-            resolvedToken = nil
-        }
+        let registration = resolveRegistration()
+        let resolvedToken = registration.token
+        let oneSignalSubscriptionID = registration.oneSignalSubscriptionID
 
         guard let resolvedToken, !resolvedToken.isEmpty else {
             logger.log(.syncFinished, metadata: ["scope": "device_token", "status": "skipped_no_token"])
@@ -767,6 +758,58 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
                 ]
             )
         }
+    }
+
+    func setGroupRemindersEnabled(_ enabled: Bool, for userID: UUID) async {
+        guard enabled else {
+            let registration = resolveRegistration()
+            guard let token = registration.token, !token.isEmpty else {
+                logger.log(
+                    .syncFinished,
+                    metadata: ["scope": "device_token_group_receive", "status": "skipped_no_token"]
+                )
+                return
+            }
+
+            do {
+                try await client
+                    .from("device_tokens")
+                    .delete()
+                    .eq("user_id", value: userID)
+                    .eq("token", value: token)
+                    .execute()
+
+                logger.log(
+                    .syncFinished,
+                    metadata: ["scope": "device_token_group_receive", "status": "disabled"]
+                )
+            } catch {
+                logger.log(
+                    .storageFailure,
+                    metadata: [
+                        "scope": "device_token_group_receive_disable",
+                        "error": error.localizedDescription
+                    ]
+                )
+            }
+            return
+        }
+
+        await syncCurrentDeviceToken(for: userID)
+    }
+
+    private func resolveRegistration() -> (token: String?, oneSignalSubscriptionID: String?) {
+        let token = resolveDeviceToken()
+        let oneSignalSubscriptionID = resolveOneSignalSubscriptionID()
+
+        if let token, !token.isEmpty {
+            return (token, oneSignalSubscriptionID)
+        }
+        if let oneSignalSubscriptionID, !oneSignalSubscriptionID.isEmpty {
+            // Keep a stable PK row for users where only OneSignal subscription ID is available.
+            return ("onesignal-subscription:\(oneSignalSubscriptionID)", oneSignalSubscriptionID)
+        }
+        return (nil, oneSignalSubscriptionID)
     }
 
     private func resolveDeviceToken() -> String? {

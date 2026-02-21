@@ -264,6 +264,64 @@ final class DependencyContainer {
         }
     }
 
+    func syncQuoteReminders(enabled: Bool, locale: String) {
+        Task { @MainActor in
+            guard enabled else {
+                await reminderScheduler.syncQuoteReminders(enabled: false, plans: [])
+                return
+            }
+
+            do {
+                let calendar = Calendar.current
+                let timeZone = TimeZone.current
+                let startOfDay = calendar.startOfDay(for: Date())
+                let dayFormatter = Self.quoteDayFormatter(calendar: calendar, timeZone: timeZone)
+                var plans: [QuoteReminderPlan] = []
+                plans.reserveCapacity(7)
+
+                for offset in 0 ..< 7 {
+                    guard let day = calendar.date(byAdding: .day, value: offset, to: startOfDay) else {
+                        continue
+                    }
+
+                    guard let quote = try await quotesRepository.fetchQuoteOfDay(
+                        locale: locale,
+                        on: day,
+                        calendar: calendar,
+                        timeZone: timeZone
+                    ) else {
+                        continue
+                    }
+
+                    let snippet = Self.quoteReminderSnippet(from: quote.text)
+                    guard !snippet.isEmpty else {
+                        continue
+                    }
+
+                    var dateComponents = calendar.dateComponents([.year, .month, .day], from: day)
+                    dateComponents.hour = 9
+                    dateComponents.minute = 0
+                    dateComponents.timeZone = timeZone
+
+                    plans.append(
+                        QuoteReminderPlan(
+                            identifier: "quote-reminder-\(dayFormatter.string(from: day))",
+                            body: snippet,
+                            dateComponents: dateComponents
+                        )
+                    )
+                }
+
+                await reminderScheduler.syncQuoteReminders(enabled: true, plans: plans)
+            } catch {
+                analyticsLogger.log(
+                    .storageFailure,
+                    metadata: ["scope": "quote_reminder_sync", "error": error.localizedDescription]
+                )
+            }
+        }
+    }
+
     func requestLocalNotificationPermission() {
         Task {
             _ = await reminderScheduler.requestAuthorizationIfNeeded()
@@ -327,5 +385,28 @@ final class DependencyContainer {
 
     private static var isRunningUnitTests: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
+    private static func quoteDayFormatter(calendar: Calendar, timeZone: TimeZone) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }
+
+    private static func quoteReminderSnippet(from text: String, maxLength: Int = 110) -> String {
+        let normalized = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        guard !normalized.isEmpty else {
+            return ""
+        }
+        if normalized.count <= maxLength {
+            return normalized
+        }
+        let endIndex = normalized.index(normalized.startIndex, offsetBy: maxLength)
+        return String(normalized[..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
 }

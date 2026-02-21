@@ -9,6 +9,9 @@ final class AppRouteState: ObservableObject {
         static let onboardingCompleted = "sunnad.onboarding.completed"
         static let pendingPasswordRecovery = "sunnad.auth.pending-password-recovery"
         static let pendingOAuthIntent = "sunnad.auth.pending-oauth-intent"
+        static let habitRemindersEnabled = "sunnad.notifications.habit.enabled"
+        static let quoteRemindersEnabled = "sunnad.notifications.quote.enabled"
+        static let groupRemindersEnabled = "sunnad.notifications.group.enabled"
     }
 
     private enum PasswordRecoverySource {
@@ -50,8 +53,16 @@ final class AppRouteState: ObservableObject {
     @Published var appearance: AppAppearance = .system
     @Published var notificationPreferences = UINotificationPreferences() {
         didSet {
+            persistNotificationPreferences()
             dependencies.syncHabitReminders(enabled: notificationPreferences.habitReminders)
-            Task { await refreshDebugReminderCountIfNeeded() }
+            dependencies.syncQuoteReminders(
+                enabled: notificationPreferences.quoteReminder,
+                locale: language.localeIdentifier
+            )
+            Task {
+                await syncGroupReminderPreferenceIfNeeded()
+                await refreshDebugReminderCountIfNeeded()
+            }
         }
     }
     @Published var showsOnboarding = true
@@ -150,6 +161,7 @@ final class AppRouteState: ObservableObject {
     private var otpResendCooldownsByKey: [String: Date] = [:]
     private var activeOTPResendKey: String?
     private var otpResendTimerTask: Task<Void, Never>?
+    private var currentSessionUserID: UUID?
 
     init(dependencies: DependencyContainer, userDefaults: UserDefaults = .standard) {
         self.dependencies = dependencies
@@ -193,6 +205,8 @@ final class AppRouteState: ObservableObject {
         #if DEBUG
         applyDebugLaunchOverrides()
         #endif
+
+        notificationPreferences = loadNotificationPreferences()
 
         Task {
             await restoreAuthSessionIfNeeded()
@@ -869,6 +883,7 @@ final class AppRouteState: ObservableObject {
             authErrorMessage = nil
             authSuccessMessage = nil
             user = .guest
+            currentSessionUserID = nil
             await dependencies.syncCoordinator.setSignedInUserID(nil)
             await loadTodayData()
         }
@@ -905,6 +920,7 @@ final class AppRouteState: ObservableObject {
             pendingPasswordResetEmail = ""
             otpFlowMode = .signup
             user = .guest
+            currentSessionUserID = nil
             authErrorMessage = nil
             authSuccessMessage = nil
             markOnboardingCompleted()
@@ -1193,6 +1209,40 @@ final class AppRouteState: ObservableObject {
         otpResendSecondsRemaining = max(Int(ceil(deadline.timeIntervalSince(now))), 0)
     }
 
+    private func loadNotificationPreferences() -> UINotificationPreferences {
+        let hasStoredHabit = userDefaults.object(forKey: LocalStateKeys.habitRemindersEnabled) != nil
+        let hasStoredQuote = userDefaults.object(forKey: LocalStateKeys.quoteRemindersEnabled) != nil
+        let hasStoredGroup = userDefaults.object(forKey: LocalStateKeys.groupRemindersEnabled) != nil
+
+        return UINotificationPreferences(
+            habitReminders: hasStoredHabit
+                ? userDefaults.bool(forKey: LocalStateKeys.habitRemindersEnabled)
+                : true,
+            quoteReminder: hasStoredQuote
+                ? userDefaults.bool(forKey: LocalStateKeys.quoteRemindersEnabled)
+                : true,
+            groupReminders: hasStoredGroup
+                ? userDefaults.bool(forKey: LocalStateKeys.groupRemindersEnabled)
+                : true
+        )
+    }
+
+    private func persistNotificationPreferences() {
+        userDefaults.set(notificationPreferences.habitReminders, forKey: LocalStateKeys.habitRemindersEnabled)
+        userDefaults.set(notificationPreferences.quoteReminder, forKey: LocalStateKeys.quoteRemindersEnabled)
+        userDefaults.set(notificationPreferences.groupReminders, forKey: LocalStateKeys.groupRemindersEnabled)
+    }
+
+    private func syncGroupReminderPreferenceIfNeeded() async {
+        guard let currentSessionUserID else {
+            return
+        }
+        await dependencies.deviceTokenSyncService.setGroupRemindersEnabled(
+            notificationPreferences.groupReminders,
+            for: currentSessionUserID
+        )
+    }
+
     private func bindTodayViewModel() {
         todayViewModel.$habits
             .receive(on: DispatchQueue.main)
@@ -1205,6 +1255,11 @@ final class AppRouteState: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] quote in
                 self?.todayQuote = quote
+                guard let self else { return }
+                self.dependencies.syncQuoteReminders(
+                    enabled: self.notificationPreferences.quoteReminder,
+                    locale: self.language.localeIdentifier
+                )
             }
             .store(in: &cancellables)
 
@@ -1257,7 +1312,9 @@ final class AppRouteState: ObservableObject {
         await todayViewModel.loadToday()
         await profileViewModel.load()
         dependencies.syncHabitReminders(enabled: notificationPreferences.habitReminders)
+        dependencies.syncQuoteReminders(enabled: notificationPreferences.quoteReminder, locale: language.localeIdentifier)
         if !user.isGuest {
+            await syncGroupReminderPreferenceIfNeeded()
             await dependencies.syncCoordinator.runSyncCycle(trigger: .foreground)
             await groupsViewModel.refresh()
         }
@@ -1450,6 +1507,7 @@ final class AppRouteState: ObservableObject {
             markOnboardingCompleted()
             dependencies.analyticsLogger.log(.syncFinished, metadata: ["scope": "auth_restore", "status": "restored"])
         } else {
+            currentSessionUserID = nil
             await dependencies.syncCoordinator.setSignedInUserID(nil)
             dependencies.analyticsLogger.log(.syncFinished, metadata: ["scope": "auth_restore", "status": "no_session"])
         }
@@ -1464,7 +1522,11 @@ final class AppRouteState: ObservableObject {
             await settleLocalHabitPersistenceBeforePromotion()
             await dependencies.syncCoordinator.promoteGuestDataIfNeeded(to: sessionUser.id)
         }
-        await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: sessionUser.id)
+        currentSessionUserID = sessionUser.id
+        await dependencies.deviceTokenSyncService.setGroupRemindersEnabled(
+            notificationPreferences.groupReminders,
+            for: sessionUser.id
+        )
         await dependencies.syncCoordinator.setSignedInUserID(sessionUser.id)
         await dependencies.syncCoordinator.promoteLocalDataIfNeeded()
         await dependencies.syncCoordinator.runSyncCycle(trigger: trigger)
