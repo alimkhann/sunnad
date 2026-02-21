@@ -84,11 +84,12 @@ export function FeaturesSection({ variant, t }: FeaturesSectionProps): ReactNode
                 key={key}
                 className={cn(
                   "group relative rounded-lg border p-6 sm:p-8 transition-all duration-300",
-                  variant === "1" && "glass-card hover:shadow-lg",
-                  variant === "2" && "border-border bg-card hover:border-primary/30",
-                  variant === "3" && "rounded-sm border-border bg-card hover:bg-muted/50",
-                  variant === "4" && "rounded-2xl border-border bg-card shadow-sm hover:shadow-md paper-texture",
-                  variant === "5" && "border-border/50 bg-card/50 backdrop-blur hover:border-primary/30",
+                  "hover:-translate-y-1",
+                  variant === "1" && "glass-card hover:shadow-lg hover:shadow-primary/5",
+                  variant === "2" && "border-border bg-card hover:border-primary/30 hover:shadow-sm",
+                  variant === "3" && "rounded-sm border-border bg-card hover:bg-muted/50 hover:border-primary/40",
+                  variant === "4" && "rounded-2xl border-border bg-card shadow-sm hover:shadow-md hover:shadow-primary/5 paper-texture",
+                  variant === "5" && "border-border/50 bg-card/50 backdrop-blur hover:border-primary/30 hover:bg-card/70",
                 )}
               >
                 <div

@@ -36,6 +36,15 @@ export function PhoneFrame({
         <PlaceholderScreen screen={screen} variant={variant} />
       </div>
 
+      {/* Subtle screen glare */}
+      <div
+        className="pointer-events-none absolute inset-0 z-20 rounded-[2.1rem]"
+        style={{
+          background:
+            "linear-gradient(135deg, hsla(0,0%,100%,0.12) 0%, transparent 40%, transparent 60%, hsla(0,0%,100%,0.04) 100%)",
+        }}
+      />
+
       {/* Home indicator */}
       <div className="absolute bottom-2 left-1/2 z-10 h-1 w-12 -translate-x-1/2 rounded-full bg-foreground/20" />
     </div>

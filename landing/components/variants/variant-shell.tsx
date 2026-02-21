@@ -7,6 +7,7 @@ import { ScreenshotCarousel } from "@/components/sections/screenshot-carousel";
 import { FAQSection } from "@/components/sections/faq-section";
 import { WaitlistSection } from "@/components/sections/waitlist-section";
 import { FooterSection } from "@/components/sections/footer-section";
+import { AnimateOnScroll } from "@/components/ui/animate-on-scroll";
 
 interface VariantShellProps {
   variant: VariantId;
@@ -19,17 +20,32 @@ export function VariantShell({ variant, locale, t }: VariantShellProps): ReactNo
     <div data-variant={variant} className="relative min-h-screen">
       {/* Variant-specific background effects */}
       {variant === "1" && <div className="frost-bg" />}
-      {variant === "5" && <div className="star-field" />}
+      {variant === "5" && (
+        <>
+          <div className="star-field" />
+          <div className="star-dots" />
+        </>
+      )}
+      {/* Subtle grain texture for editorial and warm variants */}
+      {(variant === "2" || variant === "4") && <div className="grain-overlay" />}
 
       {/* Content */}
       <div className="relative z-10">
         <NavBar variant={variant} locale={locale} t={t} />
         <main>
           <HeroSection variant={variant} t={t} />
-          <FeaturesSection variant={variant} t={t} />
-          <ScreenshotCarousel variant={variant} t={t} />
-          <FAQSection variant={variant} t={t} />
-          <WaitlistSection variant={variant} locale={locale} t={t} />
+          <AnimateOnScroll>
+            <FeaturesSection variant={variant} t={t} />
+          </AnimateOnScroll>
+          <AnimateOnScroll delay={100}>
+            <ScreenshotCarousel variant={variant} t={t} />
+          </AnimateOnScroll>
+          <AnimateOnScroll>
+            <FAQSection variant={variant} t={t} />
+          </AnimateOnScroll>
+          <AnimateOnScroll>
+            <WaitlistSection variant={variant} locale={locale} t={t} />
+          </AnimateOnScroll>
         </main>
         <FooterSection variant={variant} locale={locale} t={t} />
       </div>
