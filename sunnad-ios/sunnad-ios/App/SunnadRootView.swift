@@ -119,6 +119,7 @@ struct SunnadRootView: View {
                     onChangePassword: state.openChangePassword,
                     onDeleteData: state.deleteData,
                     onDeleteAccount: state.deleteAccount,
+                    onRefresh: state.refreshProfile,
                     privacyURL: state.privacyURL,
                     helpURL: state.helpURL
                 )

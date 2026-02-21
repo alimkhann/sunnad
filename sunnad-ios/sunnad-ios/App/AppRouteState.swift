@@ -116,6 +116,9 @@ final class AppRouteState: ObservableObject {
     private let userDefaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
     private var persistTasks: [UUID: Task<Void, Never>] = [:]
+    private let avatarUploadLimitBytes = 5 * 1024 * 1024
+    private let avatarMaxDimension: CGFloat = 2048
+    private let avatarMinDimension: CGFloat = 640
     private var passwordRecoverySource: PasswordRecoverySource = .onboarding
     private var otpResendCooldownsByKey: [String: Date] = [:]
     private var activeOTPResendKey: String?
@@ -499,6 +502,7 @@ final class AppRouteState: ObservableObject {
             do {
                 let sessionUser = try await dependencies.authService.updateUsername(username)
                 user = sessionUser.asUIUserState
+                await refreshProfileFromRemote(showErrors: true)
                 authErrorMessage = nil
                 authSuccessMessage = L10n.t("profile.edit.saved")
             } catch {
@@ -526,6 +530,7 @@ final class AppRouteState: ObservableObject {
                     mimeType: compressed.mimeType
                 )
                 user = sessionUser.asUIUserState
+                await refreshProfileFromRemote(showErrors: true)
                 authErrorMessage = nil
                 authSuccessMessage = L10n.t("profile.edit.avatar.updated")
             } catch {
@@ -544,6 +549,7 @@ final class AppRouteState: ObservableObject {
             do {
                 let sessionUser = try await dependencies.authService.removeAvatar()
                 user = sessionUser.asUIUserState
+                await refreshProfileFromRemote(showErrors: true)
                 authErrorMessage = nil
                 authSuccessMessage = L10n.t("profile.edit.avatar.removed")
             } catch {
@@ -911,6 +917,10 @@ final class AppRouteState: ObservableObject {
 
     func refreshGroup(_ groupID: UUID) async {
         await groupsViewModel.refreshGroup(groupID: groupID)
+    }
+
+    func refreshProfile() async {
+        await refreshProfileFromRemote(showErrors: true)
     }
 
     func sendGroupNudge(groupID: UUID, memberID: UUID, habitID: UUID) async -> GroupNudgeStatus {
@@ -1295,11 +1305,44 @@ final class AppRouteState: ObservableObject {
             return nil
         }
 
-        if let jpegData = image.jpegData(compressionQuality: 0.82) {
-            return (jpegData, "image/jpeg")
+        let normalizedMimeType = normalizedAvatarMimeType(
+            preferredMimeType: preferredMimeType,
+            originalData: data
+        )
+        if data.count <= avatarUploadLimitBytes {
+            return (data, normalizedMimeType)
         }
 
-        return (data, preferredMimeType)
+        if let pngData = image.pngData(), pngData.count <= avatarUploadLimitBytes {
+            return (pngData, "image/png")
+        }
+
+        var targetMaxDimension = min(max(image.size.width, image.size.height), avatarMaxDimension)
+        while targetMaxDimension >= avatarMinDimension {
+            guard let resized = resizedAvatarImage(image, maxDimension: targetMaxDimension) else {
+                break
+            }
+
+            if let losslessResized = resized.pngData(), losslessResized.count <= avatarUploadLimitBytes {
+                return (losslessResized, "image/png")
+            }
+
+            if let highQualityJPEG = resized.jpegData(compressionQuality: 0.95),
+               highQualityJPEG.count <= avatarUploadLimitBytes {
+                return (highQualityJPEG, "image/jpeg")
+            }
+
+            targetMaxDimension *= 0.8
+        }
+
+        for quality in stride(from: 0.92, through: 0.72, by: -0.05) {
+            if let jpegData = image.jpegData(compressionQuality: quality),
+               jpegData.count <= avatarUploadLimitBytes {
+                return (jpegData, "image/jpeg")
+            }
+        }
+
+        return nil
     }
 
     private func restoreAuthSessionIfNeeded() async {
@@ -1326,6 +1369,63 @@ final class AppRouteState: ObservableObject {
         await todayViewModel.loadToday()
         await profileViewModel.load()
         await groupsViewModel.refresh()
+    }
+
+    private func refreshProfileFromRemote(showErrors: Bool) async {
+        guard !user.isGuest else { return }
+
+        do {
+            let sessionUser = try await dependencies.authService.fetchProfile()
+            user = sessionUser.asUIUserState
+            await profileViewModel.load()
+            if showErrors {
+                authErrorMessage = nil
+            }
+        } catch {
+            if showErrors {
+                authErrorMessage = error.localizedDescription
+            }
+            dependencies.analyticsLogger.log(
+                .storageFailure,
+                metadata: ["scope": "profile_refresh", "error": error.localizedDescription]
+            )
+        }
+    }
+
+    private func normalizedAvatarMimeType(preferredMimeType: String, originalData: Data) -> String {
+        let normalized = preferredMimeType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized == "image/png" || normalized == "image/jpeg" || normalized == "image/jpg" || normalized == "image/webp" {
+            return normalized == "image/jpg" ? "image/jpeg" : normalized
+        }
+
+        if originalData.starts(with: [0x89, 0x50, 0x4E, 0x47]) {
+            return "image/png"
+        }
+
+        if originalData.starts(with: [0xFF, 0xD8, 0xFF]) {
+            return "image/jpeg"
+        }
+
+        return "image/jpeg"
+    }
+
+    private func resizedAvatarImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage? {
+        let sourceSize = image.size
+        guard sourceSize.width > 0, sourceSize.height > 0 else { return nil }
+        let longestSide = max(sourceSize.width, sourceSize.height)
+        guard longestSide > 0 else { return nil }
+
+        let scale = min(1, maxDimension / longestSide)
+        let targetSize = CGSize(
+            width: max(1, floor(sourceSize.width * scale)),
+            height: max(1, floor(sourceSize.height * scale))
+        )
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
     }
 
     private func resolveEmailFromIdentifier(_ identifier: String) -> String {

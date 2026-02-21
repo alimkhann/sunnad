@@ -5,12 +5,16 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
     private struct ProfileRow: Decodable {
         let username: String?
         let avatarPath: String?
-        let updatedAt: Date?
+        let updatedAtRaw: String?
+
+        var updatedAt: Date? {
+            SupabaseAuthService.parseProfileTimestamp(updatedAtRaw)
+        }
 
         enum CodingKeys: String, CodingKey {
             case username
             case avatarPath = "avatar_path"
-            case updatedAt = "updated_at"
+            case updatedAtRaw = "updated_at"
         }
     }
 
@@ -207,7 +211,7 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 
         do {
             try await persistProfileUsername(cleanedUsername, for: user.id)
-            return await sessionUser(from: user, fallbackUsername: cleanedUsername)
+            return try await fetchProfile()
         } catch {
             throw mapAuthError(error)
         }
@@ -232,7 +236,7 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
                 )
             )
             try await persistProfileAvatarPath(avatarPath, for: user.id)
-            return await sessionUser(from: user)
+            return try await fetchProfile()
         } catch {
             throw mapAuthError(error)
         }
@@ -252,7 +256,7 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             }
 
             try await persistProfileAvatarPath(nil, for: user.id)
-            return await sessionUser(from: user)
+            return try await fetchProfile()
         } catch {
             throw mapAuthError(error)
         }
@@ -483,6 +487,20 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         }
 
         return publicURL
+    }
+
+    private static func parseProfileTimestamp(_ rawValue: String?) -> Date? {
+        guard let rawValue, !rawValue.isEmpty else { return nil }
+
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let parsed = fractional.date(from: rawValue) {
+            return parsed
+        }
+
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        return plain.date(from: rawValue)
     }
 
     private func currentAuthUser() async -> User? {

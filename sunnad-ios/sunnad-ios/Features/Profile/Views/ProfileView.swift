@@ -21,6 +21,7 @@ struct ProfileView: View {
     let onChangePassword: () -> Void
     let onDeleteData: () -> Void
     let onDeleteAccount: () -> Void
+    let onRefresh: () async -> Void
     let privacyURL: URL
     let helpURL: URL
 
@@ -184,6 +185,9 @@ struct ProfileView: View {
                     .frame(height: 96)
                     .ignoresSafeArea(edges: .top)
             }
+        }
+        .refreshable {
+            await onRefresh()
         }
         .sheet(isPresented: $showsNotificationSettings) {
             NotificationSettingsSheet(preferences: $notificationPreferences)
