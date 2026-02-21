@@ -203,7 +203,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             ])
         }
 
-        guard let group = try await refreshGroup(groupID: groupID) else {
+        guard let group = try await refreshGroupWithRetry(groupID: groupID) else {
             throw NSError(domain: "SupabaseGroupsRepository", code: 2, userInfo: [
                 NSLocalizedDescriptionKey: "Created group could not be fetched."
             ])
@@ -212,9 +212,15 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
     }
 
     func joinGroup(code: String) async throws -> Group {
-        let response = try await client
-            .rpc("join_group_by_code", params: ["invite_code": code])
-            .execute()
+        let normalizedCode = Self.normalizedInviteCode(code)
+        let response: PostgrestResponse<Void>
+        do {
+            response = try await client
+                .rpc("join_group_by_code", params: ["invite_code": normalizedCode])
+                .execute()
+        } catch {
+            throw mapJoinError(error)
+        }
 
         guard let groupID = Self.decodeUUID(from: response.data) else {
             throw NSError(domain: "SupabaseGroupsRepository", code: 3, userInfo: [
@@ -222,7 +228,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             ])
         }
 
-        guard let group = try await refreshGroup(groupID: groupID) else {
+        guard let group = try await refreshGroupWithRetry(groupID: groupID) else {
             throw NSError(domain: "SupabaseGroupsRepository", code: 4, userInfo: [
                 NSLocalizedDescriptionKey: "Joined group could not be fetched."
             ])
@@ -479,5 +485,44 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             return arrayWrapped.first
         }
         return nil
+    }
+
+    private static func normalizedInviteCode(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+    }
+
+    private func refreshGroupWithRetry(groupID: UUID, maxAttempts: Int = 6) async throws -> Group? {
+        var attempt = 0
+        while attempt < maxAttempts {
+            if let group = try await refreshGroup(groupID: groupID) {
+                return group
+            }
+            attempt += 1
+            if attempt < maxAttempts {
+                try? await Task.sleep(nanoseconds: 180_000_000)
+            }
+        }
+        return nil
+    }
+
+    private func mapJoinError(_ error: Error) -> Error {
+        let message = error.localizedDescription.lowercased()
+        if message.contains("group join is locked") || message.contains("locked") {
+            return NSError(
+                domain: "SupabaseGroupsRepository",
+                code: 423,
+                userInfo: [NSLocalizedDescriptionKey: "This group is currently locked for joining."]
+            )
+        }
+        if message.contains("invalid invite code") || message.contains("invite code") {
+            return NSError(
+                domain: "SupabaseGroupsRepository",
+                code: 404,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid invite code."]
+            )
+        }
+        return error
     }
 }

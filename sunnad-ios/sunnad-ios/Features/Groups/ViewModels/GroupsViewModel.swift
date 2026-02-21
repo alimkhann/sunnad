@@ -76,9 +76,8 @@ final class GroupsViewModel: ObservableObject {
     func createGroup(name: String) async {
         guard !user.isGuest else { return }
         do {
-            let group = try await groupsRepository.createGroup(name: name.trimmingCharacters(in: .whitespacesAndNewlines)).asUIGroup()
-            mergeOrAppend(group)
-            groups = refreshGroupProgress(for: groups)
+            _ = try await groupsRepository.createGroup(name: name.trimmingCharacters(in: .whitespacesAndNewlines))
+            await refresh()
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -89,9 +88,8 @@ final class GroupsViewModel: ObservableObject {
     func joinGroup(code: String) async {
         guard !user.isGuest else { return }
         do {
-            let group = try await groupsRepository.joinGroup(code: code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()).asUIGroup()
-            mergeOrAppend(group)
-            groups = refreshGroupProgress(for: groups)
+            _ = try await groupsRepository.joinGroup(code: code)
+            await refresh()
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
