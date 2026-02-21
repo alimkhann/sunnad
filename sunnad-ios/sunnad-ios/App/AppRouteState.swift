@@ -556,11 +556,16 @@ final class AppRouteState: ObservableObject {
             }
 
             do {
+                let previousAvatarURL = user.avatarURL
                 let sessionUser = try await dependencies.authService.uploadAvatar(
                     data: compressed.data,
                     mimeType: compressed.mimeType
                 )
                 user = sessionUser.asUIUserState
+                await AvatarImageCache.shared.invalidate(url: previousAvatarURL)
+                Task {
+                    await AvatarImageCache.shared.preload(url: self.user.avatarURL)
+                }
                 authErrorMessage = nil
                 authSuccessMessage = L10n.t("profile.edit.avatar.updated")
                 await refreshProfileFromRemote(showErrors: false)
@@ -578,8 +583,10 @@ final class AppRouteState: ObservableObject {
     func removeProfileAvatar() {
         Task {
             do {
+                let previousAvatarURL = user.avatarURL
                 let sessionUser = try await dependencies.authService.removeAvatar()
                 user = sessionUser.asUIUserState
+                await AvatarImageCache.shared.invalidate(url: previousAvatarURL)
                 authErrorMessage = nil
                 authSuccessMessage = L10n.t("profile.edit.avatar.removed")
                 await refreshProfileFromRemote(showErrors: false)
@@ -1432,14 +1439,24 @@ final class AppRouteState: ObservableObject {
         await todayViewModel.loadToday()
         await profileViewModel.load()
         await groupsViewModel.refresh()
+        Task {
+            await AvatarImageCache.shared.preload(url: self.user.avatarURL)
+        }
     }
 
     private func refreshProfileFromRemote(showErrors: Bool) async {
         guard !user.isGuest else { return }
 
         do {
+            let previousAvatarURL = user.avatarURL
             let sessionUser = try await dependencies.authService.fetchProfile()
             user = sessionUser.asUIUserState
+            if previousAvatarURL != user.avatarURL {
+                await AvatarImageCache.shared.invalidate(url: previousAvatarURL)
+            }
+            Task {
+                await AvatarImageCache.shared.preload(url: self.user.avatarURL)
+            }
             await profileViewModel.load()
             if showErrors {
                 authErrorMessage = nil

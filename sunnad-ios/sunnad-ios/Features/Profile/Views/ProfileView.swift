@@ -314,22 +314,7 @@ struct ProfileView: View {
     @ViewBuilder
     private var avatarView: some View {
         if let avatarURL = user.avatarURL {
-            AsyncImage(url: avatarURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                default:
-                    Image(systemName: "person.crop.circle.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundStyle(SunnadTheme.primary)
-                        .padding(4)
-                }
-            }
-            .frame(width: 42, height: 42)
-            .clipShape(Circle())
+            CachedAvatarView(url: avatarURL, size: 42, placeholderPadding: 4)
         } else {
             Image(systemName: "person.crop.circle.fill")
                 .font(.system(size: 42))
@@ -491,22 +476,7 @@ struct EditProfileView: View {
     @ViewBuilder
     private var avatarView: some View {
         if let avatarURL = user.avatarURL {
-            AsyncImage(url: avatarURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                default:
-                    Image(systemName: "person.crop.circle.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundStyle(SunnadTheme.primary)
-                        .padding(8)
-                }
-            }
-            .frame(width: 92, height: 92)
-            .clipShape(Circle())
+            CachedAvatarView(url: avatarURL, size: 92, placeholderPadding: 8)
         } else {
             Image(systemName: "person.crop.circle.fill")
                 .resizable()
