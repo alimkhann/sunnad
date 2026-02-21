@@ -137,6 +137,12 @@ Run this after each auth configuration change:
 3. Re-send signup and recovery emails once to verify templates still include both link and OTP token.
 4. Verify redirect URL list still contains `sunnad://auth-callback`.
 
+## Advisor triage policy
+- `Errors` in Security Advisor: release blocker.
+- `Warnings`: treat as blocker unless explicitly documented and accepted in PR notes.
+- `Info`: track in backlog; prioritize only when they show measurable query/latency impact.
+- CI SQL lint gate (`supabase/tests/advisor_lints.sql`) is mandatory for schema PRs.
+
 ## Auth resend/rate-limit baseline by environment
 Use these as baseline values so users can retry without getting blocked too aggressively:
 
@@ -203,6 +209,53 @@ Hosted dev/prod parity steps:
 - Behavior notes:
   - `delete-account` now removes profile avatar storage objects (`avatars/profiles/<user_id>/...`) before user deletion.
   - `send-nudge-push` requires authenticated bearer token; if iOS logs show `groups_send_nudge 401`, verify session refresh + function deployment parity.
+
+## Stage 9 quote-admin functions
+- New functions:
+  - `supabase/functions/admin-quotes/index.ts`
+  - `supabase/functions/translate-quote/index.ts`
+- Required secrets:
+  - `SUPABASE_SERVICE_ROLE_KEY` (both functions)
+  - `GEMINI_API_KEY` (`translate-quote`)
+  - optional `GEMINI_MODEL` (defaults to `gemini-2.0-flash`)
+- Deploy commands:
+  - `supabase functions deploy admin-quotes --project-ref <ref>`
+  - `supabase functions deploy translate-quote --project-ref <ref>`
+
+## Stage 9 quote-admin schema additions
+Migration:
+- `20260222000012_stage9_quote_admin.sql`
+
+Added objects:
+- `public.quote_sets`
+- `public.quote_day_overrides`
+- `public.admin_allowlist`
+- `public.is_allowlisted_admin(uuid)`
+- `public.get_quote_for_day(text, date)`
+
+Compatibility note:
+- `public.quotes` remains in place; migration adds `quote_set_id` + `draft` for staged editorial publishing.
+
+Editorial policy:
+- Quote of the day is global for everyone.
+- Day rollover uses `Asia/Almaty`.
+- Locale fallback in RPC: requested -> `kk` -> `ru` -> `en`.
+
+## Admin web app environment
+Path:
+- `admin/`
+
+Required env vars:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+Local run:
+- `cd admin`
+- `npm install`
+- `npm run dev`
+
+Recommended deploy target:
+- separate Vercel project for internal admin panel (not public landing site).
 
 ## Notification toggles contract (iOS)
 - Habit reminders toggle:
