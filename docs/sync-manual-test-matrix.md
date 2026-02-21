@@ -50,8 +50,9 @@ Validate outbox push/pull behavior, foreground/background triggers, and two-devi
 1. Sign out to guest.
 2. Modify habits/completions offline.
 3. Verify no Supabase traffic is required.
-4. Sign in again and confirm promotion + sync succeeds before scope switch.
-5. Verify promoted guest habits/completions/saved quotes appear immediately after first auth.
+4. Sign up a new account and confirm promotion + sync succeeds before scope switch.
+5. Verify promoted guest habits/completions/saved quotes appear immediately after sign-up.
+6. Sign out to guest, then sign in to an existing account and verify guest data is not promoted.
 
 ## 8) Failure and retry
 1. Disconnect network and perform habit/completion updates while signed in.

@@ -18,6 +18,14 @@
 4. Push the same migration set to prod.
 5. Record migration release notes and backup artifacts.
 
+## Stage 6/7 parity gate (hosted)
+Before testing remote Groups, ensure hosted projects include:
+- `20260221000009_stage6_group_governance.sql`
+- `20260221000010_profile_routing_and_avatar_policy_fix.sql`
+- `20260221000011_advisor_rls_search_path_hardening.sql`
+
+If `groups.join_locked` is missing remotely, Groups UI can still render via app fallback, but hosted migration parity is still required.
+
 ## Data safety rules
 - Never commit secrets or service keys.
 - Keep RLS as the authorization layer.
@@ -121,6 +129,13 @@ In-app debug diagnostics (debug builds only) now show:
 - Auth -> URL Configuration:
   - Add redirect URL: `sunnad://auth-callback`
 - Recovery and signup confirmations now use `sunnad://auth-callback` so no web domain is required for mobile auth flows.
+
+## Dashboard security checklist (dev/prod)
+Run this after each auth configuration change:
+1. Open Supabase Dashboard -> Security Advisor and confirm no new high-risk warnings.
+2. Open Auth -> Settings and ensure `Leaked password protection` is enabled.
+3. Re-send signup and recovery emails once to verify templates still include both link and OTP token.
+4. Verify redirect URL list still contains `sunnad://auth-callback`.
 
 ## Auth resend/rate-limit baseline by environment
 Use these as baseline values so users can retry without getting blocked too aggressively:

@@ -121,6 +121,12 @@ For dev/prod, run each row in both launch modes:
 
 ## 12) Guest promotion + streak sanity
 1. As guest, create a habit and mark one completion for today.
-2. Sign up/sign in and verify guest data appears immediately in signed-in scope.
-3. Sign out and verify guest scope still has original guest data.
-4. In a non-UTC timezone, verify a single completion yields streak `1` (never `2`) after sync and relaunch.
+2. Sign up and verify guest data appears immediately in the new signed-in scope.
+3. Sign out and sign in to an existing account; verify guest data does not auto-import.
+4. Sign out and verify guest scope still has original guest data.
+5. In a non-UTC timezone, verify a single completion yields streak `1` (never `2`) after sync and relaunch.
+
+## 13) Groups schema-compat and fallback visibility
+1. In dev/prod, open Groups and pull-to-refresh.
+2. If backend is missing `join_locked`, verify UI shows recoverable warning but still renders groups.
+3. After migrations are promoted, verify warning disappears and lock/rotate controls continue to work.
