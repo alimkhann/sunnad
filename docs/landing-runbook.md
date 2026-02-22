@@ -10,22 +10,23 @@ The Sunnad landing page is a Next.js 15 app located in `/landing/`. It supports 
 
 ### Landing App (`landing/.env.local`)
 
-| Variable | Description | Required |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Yes |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key | Yes |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key | Yes |
-| `NEXT_PUBLIC_DEFAULT_VARIANT` | Default variant (1–5), defaults to 1 | No |
+| Variable                         | Description                          | Required |
+| -------------------------------- | ------------------------------------ | -------- |
+| `NEXT_PUBLIC_SUPABASE_URL`       | Supabase project URL                 | Yes      |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | Supabase anon/public key             | Yes      |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key        | Yes      |
+| `NEXT_PUBLIC_DEFAULT_VARIANT`    | Default variant (1–5), defaults to 1 | No       |
 
 ### Edge Functions (Supabase Secrets)
 
-| Secret | Used By | Description |
-|---|---|---|
-| `TURNSTILE_SECRET_KEY` | `waitlist-submit` | Cloudflare Turnstile server-side secret |
-| `RESEND_API_KEY` | `launch-send` | Resend API key for sending launch emails |
-| `RESEND_FROM_EMAIL` | `launch-send` | Verified sender email address |
+| Secret                 | Used By           | Description                              |
+| ---------------------- | ----------------- | ---------------------------------------- |
+| `TURNSTILE_SECRET_KEY` | `waitlist-submit` | Cloudflare Turnstile server-side secret  |
+| `RESEND_API_KEY`       | `launch-send`     | Resend API key for sending launch emails |
+| `RESEND_FROM_EMAIL`    | `launch-send`     | Verified sender email address            |
 
 Set secrets via:
+
 ```bash
 supabase secrets set TURNSTILE_SECRET_KEY=0x4AAA...
 supabase secrets set RESEND_API_KEY=re_Zoob...
@@ -57,6 +58,7 @@ supabase db reset
 ```
 
 Tables created:
+
 - `waitlist_subscribers` — email signups with platform/locale/variant tracking
 - `launch_campaigns` — email campaign drafts and send status
 - `launch_sends` — per-recipient send tracking with Resend message IDs
@@ -64,6 +66,7 @@ Tables created:
 ### Edge Functions
 
 Deploy both functions:
+
 ```bash
 supabase functions deploy waitlist-submit --no-verify-jwt
 supabase functions deploy launch-send
@@ -133,6 +136,7 @@ curl -X POST "$SUPABASE_URL/functions/v1/launch-send/campaigns/$CAMPAIGN_ID/send
 ```
 
 The function will:
+
 - Set campaign status to `sending`
 - Enqueue sends for all active subscribers matching the locale filter
 - Send emails sequentially with rate limiting
@@ -195,10 +199,10 @@ WHERE ls.status = 'failed';
 
 ## Troubleshooting
 
-| Issue | Check |
-|---|---|
-| Turnstile widget not loading | Verify `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set and domain is registered in Cloudflare |
-| "Verification failed" on submit | Check `TURNSTILE_SECRET_KEY` is correct in Supabase secrets |
-| "Rate limited" on submit | IP has hit 5 submissions/hour — wait or test from different IP |
-| Launch emails not sending | Verify `RESEND_API_KEY` and `RESEND_FROM_EMAIL`; check Resend dashboard for bounces |
-| Build fails in CI | Ensure placeholder env vars are set (CI uses dummy values for build check) |
+| Issue                           | Check                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
+| Turnstile widget not loading    | Verify `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set and domain is registered in Cloudflare |
+| "Verification failed" on submit | Check `TURNSTILE_SECRET_KEY` is correct in Supabase secrets                           |
+| "Rate limited" on submit        | IP has hit 5 submissions/hour — wait or test from different IP                        |
+| Launch emails not sending       | Verify `RESEND_API_KEY` and `RESEND_FROM_EMAIL`; check Resend dashboard for bounces   |
+| Build fails in CI               | Ensure placeholder env vars are set (CI uses dummy values for build check)            |

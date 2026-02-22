@@ -9,4 +9,11 @@ admin/.vercel/
 admin/.env.local
 admin/.env.dev
 admin/.env
+
+landing/.next/
+landing/.vercel/
+landing/.env.local
+landing/.env
 *.tsbuildinfo
+
+.playwright-mcp/

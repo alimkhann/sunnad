@@ -10,27 +10,27 @@ The Sunnad landing page has **5 visual variants × 3 locales × 2 device sizes**
 
 ### Variants
 
-| ID | Name | Key Visual Traits |
-|---|---|---|
-| 1 | Soft Glass | iOS-style blur, green accent, frosted bg |
-| 2 | Editorial Serif | Playfair Display, cream tones, grain texture, horizontal rules |
-| 3 | Geometric Clean | Uppercase headings, mint/teal, sharp containers |
-| 4 | Warm Tactile | DM Serif Display, coral/peach, grain texture, rounded cards |
-| 5 | Dark Cosmic | Dark bg, purple/violet gradients, animated star-dots |
+| ID  | Name            | Key Visual Traits                                              |
+| --- | --------------- | -------------------------------------------------------------- |
+| 1   | Soft Glass      | iOS-style blur, green accent, frosted bg                       |
+| 2   | Editorial Serif | Playfair Display, cream tones, grain texture, horizontal rules |
+| 3   | Geometric Clean | Uppercase headings, mint/teal, sharp containers                |
+| 4   | Warm Tactile    | DM Serif Display, coral/peach, grain texture, rounded cards    |
+| 5   | Dark Cosmic     | Dark bg, purple/violet gradients, animated star-dots           |
 
 ### Locales
 
-| Code | Language | Script | Concerns |
-|---|---|---|---|
-| `en` | English | Latin | Baseline |
-| `ru` | Russian | Cyrillic | Longer words, wider text blocks |
-| `kk` | Kazakh | Cyrillic | Longest words, potential text overflow |
+| Code | Language | Script   | Concerns                               |
+| ---- | -------- | -------- | -------------------------------------- |
+| `en` | English  | Latin    | Baseline                               |
+| `ru` | Russian  | Cyrillic | Longer words, wider text blocks        |
+| `kk` | Kazakh   | Cyrillic | Longest words, potential text overflow |
 
 ### Device Sizes
 
-| Size | Viewport | Notes |
-|---|---|---|
-| Mobile | 375×812 | iPhone-class, single column |
+| Size    | Viewport | Notes                              |
+| ------- | -------- | ---------------------------------- |
+| Mobile  | 375×812  | iPhone-class, single column        |
 | Desktop | 1440×900 | Wide layout, multi-column features |
 
 ---
@@ -113,38 +113,38 @@ The Sunnad landing page has **5 visual variants × 3 locales × 2 device sizes**
 
 ## Test Matrix (30 combinations)
 
-| # | Variant | Locale | Device | Nav | Hero | Features | Carousel | FAQ | Waitlist | Footer | Legal | Animations | Status |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | V1 | en | Mobile | | | | | | | | | | |
-| 2 | V1 | en | Desktop | | | | | | | | | | |
-| 3 | V1 | ru | Mobile | | | | | | | | | | |
-| 4 | V1 | ru | Desktop | | | | | | | | | | |
-| 5 | V1 | kk | Mobile | | | | | | | | | | |
-| 6 | V1 | kk | Desktop | | | | | | | | | | |
-| 7 | V2 | en | Mobile | | | | | | | | | | |
-| 8 | V2 | en | Desktop | | | | | | | | | | |
-| 9 | V2 | ru | Mobile | | | | | | | | | | |
-| 10 | V2 | ru | Desktop | | | | | | | | | | |
-| 11 | V2 | kk | Mobile | | | | | | | | | | |
-| 12 | V2 | kk | Desktop | | | | | | | | | | |
-| 13 | V3 | en | Mobile | | | | | | | | | | |
-| 14 | V3 | en | Desktop | | | | | | | | | | |
-| 15 | V3 | ru | Mobile | | | | | | | | | | |
-| 16 | V3 | ru | Desktop | | | | | | | | | | |
-| 17 | V3 | kk | Mobile | | | | | | | | | | |
-| 18 | V3 | kk | Desktop | | | | | | | | | | |
-| 19 | V4 | en | Mobile | | | | | | | | | | |
-| 20 | V4 | en | Desktop | | | | | | | | | | |
-| 21 | V4 | ru | Mobile | | | | | | | | | | |
-| 22 | V4 | ru | Desktop | | | | | | | | | | |
-| 23 | V4 | kk | Mobile | | | | | | | | | | |
-| 24 | V4 | kk | Desktop | | | | | | | | | | |
-| 25 | V5 | en | Mobile | | | | | | | | | | |
-| 26 | V5 | en | Desktop | | | | | | | | | | |
-| 27 | V5 | ru | Mobile | | | | | | | | | | |
-| 28 | V5 | ru | Desktop | | | | | | | | | | |
-| 29 | V5 | kk | Mobile | | | | | | | | | | |
-| 30 | V5 | kk | Desktop | | | | | | | | | | |
+| #   | Variant | Locale | Device  | Nav | Hero | Features | Carousel | FAQ | Waitlist | Footer | Legal | Animations | Status |
+| --- | ------- | ------ | ------- | --- | ---- | -------- | -------- | --- | -------- | ------ | ----- | ---------- | ------ |
+| 1   | V1      | en     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 2   | V1      | en     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 3   | V1      | ru     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 4   | V1      | ru     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 5   | V1      | kk     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 6   | V1      | kk     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 7   | V2      | en     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 8   | V2      | en     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 9   | V2      | ru     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 10  | V2      | ru     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 11  | V2      | kk     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 12  | V2      | kk     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 13  | V3      | en     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 14  | V3      | en     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 15  | V3      | ru     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 16  | V3      | ru     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 17  | V3      | kk     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 18  | V3      | kk     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 19  | V4      | en     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 20  | V4      | en     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 21  | V4      | ru     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 22  | V4      | ru     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 23  | V4      | kk     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 24  | V4      | kk     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 25  | V5      | en     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 26  | V5      | en     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 27  | V5      | ru     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 28  | V5      | ru     | Desktop |     |      |          |          |     |          |        |       |            |        |
+| 29  | V5      | kk     | Mobile  |     |      |          |          |     |          |        |       |            |        |
+| 30  | V5      | kk     | Desktop |     |      |          |          |     |          |        |       |            |        |
 
 ---
 

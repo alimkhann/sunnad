@@ -3,7 +3,9 @@ import { landingConfig, hasSupabaseConfig } from "@/lib/config";
 
 let browserClient: ReturnType<typeof createClient> | null = null;
 
-export function getSupabaseBrowserClient(): ReturnType<typeof createClient> | null {
+export function getSupabaseBrowserClient(): ReturnType<
+  typeof createClient
+> | null {
   if (browserClient) return browserClient;
   if (!hasSupabaseConfig()) return null;
 
