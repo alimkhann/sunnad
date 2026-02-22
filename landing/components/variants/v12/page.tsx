@@ -348,10 +348,10 @@ export default function V12Page({ locale }: Props): React.JSX.Element {
               {transcript.map((line, index) => (
                 <motion.div
                   key={`${line.speaker}-${index}`}
-                  initial={reducedMotion ? false : { opacity: 0, x: index % 2 ? 12 : -12 }}
+                  initial={false}
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true, margin: "-40px" }}
-                  transition={{ duration: 0.35, delay: reducedMotion ? 0 : index * 0.05 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.35, delay: reducedMotion ? 0 : index * 0.05 }}
                   className={`max-w-[92%] rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
                     line.tone === "feature"
                       ? "ml-auto border-[#7185ff]/20 bg-[#0a0f23]"

@@ -229,10 +229,10 @@ export default function V15Page({ locale }: Props): React.JSX.Element {
               {timeline.map((step, index) => (
                 <motion.article
                   key={step.title}
-                  initial={reducedMotion ? false : { opacity: 0, y: 20 }}
+                  initial={false}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-60px" }}
-                  transition={{ duration: 0.42, delay: reducedMotion ? 0 : index * 0.05 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.42, delay: reducedMotion ? 0 : index * 0.05 }}
                   className={`grid gap-4 rounded-[1.4rem] border p-4 sm:grid-cols-[130px_1fr_210px] sm:items-center ${
                     step.tone === "dark"
                       ? "border-[#262222] bg-[#191717] text-white"

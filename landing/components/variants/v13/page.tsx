@@ -183,10 +183,10 @@ export default function V13Page({ locale }: Props): React.JSX.Element {
               {exhibits.map((exhibit, index) => (
                 <motion.figure
                   key={exhibit.title}
-                  initial={reducedMotion ? false : { opacity: 0, y: 18 }}
+                  initial={false}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-60px" }}
-                  transition={{ duration: 0.45, delay: reducedMotion ? 0 : index * 0.08 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.45, delay: reducedMotion ? 0 : index * 0.08 }}
                   className={`rounded-[1.5rem] border border-[#dde2d7] bg-[#fbfcf8] p-4 shadow-[0_12px_30px_rgba(34,43,33,0.05)] ${
                     index === 1 ? "md:-mt-8" : ""
                   }`}
@@ -215,9 +215,9 @@ export default function V13Page({ locale }: Props): React.JSX.Element {
 
         <section
           id="exhibits"
-          className="mx-auto grid max-w-6xl gap-8 px-5 py-2 sm:px-8 lg:grid-cols-[1.05fr_minmax(0,1fr)]"
+          className="mx-auto grid max-w-6xl gap-8 px-5 py-2 sm:px-8 xl:grid-cols-[1.05fr_minmax(0,1fr)]"
         >
-          <div className="rounded-[1.8rem] border border-[#dfe5da] bg-white/70 p-6 sm:p-7">
+          <div className="min-w-0 rounded-[1.8rem] border border-[#dfe5da] bg-white/70 p-6 sm:p-7">
             <p className="text-xs tracking-[0.24em] text-[#74806f]">ROOM II · STORYBOARD</p>
             <h2 className="mt-3 text-3xl leading-tight sm:text-4xl">
               One day, shown in a sequence of quiet screens.
@@ -248,7 +248,7 @@ export default function V13Page({ locale }: Props): React.JSX.Element {
             </div>
           </div>
 
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5">
             <div className="rounded-[1.6rem] border border-[#dfe5da] bg-white/80 p-6">
               <p className="text-xs tracking-[0.22em] text-[#74806f]">ROOM III · PLAQUES</p>
               <div className="mt-4 space-y-4">
