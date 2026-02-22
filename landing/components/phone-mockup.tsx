@@ -22,7 +22,7 @@ export function PhoneMockup({
       </div>
       {/* The Bezel Overlay */}
       <img
-        src="/app-screenshots/iphone_bezels.png"
+        src="/app-screenshots/iphone_bezels_16_pro.png"
         alt="iPhone Bezel"
         className="absolute inset-0 w-full h-full object-contain pointer-events-none z-10 drop-shadow-2xl"
       />
