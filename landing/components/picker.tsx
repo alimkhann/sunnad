@@ -286,9 +286,7 @@ function CardDecoration({ type }: { type: string }) {
     );
   }
   if (type === "brutalist-elegance") {
-    return (
-      <div className="absolute bottom-0 right-0 w-16 h-16 bg-black" />
-    );
+    return <div className="absolute bottom-0 right-0 w-16 h-16 bg-black" />;
   }
   return null; /* dawn: gradient IS the decoration */
 }
