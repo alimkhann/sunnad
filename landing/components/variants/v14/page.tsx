@@ -6,7 +6,9 @@ import Link from "next/link";
 import { submitWaitlist } from "@/lib/waitlist-submit";
 import { Turnstile } from "@/components/turnstile";
 import { landingConfig } from "@/lib/config";
-import { Sun, Moon, Globe } from "lucide-react";
+import { Sun, Moon, Globe, ChevronDown } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import CountUp from "@/components/count-up";
 
 type Theme = "dark" | "light";
 type SupportedLocale = "en" | "ru" | "kz";
@@ -22,6 +24,31 @@ const translations = {
     waitlistPlaceholder: "Email address",
     bottomTitle: "Glad you asked.",
     bottomSubtitle: "Experience premium simplicity across the entire app.",
+    features: [
+      {
+        id: "today",
+        title: "Focus on Today",
+        desc: "A singular view of what matters right now. No timeline anxiety, no endless scrolling. Just your immediate daily habits.",
+      },
+      {
+        id: "dhikr",
+        title: "Tactile Dhikr",
+        desc: "A beautifully haptic counter that feels like a physical object. Count your tasbih anywhere with effortless screen taps.",
+      },
+      {
+        id: "groups",
+        title: "Private Circles",
+        desc: "Stay accountable without the noise. Create small groups with close friends to quietly support each other's consistency.",
+      }
+    ],
+    faqTitle: "Frequently asked questions",
+    faqSubtitle: "We are here to help you with any questions you may have. If you don't find what you need, please contact us at",
+    faqs: [
+      { q: "Is Sunnad fully free to use?", a: "Yes, the core tracking features will always remain free. We plan to introduce optional premium themes later to support development." },
+      { q: "Can I create private groups with my friends?", a: "Absolutely. You can invite friends to your circle to share streaks and hold each other accountable." },
+      { q: "How does the analytics tracking work?", a: "We quietly log your daily completions and generate a beautiful, private timeline mapping your consistency over weeks and months." },
+      { q: "Is my data secure?", a: "Your habitual data is completely private. We do not sell tracking data or use it for targeted advertising ever." }
+    ]
   },
   ru: {
     heroTitle: "Одна привычка.\nБесконечный покой.",
@@ -33,6 +60,31 @@ const translations = {
     waitlistPlaceholder: "Ваш email",
     bottomTitle: "Рады, что вы спросили.",
     bottomSubtitle: "Премиальная простота на всём протяжении приложения.",
+    features: [
+      {
+        id: "today",
+        title: "Фокус на Сегодня",
+        desc: "Единый взгляд на то, что важно прямо сейчас. Никакой тревоги из-за таймлайнов, никакого бесконечного скроллинга. Только ваши ежедневные привычки.",
+      },
+      {
+        id: "dhikr",
+        title: "Тактильный Зикр",
+        desc: "Красивый тактильный счетчик, который ощущается как физический объект. Считайте тасбих где угодно с легкими касаниями экрана.",
+      },
+      {
+        id: "groups",
+        title: "Приватные Круги",
+        desc: "Оставайтесь ответственными без лишнего шума. Создавайте небольшие группы с близкими друзьями, чтобы тихо поддерживать постоянство друг друга.",
+      }
+    ],
+    faqTitle: "Часто задаваемые вопросы",
+    faqSubtitle: "Мы здесь, чтобы помочь вам с любыми вопросами. Если вы не нашли ответ, свяжитесь с нами:",
+    faqs: [
+      { q: "Полностью ли бесплатно использование Sunnad?", a: "Да, основные функции трекинга всегда будут бесплатными. Позже мы планируем добавить премиальные темы для поддержки разработки." },
+      { q: "Могу ли я создавать приватные группы с друзьями?", a: "Конечно. Вы можете приглашать друзей в свой круг, чтобы делиться сериями и поддерживать друг друга." },
+      { q: "Как работает отслеживание аналитики?", a: "Мы тихо записываем ваши ежедневные выполнения и создаем красивый, приватный таймлайн, отображающий вашу стабильность." },
+      { q: "В безопасности ли мои данные?", a: "Ваши данные о привычках полностью приватны. Мы никогда не продаем данные о трекинге и не используем их для таргетированной рекламы." }
+    ]
   },
   kz: {
     heroTitle: "Бір әдет.\nШексіз тыныштық.",
@@ -44,6 +96,31 @@ const translations = {
     waitlistPlaceholder: "Email мекенжайы",
     bottomTitle: "Сұрағаныңызға қуаныштымыз.",
     bottomSubtitle: "Қосымшаның барлық жеріндегі премиум қарапайымдылықты сезініңіз.",
+    features: [
+      {
+        id: "today",
+        title: "Бүгінге назар аудару",
+        desc: "Дәл қазір маңызды нәрсеге жалғыз көзқарас. Уақыт шкаласы туралы уайым жоқ, шексіз айналдыру жоқ. Тек сіздің күнделікті әдеттеріңіз.",
+      },
+      {
+        id: "dhikr",
+        title: "Тактильді Зікір",
+        desc: "Физикалық нысан сияқты сезілетін әдемі тактильді есептегіш. Экранды жеңіл түрту арқылы кез келген жерде тасбих санаңыз.",
+      },
+      {
+        id: "groups",
+        title: "Жеке Топтар",
+        desc: "Артық шусыз жауапкершілікті сақтаңыз. Жақын достарыңызбен шағын топтар құрып, бір-біріңіздің тұрақтылығыңызды үнсіз қолдаңыз.",
+      }
+    ],
+    faqTitle: "Жиі қойылатын сұрақтар",
+    faqSubtitle: "Біз сізге кез келген сұрақтар бойынша көмектесуге дайынбыз. Егер сіз өзіңізге қажетті жауапты таппасаңыз, бізге хабарласыңыз:",
+    faqs: [
+      { q: "Sunnad қолданбасын пайдалану толығымен тегін бе?", a: "Иә, негізгі бақылау мүмкіндіктері әрқашан тегін болып қалады. Кейінірек дамытуды қолдау үшін қосымша премиум тақырыптарды енгізуді жоспарлап отырмыз." },
+      { q: "Достарыммен жеке топтар құра аламын ба?", a: "Әрине. Достарыңызды өз ортаңызға шақырып, жетістіктеріңізбен бөлісе аласыз." },
+      { q: "Аналитика қалай жұмыс істейді?", a: "Біз сіздің күнделікті орындауларыңызды үнсіз тіркейміз және тұрақтылығыңызды көрсететін әдемі, жеке таймлайн жасаймыз." },
+      { q: "Менің деректерім қауіпсіз бе?", a: "Сіздің әдеттеріңіз туралы деректер толығымен құпия. Біз бақылау деректерін ешқашан сатпаймыз және оларды мақсатты жарнама үшін пайдаланбаймыз." }
+    ]
   },
 };
 
@@ -109,6 +186,137 @@ function MinimalWaitlist({ locale, isDark, t }: { locale: string; isDark?: boole
         </form>
       )}
     </div>
+  );
+}
+
+function FeaturesScroll({ locale, theme, t, isDark }: { locale: string; theme: string; t: any; isDark: boolean }) {
+  const containerRef = useRef(null);
+  const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] });
+
+  const activeIndex = useTransform(scrollYProgress, (v) => {
+    if (v < 0.33) return 0;
+    if (v < 0.66) return 1;
+    return 2;
+  });
+
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    return activeIndex.on("change", (v) => setIndex(v));
+  }, [activeIndex]);
+
+  const images = ["today", "dhikr", "groups"];
+
+  return (
+    <section ref={containerRef} className="relative w-full h-[300vh] z-30">
+      <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col items-center justify-center px-6">
+        {/* Texts container */}
+        <div className="absolute inset-0 max-w-6xl mx-auto w-full h-full pointer-events-none">
+           {t.features.map((feat: any, i: number) => {
+              const isActive = index === i;
+              return (
+                 <div
+                   key={feat.id}
+                   className={`absolute top-[65%] md:top-1/2 left-1/2 -translate-x-1/2 md:-translate-y-1/2 w-full max-w-[320px] text-center md:text-left transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-auto ${
+                     isActive ? "opacity-100 translate-y-0 md:translate-y-[-50%]" : "opacity-0 translate-y-8 md:translate-y-[-40%]"
+                   } ${
+                     i % 2 === 0 ? "md:left-[25%]" : "md:left-[75%]"
+                   }`}
+                 >
+                    <h3 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight">{feat.title}</h3>
+                    <p className={`text-base md:text-lg leading-relaxed ${isDark ? "text-gray-400" : "text-gray-500"}`}>{feat.desc}</p>
+                 </div>
+              )
+           })}
+        </div>
+
+        {/* Central Sticky Phone */}
+        <div className="relative w-[280px] md:w-[320px] aspect-[450/920] drop-shadow-[0_25px_50px_rgba(0,0,0,0.15)] z-10 md:absolute md:left-1/2 md:-translate-x-1/2 absolute top-1/2 -translate-y-[60%] md:-translate-y-1/2">
+          <div className="absolute inset-[13px] md:inset-[15px] rounded-[30px] md:rounded-[36px] overflow-hidden bg-black shadow-inner">
+            <AnimatePresence mode="wait">
+              <motion.img
+                key={index}
+                initial={{ opacity: 0, scale: 1.05 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.4 }}
+                src={`/app-screenshots/${locale}_${images[index]}_${theme}.PNG`}
+                className="absolute inset-0 w-full h-full object-cover"
+                alt="Feature"
+              />
+            </AnimatePresence>
+          </div>
+          <img
+            src="/app-screenshots/iphone_bezels_16_pro.png"
+            className="absolute inset-0 w-full h-full object-contain pointer-events-none z-20"
+            alt=""
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FAQSection({ t, isDark }: { t: any; isDark: boolean }) {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+
+  return (
+    <section className={`relative z-40 w-full py-32 px-6 ${isDark ? "bg-[#0A0A0A]/50" : "bg-gray-50/50"} border-y ${isDark ? "border-white/5" : "border-black/5"}`}>
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">{t.faqTitle}</h2>
+          <p className="text-gray-500 max-w-xl mx-auto">
+            {t.faqSubtitle} <a href="mailto:support@sunnad.app" className="underline hover:text-gray-800 dark:hover:text-gray-200 transition-colors">support@sunnad.app</a>
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          {t.faqs.map((faq: any, i: number) => {
+            const isOpen = openIndex === i;
+            return (
+              <div
+                key={i}
+                className={`overflow-hidden rounded-2xl border transition-colors ${
+                  isDark ? "bg-[#111] border-white/5" : "bg-white border-black/5 hover:border-black/10"
+                }`}
+              >
+                <button
+                  onClick={() => setOpenIndex(isOpen ? null : i)}
+                  className="w-full flex items-center justify-between p-6 text-left"
+                >
+                  <span className="text-lg font-medium">{faq.q}</span>
+                  <motion.div
+                    animate={{ rotate: isOpen ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className={`flex-shrink-0 p-1 rounded-full ${isDark ? "bg-white/10" : "bg-black/5"}`}
+                  >
+                    <ChevronDown size={20} className={isDark ? "text-gray-400" : "text-gray-500"} />
+                  </motion.div>
+                </button>
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      key="content"
+                      initial="collapsed"
+                      animate="open"
+                      exit="collapsed"
+                      variants={{
+                        open: { opacity: 1, height: "auto" },
+                        collapsed: { opacity: 0, height: 0 }
+                      }}
+                      transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
+                    >
+                      <div className={`px-6 pb-6 pr-12 text-base leading-relaxed ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                        {faq.a}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -187,25 +395,42 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
 
       {/* Hero */}
       <main className="relative z-10 flex flex-col items-center pt-[20vh] pb-[10vh] px-6 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, ease: "easeOut" }}
-          className="w-full max-w-3xl"
-        >
-          <h1 className="text-6xl md:text-[5.5rem] font-bold tracking-tighter leading-[1.05] mb-6 whitespace-pre-line">
+        <div className="w-full max-w-3xl">
+          <motion.h1
+            initial={{ opacity: 0, filter: "blur(10px)", y: 20 }}
+            animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+            transition={{ duration: 1, ease: "easeOut" }}
+            className="text-6xl md:text-[5.5rem] font-bold tracking-tighter leading-[1.05] mb-6 whitespace-pre-line"
+          >
             {t.heroTitle}
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-500 font-medium mb-12 max-w-2xl mx-auto whitespace-pre-line">
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0, filter: "blur(10px)", y: 20 }}
+            animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+            transition={{ duration: 1, delay: 0.2, ease: "easeOut" }}
+            className="text-xl md:text-2xl text-gray-500 font-medium mb-12 max-w-2xl mx-auto whitespace-pre-line"
+          >
             {t.heroSubtitle}
-          </p>
+          </motion.p>
 
-          <MinimalWaitlist locale={activeLocale} isDark={isDark} t={t} />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, delay: 0.4, ease: "easeOut" }}
+          >
+            <MinimalWaitlist locale={activeLocale} isDark={isDark} t={t} />
 
-          <div className="mt-8 text-sm font-medium text-gray-400">
-            <span className={isDark ? "text-white" : "text-black"}>{count.toLocaleString()}</span> {t.waitlistCount}
-          </div>
-        </motion.div>
+            <div className="mt-8 text-sm font-medium text-gray-400 flex items-center justify-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              <span className={isDark ? "text-white" : "text-black"}>
+                {count > 0 ? <CountUp to={count} separator="," duration={2} /> : count.toLocaleString()}
+              </span> {t.waitlistCount}
+            </div>
+          </motion.div>
+        </div>
       </main>
 
       {/* Spatial Canvas (Detached 3D elements) */}
@@ -306,6 +531,10 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
         </motion.div>
       </section>
 
+      <FeaturesScroll locale={activeLocale} theme={theme} isDark={isDark} t={t} />
+
+      <FAQSection isDark={isDark} t={t} />
+
       {/* Bottom Waitlist Section */}
       <section className="relative z-40 bg-transparent pb-20 pt-32 px-6 md:h-[80vh] flex md:items-center">
         <div className="max-w-3xl mx-auto flex flex-col items-center text-center w-full">
@@ -316,8 +545,14 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
             {t.bottomSubtitle}
           </p>
           <MinimalWaitlist locale={activeLocale} isDark={isDark} t={t} />
-          <div className="mt-8 text-sm font-medium text-gray-400">
-            <span className={isDark ? "text-white" : "text-black"}>{count.toLocaleString()}</span> {t.waitlistCount}
+          <div className="mt-8 text-sm font-medium text-gray-400 flex items-center justify-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            <span className={isDark ? "text-white" : "text-black"}>
+              {count > 0 ? <CountUp to={count} separator="," duration={2} /> : count.toLocaleString()}
+            </span> {t.waitlistCount}
           </div>
         </div>
       </section>
