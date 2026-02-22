@@ -1,425 +1,232 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { FormEvent, useRef, useState } from "react";
-import {
-  AnimatePresence,
-  motion,
-  useMotionValueEvent,
-  useReducedMotion,
-  useScroll,
-  useTransform,
-} from "framer-motion";
 import { submitWaitlist } from "@/lib/waitlist-submit";
 import { Turnstile } from "@/components/turnstile";
 import { landingConfig } from "@/lib/config";
 
-type Props = { locale: string; variant: string };
+/* ── Content ── */
+const copy = {
+  hero: "Your sanctuary for daily habits.",
+  sub: "A quiet space to focus on your deen. Without the noise of the modern web.",
+  chapters: [
+    { id: "today", text: "The day begins quietly.", sub: "Only what is due today. A clean, distraction-free checklist.", img: "/app-screenshots/en_today_dark.PNG" },
+    { id: "dhikr", text: "Keep count, stay present.", sub: "Built-in seamlessly for your daily adhkar.", img: "/app-screenshots/en_dhikr_dark.PNG" },
+    { id: "groups", text: "Walk the path together.", sub: "Private accountability with people you trust.", img: "/app-screenshots/en_groups_dark.PNG" },
+  ]
+};
 
-const screens = [
-  {
-    src: "/app-screenshots/en_today_dark.PNG",
-    title: "Daily rhythm",
-    blurb: "Only what is due today, so your focus stays quiet.",
-  },
-  {
-    src: "/app-screenshots/en_dhikr_dark.PNG",
-    title: "Intentional dhikr",
-    blurb: "Counter-style habits without turning worship into noise.",
-  },
-  {
-    src: "/app-screenshots/en_groups_dark.PNG",
-    title: "Trusted accountability",
-    blurb: "Gentle group reminders for people you actually care about.",
-  },
-] as const;
-
-const faq = [
-  {
-    q: "Does Sunnad work offline?",
-    a: "Yes. Your personal habits, completions, and quote flow are designed to remain useful without internet. Groups and account features require network access.",
-  },
-  {
-    q: "What kind of habits can I track?",
-    a: "Binary habits, dhikr-style counter habits, and weekly scheduled routines. The app is focused on spiritual consistency, not endless customization.",
-  },
-  {
-    q: "Will there be more languages?",
-    a: "The app already supports multilingual UI and is being expanded carefully. This landing variant is English-only for design testing.",
-  },
-] as const;
-
-function NocturneWaitlist({
-  locale,
-}: {
-  locale: string;
-}): React.JSX.Element {
-  const [email, setEmail] = useState("");
-  const [token, setToken] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">(
-    "idle",
-  );
-  const [message, setMessage] = useState<string>("");
-  const hasTurnstile = Boolean(landingConfig.turnstileSiteKey);
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!email || !token || status === "loading") return;
-    setStatus("loading");
-    setMessage("");
-
-    const result = await submitWaitlist({
-      email,
-      turnstileToken: token,
-      locale,
-      variant: "11",
-    });
-
-    if (result.status === "subscribed") {
-      setStatus("success");
-      setMessage("You are on the Sunnad waitlist.");
-      return;
-    }
-    if (result.status === "already_subscribed") {
-      setStatus("success");
-      setMessage("This email is already on the waitlist.");
-      return;
-    }
-    if (result.status === "rate_limited") {
-      setStatus("error");
-      setMessage("Please wait a moment before trying again.");
-      return;
-    }
-
-    setStatus("error");
-    setMessage("Could not submit right now. Please try again.");
-  }
-
+/* ── Waitlist Counter & Form ── */
+function PoeticCounter() {
+  const [count, setCount] = useState(1342);
+  useEffect(() => {
+    const int = setInterval(() => { if(Math.random() > 0.5) setCount(c => c + 1) }, 6000);
+    return () => clearInterval(int);
+  }, []);
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
-        <label className="sr-only" htmlFor="v11-email">
-          Email
-        </label>
-        <input
-          id="v11-email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          placeholder="Enter your email for early access"
-          disabled={status === "loading"}
-          className="h-12 rounded-full border border-white/15 bg-black/40 px-5 text-sm text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-[#b39aff]/60"
-        />
-        <button
-          type="submit"
-          disabled={status === "loading" || !token || !hasTurnstile}
-          className="h-12 rounded-full bg-gradient-to-r from-[#d0c4ff] to-[#8aa7ff] px-6 text-sm font-semibold text-[#0d1022] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {status === "loading" ? "Joining..." : "Join waitlist"}
-        </button>
-      </div>
-
-      {hasTurnstile ? (
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-2">
-          <Turnstile
-            siteKey={landingConfig.turnstileSiteKey}
-            theme="dark"
-            onToken={setToken}
-            onExpired={() => setToken("")}
-            onError={() => setToken("")}
-          />
-        </div>
-      ) : (
-        <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/70">
-          Turnstile is not configured in this environment. Waitlist submission is
-          disabled for this preview.
-        </p>
-      )}
-
-      {message ? (
-        <p
-          className={`text-sm ${
-            status === "success" ? "text-[#c8d4ff]" : "text-[#ffb7c7]"
-          }`}
-        >
-          {message}
-        </p>
-      ) : null}
-    </form>
-  );
-}
-
-function PhoneScene({
-  imageIndex,
-  reducedMotion,
-}: {
-  imageIndex: number;
-  reducedMotion: boolean;
-}): React.JSX.Element {
-  return (
-    <div className="relative mx-auto w-[292px] sm:w-[326px] md:w-[362px]">
-      <div className="absolute inset-[-12%] rounded-full bg-[#6d5fd3]/20 blur-[54px]" />
-      <div className="absolute inset-x-[8%] top-[10%] h-[34%] rounded-full bg-[#a8d2ff]/20 blur-[42px]" />
-
-      <div className="relative aspect-[450/920]">
-        <div className="absolute inset-[4.5%] overflow-hidden rounded-[2.4rem] bg-black">
-          <AnimatePresence mode="wait">
-            <motion.img
-              key={screens[imageIndex].src}
-              src={screens[imageIndex].src}
-              alt={screens[imageIndex].title}
-              className="h-full w-full object-cover"
-              initial={reducedMotion ? false : { opacity: 0.2, scale: 1.02 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={reducedMotion ? undefined : { opacity: 0.2, scale: 0.985 }}
-              transition={{ duration: reducedMotion ? 0 : 0.55, ease: "easeOut" }}
-            />
-          </AnimatePresence>
-        </div>
-        <img
-          src="/app-screenshots/iphone_bezels.png"
-          alt=""
-          className="pointer-events-none absolute inset-0 h-full w-full object-contain drop-shadow-[0_30px_80px_rgba(0,0,0,0.7)]"
-        />
-      </div>
+    <div className="text-xs uppercase tracking-widest text-white/40 mb-8 font-sans">
+      <span className="text-white/80">{count.toLocaleString()}</span> souls seeking consistency
     </div>
   );
 }
 
-export default function V11Page({ locale }: Props): React.JSX.Element {
-  const reducedMotion = useReducedMotion();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: scrollRef,
-    offset: ["start start", "end end"],
-  });
-  const cinematicY = useTransform(
-    scrollYProgress,
-    [0, 1],
-    reducedMotion ? [0, 0] : [0, -60],
-  );
-  const mistOpacity = useTransform(scrollYProgress, [0, 0.7, 1], [0.35, 0.7, 0.3]);
+function PoeticWaitlistForm({ locale }: { locale: string }) {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle"|"loading"|"success"|"error">("idle");
+  const [token, setToken] = useState<string|null>(null);
+  const hasTurnstile = Boolean(landingConfig.turnstileSiteKey);
 
-  const [manualImageIndex, setManualImageIndex] = useState(0);
-  useMotionValueEvent(scrollYProgress, "change", (latest) => {
-    const next = latest < 0.34 ? 0 : latest < 0.67 ? 1 : 2;
-    setManualImageIndex((prev) => (prev === next ? prev : next));
-  });
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email || status === "loading") return;
+    setStatus("loading");
+    const res = await submitWaitlist({ email, turnstileToken: token || "demo", locale, variant: "11" });
+    setStatus(res.status === "subscribed" || res.status === "already_subscribed" ? "success" : "error");
+  }
 
   return (
-    <div
-      ref={scrollRef}
-      className="min-h-screen bg-[#04050a] text-white selection:bg-[#9e8cff]/30"
-      style={{ fontFamily: "'Cormorant Garamond', serif" }}
-    >
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-50"
-          style={{
-            backgroundImage:
-              "radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,.8), transparent),radial-gradient(1px 1px at 30% 42%, rgba(255,255,255,.5), transparent),radial-gradient(1px 1px at 56% 12%, rgba(255,255,255,.6), transparent),radial-gradient(1px 1px at 78% 34%, rgba(255,255,255,.45), transparent),radial-gradient(1px 1px at 86% 70%, rgba(255,255,255,.55), transparent),radial-gradient(1px 1px at 22% 80%, rgba(255,255,255,.4), transparent)",
-          }}
-        />
-        <motion.div
-          style={{ opacity: mistOpacity }}
-          className="absolute -left-[15%] top-[8%] h-[36rem] w-[36rem] rounded-full bg-[#7c6cff]/16 blur-[110px]"
-        />
-        <motion.div
-          style={{ opacity: mistOpacity }}
-          className="absolute right-[-12%] top-[20%] h-[28rem] w-[30rem] rounded-full bg-[#78b6ff]/14 blur-[100px]"
-        />
-        <motion.div
-          style={{ opacity: mistOpacity, y: cinematicY }}
-          className="absolute inset-x-[12%] bottom-[4%] h-40 rounded-[999px] bg-gradient-to-r from-transparent via-white/8 to-transparent blur-3xl"
-        />
-      </div>
+    <div className="w-full max-w-md mx-auto flex flex-col items-center">
+      <PoeticCounter />
 
-      <header className="relative z-20 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-6 sm:px-8">
-        <Link
-          href={`/${locale}`}
-          className="text-xs tracking-[0.24em] text-white/70 transition hover:text-white"
-        >
-          SUNNAD INDEX
-        </Link>
-        <div className="hidden items-center gap-5 text-xs tracking-[0.22em] text-white/55 sm:flex">
-          <a href="#story" className="hover:text-white">
-            STORY
-          </a>
-          <a href="#faq" className="hover:text-white">
-            FAQ
-          </a>
-          <a href="#waitlist" className="hover:text-white">
-            WAITLIST
-          </a>
-        </div>
+      {status === "success" ? (
+         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-white/80 italic text-xl">
+           "Peace be upon you. You have joined the sanctuary."
+         </motion.div>
+      ) : (
+        <form onSubmit={onSubmit} className="flex flex-col gap-6 w-full items-center">
+          <input
+            type="email" required value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="Your email address"
+            className="w-full bg-transparent border-b border-white/20 px-4 py-3 text-center text-white placeholder:text-white/20 focus:outline-none focus:border-white/60 transition-colors font-sans text-lg"
+          />
+          {hasTurnstile && <Turnstile siteKey={landingConfig.turnstileSiteKey} onToken={setToken} theme="dark" />}
+          <button type="submit" disabled={status === "loading" || (hasTurnstile && !token)} className="uppercase tracking-[0.3em] text-xs px-10 py-4 border border-white/20 text-white/60 hover:text-white hover:border-white/60 transition-all font-sans">
+            {status === "loading" ? "Entering..." : "Request Access"}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+/* ── Main Page ── */
+export default function V11Page({ locale }: { locale: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] });
+
+  const [activeChapter, setActiveChapter] = useState(0);
+
+  useEffect(() => {
+    return scrollYProgress.on("change", (v) => {
+      const idx = Math.min(Math.floor(v * copy.chapters.length), copy.chapters.length - 1);
+      setActiveChapter(Math.max(0, idx));
+    });
+  }, [scrollYProgress]);
+
+  return (
+    <div className="bg-[#020202] text-[#E5E5E5] min-h-screen selection:bg-white/20 selection:text-white" style={{ fontFamily: "'Cormorant Garamond', serif" }}>
+
+      {/* Subtle Grain / Noise Overlay */}
+      <div className="pointer-events-none fixed inset-0 z-50 opacity-[0.03]" style={{ backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/7/76/1k_Dissolve_Noise_Texture.png')" }} />
+
+      {/* Navigation */}
+      <header className="fixed top-0 w-full z-40 p-8 flex justify-between items-center mix-blend-difference font-sans">
+        <span className="uppercase tracking-[0.4em] text-xs text-white/50">Sunnad</span>
+        <Link href={`/${locale}`} className="uppercase tracking-[0.2em] text-[10px] text-white/30 hover:text-white transition-colors">Return</Link>
       </header>
 
-      <section className="relative z-10 px-5 pt-6 sm:px-8">
-        <div className="mx-auto grid min-h-[78svh] max-w-6xl content-start gap-8 rounded-[2rem] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl sm:p-8 md:p-10">
-          <div className="space-y-4 text-center">
-            <p className="text-xs tracking-[0.3em] text-white/60">NOCTURNE SANCTUARY</p>
-            <h1 className="mx-auto max-w-4xl text-[2.35rem] leading-[0.93] text-white sm:text-6xl md:text-7xl">
-              Build a quieter
-              <span className="mx-2 italic text-[#cbc1ff]">daily practice</span>
-              before the day gets loud.
-            </h1>
-            <p className="mx-auto max-w-2xl text-base leading-relaxed text-white/70 sm:text-lg">
-              Sunnad is an offline-first habit tracker for Muslims: daily checklists,
-              dhikr counters, quotes, streaks, and group accountability that stays
-              gentle.
-            </p>
-          </div>
+      {/* Hero */}
+      <section className="relative h-screen flex flex-col items-center justify-center px-4 overflow-hidden">
+        {/* Ethereal Glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-white/[0.04] to-transparent blur-[120px] pointer-events-none rounded-full" />
 
-          <div className="mx-auto w-full max-w-3xl rounded-[1.4rem] border border-white/10 bg-black/25 p-3 shadow-[0_30px_120px_rgba(0,0,0,0.5)]">
-            <NocturneWaitlist locale={locale} />
-          </div>
+        <motion.h1
+          className="text-6xl md:text-8xl lg:text-9xl font-light tracking-tight text-center leading-none z-10"
+          initial={{ opacity: 0, filter: "blur(20px)", y: 20 }}
+          animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+          transition={{ duration: 2, ease: "easeOut" }}
+        >
+          {copy.hero}
+        </motion.h1>
+        <motion.p
+          className="mt-8 text-xl md:text-2xl text-white/40 italic text-center max-w-2xl z-10"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 2, delay: 1 }}
+        >
+          {copy.sub}
+        </motion.p>
 
-          <div className="text-center text-xs tracking-[0.22em] text-white/40">
-            Scroll to move through the Sunnad night journey
+        <motion.div
+          className="mt-20 w-full max-w-lg z-10 relative"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 2, delay: 1.5 }}
+        >
+          <div className="absolute inset-0 bg-white/[0.02] blur-xl rounded-full" />
+          <PoeticWaitlistForm locale={locale} />
+        </motion.div>
+
+        <motion.div
+          className="absolute bottom-12 flex flex-col items-center gap-4 text-white/20"
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 3, duration: 2 }}
+        >
+          <div className="w-[1px] h-16 bg-gradient-to-b from-white/20 to-transparent" />
+          <span className="uppercase tracking-widest text-[9px] font-sans">Descend</span>
+        </motion.div>
+      </section>
+
+      {/* Cinematic Scroll */}
+      <section ref={containerRef} className="relative h-[400vh] bg-[#020202]">
+        <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
+
+          {/* Background Ambient Shift */}
+          <AnimatePresence>
+             <motion.div
+               key={activeChapter}
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 0.15 }}
+               exit={{ opacity: 0 }}
+               transition={{ duration: 1.5 }}
+               className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.8)_0%,transparent_50%)] pointer-events-none blur-[150px]"
+             />
+          </AnimatePresence>
+
+          <div className="relative w-full max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 lg:gap-20 items-center">
+
+            {/* The Text Poetics */}
+            <div className="order-2 lg:order-1 flex flex-col justify-center items-center lg:items-start text-center lg:text-left h-[40vh] lg:h-auto z-20">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeChapter}
+                  initial={{ opacity: 0, y: 30, filter: "blur(12px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, y: -30, filter: "blur(12px)" }}
+                  transition={{ duration: 1, ease: [0.2, 0.65, 0.3, 0.9] }}
+                >
+                  <h2 className="text-5xl md:text-6xl lg:text-7xl mb-6 font-medium leading-[1.1] text-white/90">
+                    {copy.chapters[activeChapter].text}
+                  </h2>
+                  <p className="text-xl md:text-2xl text-white/40 italic font-light">
+                    {copy.chapters[activeChapter].sub}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            {/* The Floating Artefact (Phone) */}
+            <div className="order-1 lg:order-2 flex justify-center z-20 relative lg:-top-10">
+              <div className="relative w-[280px] h-[582px] md:w-[320px] md:h-[654px] rounded-[40px]">
+
+                {/* Image Container */}
+                <div className="absolute inset-[14px] rounded-[36px] overflow-hidden bg-black z-10 shadow-[0_0_80px_rgba(0,0,0,1)]">
+                  <AnimatePresence mode="wait">
+                    <motion.img
+                      key={activeChapter}
+                      src={copy.chapters[activeChapter].img}
+                      initial={{ opacity: 0, filter: "brightness(0.5) contrast(1.2)" }}
+                      animate={{ opacity: 1, filter: "brightness(1) contrast(1)" }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 1.2 }}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  </AnimatePresence>
+                </div>
+
+                {/* Bezel Overlay */}
+                <img
+                   src="/app-screenshots/iphone_bezels_16_pro.png"
+                   className="absolute inset-0 w-full h-full object-contain pointer-events-none z-20 mix-blend-screen opacity-40"
+                   alt=""
+                />
+
+                {/* Deep Shadowing to make it blend into darkness */}
+                <div className="absolute inset-0 z-30 pointer-events-none rounded-[40px] shadow-[inset_0_0_100px_rgba(0,0,0,0.8)]" />
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
 
-      <section
-        id="story"
-        className="relative z-10 mx-auto grid max-w-6xl grid-cols-1 gap-8 px-5 py-14 sm:px-8 md:grid-cols-[minmax(0,1fr)_380px]"
-      >
-        <div className="space-y-10">
-          <article className="rounded-[1.75rem] border border-white/10 bg-white/[0.035] p-6 backdrop-blur-md sm:p-8">
-            <p className="mb-3 text-xs tracking-[0.24em] text-white/55">
-              CHAPTER I
-            </p>
-            <h2 className="text-4xl leading-tight text-white sm:text-5xl">
-              A Today view that narrows your attention.
-            </h2>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-white/70">
-              No giant dashboard. No noisy feed. Just the habits due now, your quote
-              of the day, and room to finish what matters.
-            </p>
-          </article>
+      {/* Footer Finale */}
+      <section className="relative min-h-[80vh] flex flex-col items-center justify-center px-6">
+        <div className="absolute inset-0 bg-gradient-to-t from-[rgba(20,20,20,0.5)] to-transparent pointer-events-none" />
 
-          <article className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md sm:p-8">
-            <p className="mb-3 text-xs tracking-[0.24em] text-white/55">
-              CHAPTER II
-            </p>
-            <h2 className="text-4xl leading-tight text-white sm:text-5xl">
-              Dhikr habits that stay intentional, not gamified.
-            </h2>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-white/70">
-              Use counter-style habits for adhkar while keeping the interaction calm,
-              private, and consistent across your day.
-            </p>
-          </article>
+        <h2 className="text-5xl md:text-7xl font-light mb-16 text-center z-10 text-white/90">
+          The end of noise.
+        </h2>
 
-          <article className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md sm:p-8">
-            <p className="mb-3 text-xs tracking-[0.24em] text-white/55">
-              CHAPTER III
-            </p>
-            <h2 className="text-4xl leading-tight text-white sm:text-5xl">
-              Accountability with people you trust.
-            </h2>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-white/70">
-              Small groups, shared habits, and respectful nudges. Enough to stay
-              connected, not enough to turn worship into performative social media.
-            </p>
-          </article>
-
-          <div className="rounded-[1.75rem] border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent p-6 sm:p-8">
-            <h3 className="text-2xl tracking-wide text-white">Future demo space</h3>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/65">
-              This chapter is reserved for a short in-page video trailer showing the
-              Today, Dhikr, and Groups flow in motion.
-            </p>
-            <div className="mt-5 grid h-40 place-items-center rounded-2xl border border-dashed border-white/15 bg-black/25 text-sm tracking-[0.18em] text-white/40">
-              VIDEO TRAILER PLACEHOLDER
-            </div>
-          </div>
+        <div className="w-full relative z-10">
+          <PoeticWaitlistForm locale={locale} />
         </div>
 
-        <div className="md:sticky md:top-20 md:h-fit">
-          <div className="rounded-[2rem] border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-5 shadow-[0_30px_100px_rgba(0,0,0,.45)] backdrop-blur-xl">
-            <PhoneScene imageIndex={manualImageIndex} reducedMotion={Boolean(reducedMotion)} />
-            <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 p-4">
-              <p className="text-xs tracking-[0.24em] text-white/50">NOW SHOWING</p>
-              <h3 className="mt-2 text-2xl text-white">
-                {screens[manualImageIndex].title}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-white/65">
-                {screens[manualImageIndex].blurb}
-              </p>
-            </div>
-          </div>
-        </div>
+        <footer className="absolute bottom-10 flex gap-12 font-sans uppercase tracking-[0.2em] text-[10px] text-white/30">
+          <Link href={`/${locale}/terms`} className="hover:text-white transition-colors">Terms</Link>
+          <Link href={`/${locale}/privacy`} className="hover:text-white transition-colors">Privacy</Link>
+        </footer>
       </section>
 
-      <section id="faq" className="relative z-10 mx-auto max-w-6xl px-5 py-8 sm:px-8">
-        <div className="rounded-[2rem] border border-white/10 bg-[#090b14]/80 p-6 backdrop-blur-xl sm:p-8">
-          <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs tracking-[0.24em] text-white/50">LIBRARY SHELF</p>
-              <h2 className="text-4xl text-white sm:text-5xl">Questions before launch</h2>
-            </div>
-            <p className="max-w-md text-sm text-white/60">
-              Straight answers. No inflated promises.
-            </p>
-          </div>
-          <div className="space-y-3">
-            {faq.map((item, idx) => (
-              <details
-                key={item.q}
-                className="group rounded-2xl border border-white/10 bg-white/[0.03] p-4 open:bg-white/[0.05]"
-                open={idx === 0}
-              >
-                <summary className="cursor-pointer list-none pr-7 text-lg text-white marker:content-none">
-                  <span className="inline-flex items-center gap-3">
-                    <span className="text-xs tracking-[0.2em] text-white/45">
-                      {String(idx + 1).padStart(2, "0")}
-                    </span>
-                    {item.q}
-                  </span>
-                </summary>
-                <p className="mt-3 pl-9 text-sm leading-relaxed text-white/70">{item.a}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="waitlist" className="relative z-10 mx-auto max-w-6xl px-5 py-10 sm:px-8">
-        <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-[#120f1f] to-[#090b12] p-6 shadow-[0_30px_120px_rgba(0,0,0,.4)] sm:p-8">
-          <div className="grid gap-6 md:grid-cols-[1.1fr_minmax(0,1fr)] md:items-center">
-            <div>
-              <p className="text-xs tracking-[0.24em] text-white/45">EARLY ACCESS</p>
-              <h2 className="mt-2 text-4xl leading-tight text-white sm:text-5xl">
-                Join before launch, and start with a calmer habit system.
-              </h2>
-              <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/65 sm:text-base">
-                We are testing flows carefully. Join the list to get launch access
-                and updates when Sunnad is ready for a wider release.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-              <NocturneWaitlist locale={locale} />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <footer className="relative z-10 mx-auto flex max-w-6xl flex-col gap-4 px-5 pb-12 pt-6 text-sm text-white/55 sm:px-8 sm:flex-row sm:items-center sm:justify-between">
-        <p>Sunnad • Nocturne Sanctuary concept (EN prototype)</p>
-        <div className="flex flex-wrap items-center gap-4">
-          <Link href={`/${locale}/terms`} className="hover:text-white">
-            Terms
-          </Link>
-          <Link href={`/${locale}/privacy`} className="hover:text-white">
-            Privacy
-          </Link>
-          <Link href={`/${locale}`} className="hover:text-white">
-            Variant index
-          </Link>
-        </div>
-      </footer>
     </div>
   );
 }

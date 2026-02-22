@@ -16,4 +16,4 @@ landing/.env.local
 landing/.env
 *.tsbuildinfo
 
-.playwright-mcp/
+.playwright-mcp

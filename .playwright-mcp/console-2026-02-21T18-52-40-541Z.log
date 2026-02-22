@@ -1,4 +1,0 @@
-[   40191ms] ReferenceError: elementorCommon is not defined
-    at WpDashboardTracking.isEditorOneActive (https://ecofico.com/wp-content/plugins/elementor/assets/js/frontend-modules.min.js?ver=3.34.2:1:27934)
-    at WpDashboardTracking.destroy (https://ecofico.com/wp-content/plugins/elementor/assets/js/frontend-modules.min.js?ver=3.34.2:1:33066)
-    at https://ecofico.com/wp-content/plugins/elementor/assets/js/frontend-modules.min.js?ver=3.34.2:1:33620

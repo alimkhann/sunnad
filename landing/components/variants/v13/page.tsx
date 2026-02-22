@@ -1,343 +1,165 @@
 "use client";
 
+import { useState } from "react";
+import { motion } from "framer-motion";
 import Link from "next/link";
-import { FormEvent, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
 import { submitWaitlist } from "@/lib/waitlist-submit";
 import { Turnstile } from "@/components/turnstile";
 import { landingConfig } from "@/lib/config";
 
-type Props = { locale: string; variant: string };
-
-const exhibits = [
-  {
-    title: "Today",
-    caption: "A calm checklist of what is due now.",
-    img: "/app-screenshots/en_today_light.PNG",
-  },
-  {
-    title: "Dhikr",
-    caption: "Counter-style habits for daily adhkar.",
-    img: "/app-screenshots/en_dhikr_light.PNG",
-  },
-  {
-    title: "Groups",
-    caption: "Gentle accountability with trusted people.",
-    img: "/app-screenshots/en_groups_light.PNG",
-  },
-] as const;
-
-const plaques = [
-  {
-    title: "Offline-first by design",
-    body: "Personal habit tracking stays useful without internet. Network features are additive, not a dependency.",
-  },
-  {
-    title: "Built for consistency",
-    body: "Streaks, reminders, and habit detail flows are designed to support rhythm rather than guilt.",
-  },
-  {
-    title: "Multilingual foundation",
-    body: "Sunnad supports multilingual UI and is built to grow carefully across languages.",
-  },
-] as const;
-
-function GalleryWaitlist({ locale }: { locale: string }): React.JSX.Element {
+// --- Waitlist Forms ---
+function BotanicalWaitlist({ locale }: { locale: string }) {
   const [email, setEmail] = useState("");
-  const [token, setToken] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">(
-    "idle",
-  );
-  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState<"idle"|"loading"|"success"|"error">("idle");
+  const [token, setToken] = useState<string|null>(null);
   const hasTurnstile = Boolean(landingConfig.turnstileSiteKey);
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email || !token || status === "loading") return;
+    if (!email || status === "loading") return;
     setStatus("loading");
-    setMessage("");
-
-    const res = await submitWaitlist({
-      email,
-      turnstileToken: token,
-      locale,
-      variant: "13",
-    });
-
-    if (res.status === "subscribed" || res.status === "already_subscribed") {
-      setStatus("success");
-      setMessage(
-        res.status === "subscribed"
-          ? "Your invite request is recorded."
-          : "This email is already on the waitlist.",
-      );
-      return;
-    }
-    setStatus("error");
-    setMessage(
-      res.status === "rate_limited"
-        ? "Please wait and try again."
-        : "Submission failed. Please retry.",
-    );
+    const res = await submitWaitlist({ email, turnstileToken: token || "demo", locale, variant: "13" });
+    setStatus(res.status === "subscribed" || res.status === "already_subscribed" ? "success" : "error");
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email for early access"
-          className="h-12 rounded-xl border border-[#d8ddd2] bg-white px-4 text-sm text-[#1f241f] placeholder:text-[#8b9288] focus:outline-none focus:ring-2 focus:ring-[#9cc48a]/60"
-          disabled={status === "loading"}
-        />
-        <button
-          type="submit"
-          disabled={status === "loading" || !token || !hasTurnstile}
-          className="h-12 rounded-xl border border-[#20261f] bg-[#20261f] px-5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {status === "loading" ? "Sending..." : "Join waitlist"}
-        </button>
+    <div className="w-full max-w-sm mx-auto bg-white/40 backdrop-blur-xl border border-white/60 p-6 rounded-[2rem] shadow-[0_8px_32px_rgba(100,130,100,0.08)]">
+      <div className="text-center mb-6">
+        <h3 className="text-[#3A4D39] text-xl font-medium mb-1">Plant the Seed</h3>
+        <p className="text-[#5B6D5A] text-sm">Join the waitlist to cultivate your daily routine.</p>
       </div>
-      {hasTurnstile ? (
-        <div className="overflow-hidden rounded-xl border border-[#dfe5da] bg-white p-2">
-          <Turnstile
-            siteKey={landingConfig.turnstileSiteKey}
-            theme="light"
-            onToken={setToken}
-            onExpired={() => setToken("")}
-            onError={() => setToken("")}
-          />
-        </div>
+
+      {status === "success" ? (
+         <div className="bg-[#E4F2E4] text-[#2F4F2F] p-4 rounded-xl text-center text-sm font-medium">
+           Your place in the garden is reserved.
+         </div>
       ) : (
-        <p className="rounded-xl border border-[#e5eadf] bg-[#f8faf6] px-3 py-2 text-xs text-[#647066]">
-          Turnstile is not configured for this preview build.
-        </p>
+        <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          <input
+            type="email" required value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="Email address"
+            className="w-full bg-white/80 border border-[#D0DDD0]/50 px-5 py-4 rounded-xl text-[#3A4D39] placeholder:text-[#8CA08B] focus:outline-none focus:border-[#739072] focus:bg-white transition-all shadow-inner"
+          />
+          {hasTurnstile && <div className="overflow-hidden rounded-xl border border-white bg-white/50 w-fit mx-auto"><Turnstile siteKey={landingConfig.turnstileSiteKey} onToken={setToken} theme="light" /></div>}
+          <button type="submit" disabled={status === "loading" || (hasTurnstile && !token)} className="bg-[#4F6F52] text-white font-medium py-4 rounded-xl hover:bg-[#3A4D39] transition-colors disabled:opacity-50 mt-2 shadow-[0_4px_14px_rgba(79,111,82,0.3)]">
+            {status === "loading" ? "Watering..." : "Join Waitlist"}
+          </button>
+        </form>
       )}
-      {message ? (
-        <p className={`text-sm ${status === "success" ? "text-[#375a3b]" : "text-[#a14b51]"}`}>
-          {message}
-        </p>
-      ) : null}
-    </form>
+
+      <div className="mt-6 flex items-center justify-center gap-2 text-xs text-[#739072] font-medium">
+        <span className="w-2 h-2 rounded-full bg-[#739072] animate-pulse" />
+        8,231 PEOPLE JOINED
+      </div>
+    </div>
   );
 }
 
-export default function V13Page({ locale }: Props): React.JSX.Element {
-  const reducedMotion = useReducedMotion();
-
+// --- Organic Layout Comps ---
+export default function V13Page({ locale }: { locale: string }) {
   return (
-    <div
-      className="min-h-screen bg-[#f7f8f2] text-[#171a16] selection:bg-[#cbe8bf]"
-      style={{ fontFamily: "'Newsreader', serif" }}
-    >
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "radial-gradient(circle at 10% 10%, #8ecf7f 0, transparent 34%), radial-gradient(circle at 90% 20%, #f0d7a1 0, transparent 30%), radial-gradient(circle at 75% 80%, #8cb8ff 0, transparent 28%)" }} />
-        <div
-          className="absolute inset-0 opacity-[0.05]"
-          style={{
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg width='180' height='180' viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%238aa07e' stroke-opacity='0.35' stroke-width='1'%3E%3Cpath d='M10 110c30-40 70-40 100-10s50 30 60-10'/%3E%3Cpath d='M-10 140c30-40 70-40 100-10s50 30 60-10'/%3E%3C/g%3E%3C/svg%3E\")",
-          }}
-        />
-      </div>
+    <div className="bg-[#F4F6F0] text-[#1E2E1E] min-h-screen selection:bg-[#B3D0B0] selection:text-[#1E2E1E]" style={{ fontFamily: "'Outfit', sans-serif" }}>
 
-      <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-5 py-6 sm:px-8">
-        <div>
-          <p className="text-xs tracking-[0.22em] text-[#6c7567]">GALLERY OF PRACTICE</p>
-          <p className="text-lg text-[#20251f]">Sunnad</p>
+      {/* Topographic Background Pattern - pure CSS / SVG */}
+      <div className="fixed inset-0 pointer-events-none opacity-[0.06] z-0"
+        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10 Q 50 20 90 10 T 90 90 T 10 90 T 10 10' fill='none' stroke='%233A4D39' stroke-width='1'/%3E%3Cpath d='M20 20 Q 50 30 80 20 T 80 80 T 20 80 T 20 20' fill='none' stroke='%233A4D39' stroke-width='1'/%3E%3Cpath d='M30 30 Q 50 40 70 30 T 70 70 T 30 70 T 30 30' fill='none' stroke='%233A4D39' stroke-width='1'/%3E%3C/svg%3E")`, backgroundSize: '200px 200px', backgroundRepeat: 'repeat' }}
+      />
+
+      {/* Soft Blobs */}
+      <div className="fixed top-[-20%] right-[-10%] w-[60%] h-[60%] bg-gradient-to-br from-[#E2F0CB] to-[#B5EAD7] blur-[120px] rounded-full pointer-events-none opacity-60 z-0" />
+      <div className="fixed bottom-[-10%] left-[-10%] w-[70%] h-[70%] bg-gradient-to-tr from-[#FFDAC1] to-[#FFB7B2] blur-[140px] rounded-full pointer-events-none opacity-30 z-0" />
+
+      {/* Nav */}
+      <header className="relative z-40 p-8 flex justify-between items-center text-[#5B6D5A] font-medium tracking-wide">
+        <div className="flex items-center gap-2">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="#D3E4CD" stroke="#4F6F52" strokeWidth="2"/>
+            <path d="M12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16Z" fill="#739072"/>
+          </svg>
+          Sunnad
         </div>
-        <div className="flex items-center gap-4 text-xs tracking-[0.18em] text-[#5f675a]">
-          <a href="#exhibits" className="hidden hover:text-[#171a16] sm:block">
-            EXHIBITS
-          </a>
-          <a href="#faq" className="hidden hover:text-[#171a16] sm:block">
-            FAQ
-          </a>
-          <Link href={`/${locale}`} className="hover:text-[#171a16]">
-            INDEX
-          </Link>
-        </div>
+        <Link href={`/${locale}`} className="hover:text-[#3A4D39] transition-colors border-b border-transparent hover:border-[#3A4D39]">Return Home</Link>
       </header>
 
-      <main className="relative z-10">
-        <section className="mx-auto grid max-w-6xl gap-8 px-5 pb-14 pt-3 sm:px-8">
-          <div className="rounded-[2rem] border border-[#dde2d7] bg-white/70 p-6 backdrop-blur-xl shadow-[0_20px_60px_rgba(44,51,43,0.06)] sm:p-8 md:p-10">
-            <div className="mx-auto max-w-4xl text-center">
-              <p className="text-xs tracking-[0.24em] text-[#74806f]">ROOM I · ENTRANCE</p>
-              <h1 className="mt-3 text-4xl leading-[0.96] text-[#171a16] sm:text-6xl md:text-7xl">
-                A carefully made space
-                <br />
-                for daily worship habits.
+      {/* Hero */}
+      <main className="relative z-10 max-w-7xl mx-auto px-6 pt-10 pb-32">
+
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-16">
+
+          <div className="lg:w-1/2">
+            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, ease: "easeOut" }}>
+              <div className="inline-block bg-[#E8F1e6] border border-[#CCDCCB] text-[#4F6F52] px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider mb-6">
+                Cultivate Consistency
+              </div>
+              <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-[#1E2E1E] mb-6 leading-[1.05]">
+                A habit tracker that feels like a <span className="text-[#4F6F52] italic font-serif">garden.</span>
               </h1>
-              <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-[#576056] sm:text-lg">
-                Sunnad helps you stay steady with habit tracking, dhikr counters,
-                quotes, streaks, and group accountability, while keeping the interface
-                quiet and respectful.
+              <p className="text-xl text-[#5B6D5A] font-light leading-relaxed mb-10 max-w-lg">
+                Grow your daily deen routines softly and naturally. Offline-first, distraction-free, and beautifully crafted for Muslims.
               </p>
-            </div>
 
-            <div className="mt-10 grid gap-5 md:grid-cols-3">
-              {exhibits.map((exhibit, index) => (
-                <motion.figure
-                  key={exhibit.title}
-                  initial={false}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-60px" }}
-                  transition={{ duration: reducedMotion ? 0 : 0.45, delay: reducedMotion ? 0 : index * 0.08 }}
-                  className={`rounded-[1.5rem] border border-[#dde2d7] bg-[#fbfcf8] p-4 shadow-[0_12px_30px_rgba(34,43,33,0.05)] ${
-                    index === 1 ? "md:-mt-8" : ""
-                  }`}
-                >
-                  <div className="relative mx-auto aspect-[450/920] w-[13.5rem]">
-                    <div className="absolute inset-[4.5%] overflow-hidden rounded-[1.9rem] bg-white">
-                      <img src={exhibit.img} alt={exhibit.title} className="h-full w-full object-cover" />
-                    </div>
-                    <img
-                      src="/app-screenshots/iphone_bezels.png"
-                      alt=""
-                      className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-95"
-                    />
-                  </div>
-                  <figcaption className="mt-4 text-center">
-                    <p className="text-lg text-[#1f241f]">{exhibit.title}</p>
-                    <p className="mt-1 text-sm leading-relaxed text-[#637062]">
-                      {exhibit.caption}
-                    </p>
-                  </figcaption>
-                </motion.figure>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section
-          id="exhibits"
-          className="mx-auto grid max-w-6xl gap-8 px-5 py-2 sm:px-8 xl:grid-cols-[1.05fr_minmax(0,1fr)]"
-        >
-          <div className="min-w-0 rounded-[1.8rem] border border-[#dfe5da] bg-white/70 p-6 sm:p-7">
-            <p className="text-xs tracking-[0.24em] text-[#74806f]">ROOM II · STORYBOARD</p>
-            <h2 className="mt-3 text-3xl leading-tight sm:text-4xl">
-              One day, shown in a sequence of quiet screens.
-            </h2>
-            <p className="mt-3 max-w-xl text-sm leading-relaxed text-[#5c675b]">
-              This gallery room is intentionally sparse. It shows the app as a
-              companion, not a feed: open the day, complete what is due, keep count,
-              and continue.
-            </p>
-
-            <div className="mt-6 flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] snap-x snap-mandatory">
-              {[
-                { title: "Morning start", img: "/app-screenshots/en_today_light.PNG" },
-                { title: "Dhikr flow", img: "/app-screenshots/en_dhikr_light.PNG" },
-                { title: "Group check-in", img: "/app-screenshots/en_groups_light.PNG" },
-                { title: "Progress view", img: "/app-screenshots/en_analytics_light.PNG" },
-              ].map((panel) => (
-                <div
-                  key={panel.title}
-                  className="min-w-[16rem] snap-start rounded-2xl border border-[#e3e8dd] bg-[#fbfcf9] p-3"
-                >
-                  <div className="overflow-hidden rounded-[1.1rem] border border-[#e5eadf]">
-                    <img src={panel.img} alt={panel.title} className="h-52 w-full object-cover object-top" />
-                  </div>
-                  <p className="mt-3 text-sm text-[#253025]">{panel.title}</p>
+              <div className="flex flex-col sm:flex-row gap-6">
+                {/* Embedded Waitlist */}
+                <div className="w-full">
+                  <BotanicalWaitlist locale={locale} />
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="min-w-0 space-y-5">
-            <div className="rounded-[1.6rem] border border-[#dfe5da] bg-white/80 p-6">
-              <p className="text-xs tracking-[0.22em] text-[#74806f]">ROOM III · PLAQUES</p>
-              <div className="mt-4 space-y-4">
-                {plaques.map((plaque) => (
-                  <div
-                    key={plaque.title}
-                    className="rounded-2xl border border-[#e6ebdf] bg-[#fafbf7] p-4"
-                  >
-                    <h3 className="text-xl text-[#1e231d]">{plaque.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-[#5e685c]">
-                      {plaque.body}
-                    </p>
-                  </div>
-                ))}
               </div>
-            </div>
-
-            <div className="rounded-[1.6rem] border border-[#dfe5da] bg-[#fbfcf8] p-6">
-              <p className="text-xs tracking-[0.22em] text-[#74806f]">ROOM IV · FILM FRAME</p>
-              <h3 className="mt-3 text-2xl">Reserved space for a future demo</h3>
-              <div className="mt-4 grid h-40 place-items-center rounded-2xl border border-dashed border-[#ccd4c6] bg-white text-xs tracking-[0.2em] text-[#83907f]">
-                VIDEO FRAME PLACEHOLDER
-              </div>
-            </div>
+            </motion.div>
           </div>
-        </section>
 
-        <section className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
-          <div className="rounded-[2rem] border border-[#dbe2d5] bg-white/80 p-6 sm:p-8 lg:grid lg:grid-cols-[1.05fr_minmax(0,1fr)] lg:gap-8">
-            <div>
-              <p className="text-xs tracking-[0.24em] text-[#74806f]">ROOM V · INVITATION</p>
-              <h2 className="mt-3 text-3xl leading-tight sm:text-4xl">
-                Join the waitlist for an early look at Sunnad.
-              </h2>
-              <p className="mt-3 max-w-xl text-sm leading-relaxed text-[#596359]">
-                We are refining details before launch. Add your email to receive access
-                updates and release news.
-              </p>
-            </div>
-            <div className="mt-6 rounded-2xl border border-[#e0e6db] bg-[#f8faf5] p-4 lg:mt-0">
-              <GalleryWaitlist locale={locale} />
-            </div>
-          </div>
-        </section>
+          <div className="lg:w-1/2 flex justify-center lg:justify-end">
+             {/* Diagonal 3-Phone Cascade Layout */}
+             <div className="relative w-[300px] h-[750px] md:w-[450px]">
 
-        <section id="faq" className="mx-auto max-w-6xl px-5 py-2 sm:px-8">
-          <div className="rounded-[1.8rem] border border-[#dfe5da] bg-white/75 p-6 sm:p-8">
-            <p className="text-xs tracking-[0.22em] text-[#74806f]">ROOM VI · LABELS</p>
-            <h2 className="mt-3 text-3xl sm:text-4xl">Common questions</h2>
-            <div className="mt-5 space-y-3">
-              {[
-                [
-                  "Will Sunnad replace my existing reminders app?",
-                  "It is designed specifically for daily Islamic habit consistency. It can coexist with other tools, but it aims to become the place you return to for this routine.",
-                ],
-                [
-                  "Do I need a group to use it well?",
-                  "No. The app is useful as a personal tool first. Groups are optional and intentionally lightweight.",
-                ],
-                [
-                  "Is this page final?",
-                  "No. This is an EN-only design prototype variant used for layout exploration before final landing selection.",
-                ],
-              ].map(([q, a]) => (
-                <details key={q} className="rounded-xl border border-[#e4eade] bg-[#fafbf8] p-4">
-                  <summary className="cursor-pointer text-sm font-medium text-[#20261f]">
-                    {q}
-                  </summary>
-                  <p className="mt-2 text-sm leading-relaxed text-[#5b665b]">{a}</p>
-                </details>
-              ))}
-            </div>
+                 {/* Back Phone */}
+                 <motion.div
+                   initial={{ opacity: 0, x: 50, y: 50 }} animate={{ opacity: 1, x: 0, y: 0 }} transition={{ duration: 1.2, delay: 0.2 }}
+                   className="absolute top-24 right-[-20%] md:right-0 w-[240px] md:w-[280px] rounded-[36px] shadow-[0_20px_50px_rgba(40,60,40,0.1)] rotate-6"
+                 >
+                    <div className="relative overflow-hidden bg-white rounded-[32px] p-[10px]">
+                      <img src="/app-screenshots/en_analytics_light.PNG" className="w-full rounded-[24px] object-cover" alt="" />
+                    </div>
+                 </motion.div>
+
+                 {/* Middle Phone */}
+                 <motion.div
+                   initial={{ opacity: 0, x: 30, y: 30 }} animate={{ opacity: 1, x: 0, y: 0 }} transition={{ duration: 1.2, delay: 0.4 }}
+                   className="absolute top-12 left-[10%] w-[260px] md:w-[300px] rounded-[38px] shadow-[0_30px_60px_rgba(40,60,40,0.15)] -rotate-3 z-10"
+                 >
+                    <div className="relative overflow-hidden bg-white rounded-[34px] p-[12px]">
+                      <img src="/app-screenshots/en_groups_light.PNG" className="w-full rounded-[26px] object-cover" alt="" />
+                    </div>
+                 </motion.div>
+
+                 {/* Front Phone */}
+                 <motion.div
+                   initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 1.2, delay: 0.6 }}
+                   className="absolute top-0 left-[-15%] md:left-[-10%] w-[280px] md:w-[320px] rounded-[42px] shadow-[0_40px_80px_rgba(40,60,40,0.2)] z-20"
+                 >
+                    <div className="relative overflow-hidden bg-white/60 backdrop-blur-md rounded-[40px] p-[14px]">
+                      <img src="/app-screenshots/en_today_light.PNG" className="w-full rounded-[30px] object-cover border border-white/50" alt="" />
+                    </div>
+                 </motion.div>
+
+             </div>
           </div>
-        </section>
+
+        </div>
+
       </main>
 
-      <footer className="mx-auto mt-6 flex max-w-6xl flex-col gap-4 px-5 pb-12 pt-4 text-sm text-[#5f685d] sm:flex-row sm:items-center sm:justify-between sm:px-8">
-        <p>Gallery of Practice • EN prototype</p>
-        <div className="flex items-center gap-4">
-          <Link href={`/${locale}/terms`} className="hover:text-[#20261f]">
-            Terms
-          </Link>
-          <Link href={`/${locale}/privacy`} className="hover:text-[#20261f]">
-            Privacy
-          </Link>
-          <Link href={`/${locale}`} className="hover:text-[#20261f]">
-            Index
-          </Link>
+      <section className="relative z-10 bg-[#E9EFE8] py-24 mb-10">
+        <div className="max-w-4xl mx-auto px-6 flex flex-col items-center">
+            <h2 className="text-3xl md:text-5xl font-bold text-[#1E2E1E] text-center mb-10 mb:mb-16 font-serif italic">
+              Harvest what you sow.
+            </h2>
+            <BotanicalWaitlist locale={locale} />
         </div>
+      </section>
+
+      <footer className="relative z-10 pb-16 pt-8 flex justify-center gap-10 text-[#739072] text-sm uppercase font-semibold tracking-widest">
+        <Link href={`/${locale}/terms`} className="hover:text-[#3A4D39]">Terms</Link>
+        <Link href={`/${locale}/privacy`} className="hover:text-[#3A4D39]">Privacy</Link>
       </footer>
     </div>
   );

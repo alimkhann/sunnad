@@ -69,6 +69,116 @@ const cards = [
     numberFont: "'Caveat', cursive",
     decoration: "warm",
   },
+  {
+    id: "6",
+    name: "Cinematic Scroll",
+    subtitle: "Deep space black, cinematic lighting",
+    gradient: "linear-gradient(180deg, #000000 0%, #0a110e 100%)",
+    text: "#ffffff",
+    accent: "#00ff88",
+    font: "'Outfit', sans-serif",
+    numberFont: "'Cormorant Garamond', serif",
+    decoration: "cinematic",
+  },
+  {
+    id: "7",
+    name: "Editorial Print",
+    subtitle: "Warm off-white paper, stark black typography",
+    gradient: "#F7F5F0",
+    text: "#111111",
+    accent: "#d9381e",
+    font: "'Newsreader', serif",
+    numberFont: "'JetBrains Mono', monospace",
+    decoration: "editorial",
+  },
+  {
+    id: "8",
+    name: "Bento Universe",
+    subtitle: "Soft pastel bento boxes, playful grid",
+    gradient: "linear-gradient(135deg, #e0f2fe 0%, #fce7f3 50%, #ffedd5 100%)",
+    text: "#0f172a",
+    accent: "#8b5cf6",
+    font: "'Bricolage Grotesque', sans-serif",
+    numberFont: "'Bricolage Grotesque', sans-serif",
+    decoration: "bento",
+  },
+  {
+    id: "9",
+    name: "Glass & Aura",
+    subtitle: "Midnight blue, glassmorphism, animated auras",
+    gradient: "linear-gradient(145deg, #0B0F19 0%, #1a233a 100%)",
+    text: "#e2e8f0",
+    accent: "#38bdf8",
+    font: "'Plus Jakarta Sans', sans-serif",
+    numberFont: "'Plus Jakarta Sans', sans-serif",
+    decoration: "glass",
+  },
+  {
+    id: "10",
+    name: "Brutalist Elegance",
+    subtitle: "Pure white and pure black, massive typography",
+    gradient: "#ffffff",
+    text: "#000000",
+    accent: "#000000",
+    font: "'Syne', sans-serif",
+    numberFont: "'Inter', sans-serif",
+    decoration: "brutalist-elegance",
+  },
+  {
+    id: "11",
+    name: "Ethereal Night",
+    subtitle: "Dark, stars, fog, and dreams",
+    gradient: "linear-gradient(180deg, #050505 0%, #11111a 100%)",
+    text: "#f3f4f6",
+    accent: "#a78bfa",
+    font: "'Cormorant Garamond', serif",
+    numberFont: "'Cormorant Garamond', serif",
+    decoration: "ethereal",
+  },
+  {
+    id: "12",
+    name: "Floating Ecosystem",
+    subtitle: "Pitch black, floating UI cards",
+    gradient: "#000000",
+    text: "#ffffff",
+    accent: "#3b82f6",
+    font: "'Plus Jakarta Sans', sans-serif",
+    numberFont: "'Plus Jakarta Sans', sans-serif",
+    decoration: "floating",
+  },
+  {
+    id: "13",
+    name: "Organic Topography",
+    subtitle: "Light, blurred green/sand gradients",
+    gradient: "linear-gradient(135deg, #fdfbf7 0%, #eef2e6 100%)",
+    text: "#2d3748",
+    accent: "#4ade80",
+    font: "'Playfair Display', serif",
+    numberFont: "'Playfair Display', serif",
+    decoration: "topography",
+  },
+  {
+    id: "14",
+    name: "Faded Fog",
+    subtitle: "Ultra-minimal white, heavy bottom gradient fade",
+    gradient: "#ffffff",
+    text: "#111827",
+    accent: "#9ca3af",
+    font: "'Inter', sans-serif",
+    numberFont: "'Inter', sans-serif",
+    decoration: "fog",
+  },
+  {
+    id: "15",
+    name: "Soft Editorial Bento",
+    subtitle: "Warm off-white, bento grid",
+    gradient: "#fdfcf8",
+    text: "#1c1917",
+    accent: "#f59e0b",
+    font: "'Newsreader', serif",
+    numberFont: "'Manrope', sans-serif",
+    decoration: "soft-bento",
+  },
 ] as const;
 
 /* ── Animations ── */
@@ -147,6 +257,37 @@ function CardDecoration({ type }: { type: string }) {
       >
         <circle cx="50" cy="50" r="40" fill="#e8917a" />
       </svg>
+    );
+  }
+  if (type === "cinematic") {
+    return (
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 0%, rgba(0,255,136,0.15) 0%, transparent 60%)",
+        }}
+      />
+    );
+  }
+  if (type === "editorial") {
+    return (
+      <div className="absolute inset-0 border-[1px] border-black/10 pointer-events-none m-2" />
+    );
+  }
+  if (type === "bento") {
+    return (
+      <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/40 backdrop-blur-sm" />
+    );
+  }
+  if (type === "glass") {
+    return (
+      <div className="absolute inset-0 bg-white/5 backdrop-blur-md pointer-events-none" />
+    );
+  }
+  if (type === "brutalist-elegance") {
+    return (
+      <div className="absolute bottom-0 right-0 w-16 h-16 bg-black" />
     );
   }
   return null; /* dawn: gradient IS the decoration */
@@ -235,12 +376,14 @@ export function PickerPage({ locale, dict }: Props) {
       >
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
           {cards.map((card, i) => {
-            const span =
-              i === 0
-                ? "md:col-span-7"
-                : i === 1
-                  ? "md:col-span-5"
-                  : "md:col-span-4";
+            let span = "md:col-span-4";
+            if (i === 0) span = "md:col-span-7";
+            else if (i === 1) span = "md:col-span-5";
+            else if (i >= 2 && i <= 4) span = "md:col-span-4";
+            else if (i === 5) span = "md:col-span-6";
+            else if (i === 6) span = "md:col-span-6";
+            else if (i >= 7) span = "md:col-span-4";
+
             const h =
               i < 2 ? "h-[260px] lg:h-[320px]" : "h-[220px] lg:h-[260px]";
 

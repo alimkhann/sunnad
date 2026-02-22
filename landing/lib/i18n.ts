@@ -3,7 +3,7 @@
 export const locales = ["en", "ru", "kk"] as const;
 export type Locale = (typeof locales)[number];
 
-export const variantIds = ["1", "2", "3", "4", "5"] as const;
+export const variantIds = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"] as const;
 export type VariantId = (typeof variantIds)[number];
 
 export function isLocale(v: string): v is Locale {

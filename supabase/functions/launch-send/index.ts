@@ -49,7 +49,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // Authenticate admin
-  const auth = await requireAdmin(req, supabaseURL, supabaseAnonKey, serviceRoleKey);
+  const auth = await requireAdmin(
+    req,
+    supabaseURL,
+    supabaseAnonKey,
+    serviceRoleKey,
+  );
   if (auth instanceof Response) return auth;
 
   const path = getFunctionPath(req.url, "launch-send");
@@ -61,9 +66,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     // GET /campaigns/:id — detail
-    if (req.method === "GET" && path.startsWith("/campaigns/") && !path.includes("/send")) {
+    if (
+      req.method === "GET" &&
+      path.startsWith("/campaigns/") &&
+      !path.includes("/send")
+    ) {
       const id = path.replace("/campaigns/", "").trim();
-      if (!looksLikeUUID(id)) return json({ error: "Invalid campaign ID" }, 400);
+      if (!looksLikeUUID(id))
+        return json({ error: "Invalid campaign ID" }, 400);
       return await handleGetCampaign(auth, id);
     }
 
@@ -75,7 +85,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // POST /campaigns/:id/send — trigger send
     if (req.method === "POST" && path.endsWith("/send")) {
       const id = path.replace("/campaigns/", "").replace("/send", "").trim();
-      if (!looksLikeUUID(id)) return json({ error: "Invalid campaign ID" }, 400);
+      if (!looksLikeUUID(id))
+        return json({ error: "Invalid campaign ID" }, 400);
       return await handleSendCampaign(auth, id, resendAPIKey, fromEmail);
     }
 
@@ -91,14 +102,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
 async function handleListCampaigns(auth: AuthContext): Promise<Response> {
   const { data, error } = await auth.admin
     .from("launch_campaigns")
-    .select("id, subject, locale, status, total_recipients, total_sent, total_failed, created_at")
+    .select(
+      "id, subject, locale, status, total_recipients, total_sent, total_failed, created_at",
+    )
     .order("created_at", { ascending: false });
 
   if (error) return json({ error: error.message }, 500);
   return json({ campaigns: data });
 }
 
-async function handleGetCampaign(auth: AuthContext, id: string): Promise<Response> {
+async function handleGetCampaign(
+  auth: AuthContext,
+  id: string,
+): Promise<Response> {
   const { data: campaign, error: campErr } = await auth.admin
     .from("launch_campaigns")
     .select("*")
@@ -160,7 +176,10 @@ async function handleCreateCampaign(
     .single();
 
   if (createErr || !campaign) {
-    return json({ error: createErr?.message ?? "Failed to create campaign" }, 500);
+    return json(
+      { error: createErr?.message ?? "Failed to create campaign" },
+      500,
+    );
   }
 
   // Enqueue sends for all active subscribers of this locale
@@ -185,7 +204,12 @@ async function handleCreateCampaign(
       .insert(sendRows);
 
     if (insertErr) {
-      return json({ error: `Campaign created but failed to enqueue sends: ${insertErr.message}` }, 500);
+      return json(
+        {
+          error: `Campaign created but failed to enqueue sends: ${insertErr.message}`,
+        },
+        500,
+      );
     }
   }
 
@@ -332,7 +356,10 @@ async function requireAdmin(
     global: { headers: { Authorization: authorization } },
   });
 
-  const { data: { user }, error: userError } = await authClient.auth.getUser();
+  const {
+    data: { user },
+    error: userError,
+  } = await authClient.auth.getUser();
   if (userError || !user) {
     return json({ error: "Unauthorized" }, 401);
   }

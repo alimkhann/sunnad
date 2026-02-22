@@ -88,7 +88,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     if (!countErr && (count ?? 0) >= 5) {
       return json(
-        { error: "Too many signups from this network. Try again later.", code: "rate_limited" },
+        {
+          error: "Too many signups from this network. Try again later.",
+          code: "rate_limited",
+        },
         429,
       );
     }
@@ -98,8 +101,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const platform = normalizePlatform(body.platform);
   const locale = normalizeLocale(body.locale);
   const variant = normalizeVariant(body.variant);
-  const timezone = typeof body.timezone === "string" ? body.timezone.slice(0, 64) : null;
-  const referralSource = typeof body.referral_source === "string" ? body.referral_source.slice(0, 128) : null;
+  const timezone =
+    typeof body.timezone === "string" ? body.timezone.slice(0, 64) : null;
+  const referralSource =
+    typeof body.referral_source === "string"
+      ? body.referral_source.slice(0, 128)
+      : null;
 
   // ---- Upsert subscriber ----
   // ON CONFLICT on lower(email) → update platform/locale if changed
@@ -146,7 +153,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // Detect if this was an insert or an update by comparing timestamps
-  const isNew = data.created_at === data.subscribed_at ||
+  const isNew =
+    data.created_at === data.subscribed_at ||
     new Date(data.created_at).getTime() > Date.now() - 2000;
 
   return json(
@@ -220,16 +228,19 @@ function normalizeLocale(input: unknown): string {
 }
 
 function normalizeVariant(input: unknown): string | null {
-  if (input === "1" || input === "2" || input === "3" || input === "4" || input === "5") {
+  if (
+    input === "1" ||
+    input === "2" ||
+    input === "3" ||
+    input === "4" ||
+    input === "5"
+  ) {
     return input;
   }
   return null;
 }
 
-function json(
-  body: Record<string, unknown>,
-  status = 200,
-): Response {
+function json(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: corsHeaders,
