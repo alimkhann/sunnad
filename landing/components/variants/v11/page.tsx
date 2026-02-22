@@ -30,6 +30,12 @@ const copy = {
       sub: "Private accountability with people you trust.",
       img: "/app-screenshots/en_groups_dark.PNG",
     },
+    {
+      id: "analytics",
+      text: "See your progress.",
+      sub: "Gentle insights to keep your momentum without guilt.",
+      img: "/app-screenshots/en_analytics_dark.PNG",
+    },
   ],
 };
 
@@ -144,13 +150,13 @@ export default function V11Page({ locale }: { locale: string }) {
       style={{ fontFamily: "'Cormorant Garamond', serif" }}
     >
       {/* Navigation */}
-      <header className="fixed top-0 w-full z-40 p-8 flex justify-between items-center mix-blend-difference font-sans">
-        <span className="uppercase tracking-[0.4em] text-xs text-white/50">
+      <header className="fixed top-0 w-full z-40 p-6 md:p-8 flex justify-between items-center mix-blend-difference font-sans">
+        <span className="uppercase tracking-[0.4em] text-[10px] md:text-xs text-white/50">
           Sunnad
         </span>
         <Link
           href={`/${locale}`}
-          className="uppercase tracking-[0.2em] text-[10px] text-white/30 hover:text-white transition-colors"
+          className="uppercase tracking-[0.2em] text-[8px] md:text-[10px] text-white/30 hover:text-white transition-colors"
         >
           Return
         </Link>
@@ -220,7 +226,7 @@ export default function V11Page({ locale }: { locale: string }) {
 
           <div className="relative w-full max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 lg:gap-20 items-center">
             {/* The Text Poetics */}
-            <div className="order-2 lg:order-1 flex flex-col justify-center items-center lg:items-start text-center lg:text-left h-[40vh] lg:h-auto z-20">
+            <div className="order-2 lg:order-1 flex flex-col justify-center items-center lg:items-start text-center lg:text-left h-[30vh] lg:h-auto z-20">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeChapter}
@@ -229,10 +235,10 @@ export default function V11Page({ locale }: { locale: string }) {
                   exit={{ opacity: 0, y: -30, filter: "blur(12px)" }}
                   transition={{ duration: 1, ease: [0.2, 0.65, 0.3, 0.9] }}
                 >
-                  <h2 className="text-5xl md:text-6xl lg:text-7xl mb-6 font-medium leading-[1.1] text-white/90">
+                  <h2 className="text-4xl md:text-5xl lg:text-7xl mb-4 md:mb-6 font-medium leading-[1.1] text-white/90">
                     {copy.chapters[activeChapter].text}
                   </h2>
-                  <p className="text-xl md:text-2xl text-white/40 italic font-light">
+                  <p className="text-lg md:text-2xl text-white/40 italic font-light">
                     {copy.chapters[activeChapter].sub}
                   </p>
                 </motion.div>
@@ -240,10 +246,22 @@ export default function V11Page({ locale }: { locale: string }) {
             </div>
 
             {/* The Floating Artefact (Phone) */}
-            <div className="order-1 lg:order-2 flex justify-center z-20 relative lg:-top-10">
+            <div className="order-1 lg:order-2 flex justify-center z-20 relative lg:-top-10 mb-8 lg:mb-0 mt-20 lg:mt-0">
               <div className="relative w-[280px] h-[582px] md:w-[320px] md:h-[654px] rounded-[40px]">
+                {/* Background ambient light matching screen content */}
+                <AnimatePresence mode="wait">
+                  <motion.div
+                     key={activeChapter}
+                     initial={{ opacity: 0 }}
+                     animate={{ opacity: 1 }}
+                     exit={{ opacity: 0 }}
+                     transition={{ duration: 1.5 }}
+                     className="absolute inset-0 bg-white/5 blur-[100px] rounded-full z-0"
+                  />
+                </AnimatePresence>
+
                 {/* Image Container (screenshots) */}
-                <div className="absolute inset-[14px] rounded-[36px] overflow-hidden bg-black z-10 shadow-[0_0_80px_rgba(0,0,0,0.4)]">
+                <div className="absolute inset-[13px] md:inset-[15px] rounded-[34px] md:rounded-[42px] overflow-hidden bg-black z-10 shadow-[0_0_80px_rgba(0,0,0,0.6)]">
                   <AnimatePresence mode="wait">
                     <motion.img
                       key={activeChapter}

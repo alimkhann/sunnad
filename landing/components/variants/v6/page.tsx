@@ -183,9 +183,9 @@ function WaitlistCounter({ text, isDark }: { text: string; isDark: boolean }) {
           className={`w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 border-2 z-10 ${isDark ? "border-black" : "border-[#FAFAFA]"}`}
         />
       </div>
-      <span className="font-medium tracking-wide">
+      <span className="font-medium tracking-widest uppercase text-xs">
         <strong
-          className={`transition-colors duration-500 ${isDark ? "text-white" : "text-black"}`}
+          className={`transition-colors duration-500 font-semibold ${isDark ? "text-white" : "text-black"}`}
         >
           {count.toLocaleString()}
         </strong>{" "}
@@ -356,26 +356,26 @@ export default function V6Page({ locale: initialLocale, variant }: Props) {
     >
       {/* Header */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 backdrop-blur-xl border-b transition-colors duration-500 ${borderClass} ${headerBgClass}`}
+        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 md:px-6 py-4 backdrop-blur-xl border-b transition-colors duration-500 ${borderClass} ${headerBgClass}`}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isDark ? "bg-white text-black" : "bg-black text-white"}`}
+            className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center transition-colors ${isDark ? "bg-white text-black" : "bg-black text-white"}`}
           >
-            <span className="font-bold text-sm">S</span>
+            <span className="font-bold text-xs md:text-sm">S</span>
           </div>
-          <span className="font-semibold tracking-wide text-lg hidden sm:block">
+          <span className="font-semibold tracking-wide text-[10px] md:text-lg hidden sm:block">
             Sunnad
           </span>
         </div>
 
-        <div className="flex items-center gap-4 sm:gap-6">
+        <div className="flex items-center gap-3 sm:gap-6">
           <button
             onClick={toggleTheme}
-            className={`text-sm font-medium transition-colors hover:opacity-70 flex items-center gap-2 ${mutedTextClass}`}
+            className={`text-xs md:text-sm font-medium transition-colors hover:opacity-70 flex items-center gap-2 ${mutedTextClass}`}
           >
             <span
-              className="w-2 h-2 rounded-full"
+              className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full"
               style={{ backgroundColor: accentColor }}
             />
             {isDark ? "Light" : "Dark"}
@@ -383,14 +383,14 @@ export default function V6Page({ locale: initialLocale, variant }: Props) {
 
           <button
             onClick={switchLocale}
-            className={`text-sm font-medium uppercase tracking-wider transition-colors hover:opacity-70 ${mutedTextClass}`}
+            className={`text-xs md:text-sm font-medium uppercase tracking-wider transition-colors hover:opacity-70 ${mutedTextClass}`}
           >
             {activeLocale}
           </button>
 
           <Link
             href={`/${activeLocale}`}
-            className={`text-sm font-medium transition-colors hover:opacity-70 hidden md:block ${mutedTextClass}`}
+            className={`text-xs md:text-sm font-medium transition-colors hover:opacity-70 hidden md:block ${mutedTextClass}`}
           >
             {t.nav.back}
           </Link>
@@ -428,7 +428,7 @@ export default function V6Page({ locale: initialLocale, variant }: Props) {
           </div>
 
           <h1
-            className="text-6xl sm:text-7xl md:text-8xl lg:text-[7.5rem] font-light tracking-tight leading-[1.05] mb-8 whitespace-pre-line"
+            className="text-[3.5rem] sm:text-7xl md:text-8xl lg:text-[7.5rem] font-light tracking-tight leading-[1.05] mb-8 whitespace-pre-line"
             style={{ fontFamily: "'Cormorant Garamond', serif" }}
           >
             {t.hero.title}
@@ -498,9 +498,9 @@ export default function V6Page({ locale: initialLocale, variant }: Props) {
 
           {/* Phone Device */}
           <div className="relative z-10 mt-[28vh] md:mt-0 md:ml-[30vw]">
-            <div className="relative w-[300px] h-[612px] md:w-[340px] md:h-[694px] lg:w-[360px] lg:h-[735px] mx-auto shadow-2xl rounded-[44px]">
+            <div className="relative w-[300px] h-[612px] md:w-[340px] md:h-[694px] lg:w-[360px] lg:h-[735px] mx-auto">
               {/* Screenshots Crossfade */}
-              <div className="absolute inset-[13px] md:inset-[15px] rounded-[34px] md:rounded-[42px] overflow-hidden bg-black isolation-auto z-10">
+              <div className="absolute inset-[13px] md:inset-[15px] lg:inset-[16px] rounded-[34px] md:rounded-[40px] lg:rounded-[42px] overflow-hidden bg-black isolation-auto z-10">
                 <AnimatePresence mode="wait">
                   <motion.img
                     key={`${activeFeature}-${theme}-${activeLocale}`}
