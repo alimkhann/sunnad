@@ -49,6 +49,9 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         let icon: String
         let type: String
         let targetCount: Int?
+        let schedule: String?
+        let weekdays: [Int]?
+        let archived: Bool?
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -57,11 +60,28 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             case icon
             case type
             case targetCount = "target_count"
+            case schedule
+            case weekdays
+            case archived
         }
     }
 
     private struct CompletionRow: Decodable {
         let value: Int
+    }
+
+    private struct CompletionHistoryRow: Decodable {
+        let dayDate: String
+        let value: Int
+        let completedAtRaw: String?
+        let updatedAtRaw: String
+
+        enum CodingKeys: String, CodingKey {
+            case dayDate = "day_date"
+            case value
+            case completedAtRaw = "completed_at"
+            case updatedAtRaw = "updated_at"
+        }
     }
 
     private struct ProfileRow: Decodable {
@@ -145,6 +165,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         var profilesByUserID: [UUID: ResolvedProfile] = [:]
         var habitsByID: [UUID: HabitRow] = [:]
         var completionCache: [String: Bool] = [:]
+        var completionHistoryCache: [String: [HabitCompletion]] = [:]
         let todayDate = Self.utcDayDateString(for: Date())
 
         var groups: [Group] = []
@@ -184,6 +205,11 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                             dayDate: todayDate,
                             cache: &completionCache
                         )
+                        let streak = try await resolveStreak(
+                            for: habit,
+                            userID: memberID,
+                            cache: &completionHistoryCache
+                        )
 
                         memberSharedHabits.append(
                             SharedHabit(
@@ -191,7 +217,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                                 title: habit.name,
                                 icon: habit.icon,
                                 completedToday: completedToday,
-                                streak: 0
+                                streak: streak
                             )
                         )
                     }
@@ -530,7 +556,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
 
         let response = try await client
             .from("habits")
-            .select("id, user_id, name, icon, type, target_count")
+            .select("id, user_id, name, icon, type, target_count, schedule, weekdays, archived")
             .eq("id", value: habitID)
             .limit(1)
             .execute()
@@ -576,6 +602,87 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         return isCompleted
     }
 
+    private func resolveStreak(
+        for habit: HabitRow,
+        userID: UUID,
+        cache: inout [String: [HabitCompletion]]
+    ) async throws -> Int {
+        let cacheKey = "\(habit.id.uuidString)-\(userID.uuidString)"
+        let completions: [HabitCompletion]
+        if let cached = cache[cacheKey] {
+            completions = cached
+        } else {
+            let loaded = try await fetchCompletionHistory(for: habit.id, userID: userID)
+            cache[cacheKey] = loaded
+            completions = loaded
+        }
+
+        let domainHabit = makeDomainHabit(from: habit)
+        let now = Date()
+        let calendar = Calendar.current
+        let timeZone = TimeZone.current
+        return StreakCalculator.streak(
+            for: domainHabit,
+            completions: completions,
+            asOf: now,
+            calendar: calendar,
+            timeZone: timeZone
+        )
+    }
+
+    private func fetchCompletionHistory(for habitID: UUID, userID: UUID) async throws -> [HabitCompletion] {
+        let calendar = Calendar.current
+        let timeZone = TimeZone.current
+        let windowStart = Self.syncDayDateString(
+            for: Date().addingTimeInterval(-40 * 24 * 60 * 60),
+            calendar: calendar,
+            timeZone: timeZone
+        )
+
+        let response = try await client
+            .from("habit_completions")
+            .select("day_date, value, completed_at, updated_at")
+            .eq("habit_id", value: habitID)
+            .eq("user_id", value: userID)
+            .gte("day_date", value: windowStart)
+            .execute()
+
+        let rows = try decoder.decode([CompletionHistoryRow].self, from: response.data)
+        return rows.compactMap { row in
+            guard let dayDate = Self.syncDayDate(row.dayDate, calendar: calendar, timeZone: timeZone) else {
+                return nil
+            }
+            return HabitCompletion(
+                habitID: habitID,
+                dayDate: dayDate,
+                value: row.value,
+                completedAt: row.completedAtRaw.flatMap(Self.timestamp(from:)),
+                updatedAt: Self.timestamp(from: row.updatedAtRaw) ?? Date.distantPast
+            )
+        }
+    }
+
+    private func makeDomainHabit(from row: HabitRow) -> Habit {
+        let habitType = HabitType(rawValue: row.type) ?? .binary
+        let scheduleValue: HabitSchedule
+        if row.schedule == "weekly" {
+            let weekdaysSet = Set((row.weekdays ?? []).compactMap(Weekday.fromISOWeekday))
+            scheduleValue = .weekly(weekdaysSet)
+        } else {
+            scheduleValue = .daily
+        }
+
+        return Habit(
+            id: row.id,
+            name: row.name,
+            icon: row.icon,
+            type: habitType,
+            targetCount: row.targetCount,
+            schedule: scheduleValue,
+            archived: row.archived ?? false
+        )
+    }
+
     private func requireCurrentUserID() async throws -> UUID {
         if let currentUser = client.auth.currentUser {
             return currentUser.id
@@ -594,6 +701,46 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
+    }
+
+    private static func syncDayDateString(for date: Date, calendar: Calendar, timeZone: TimeZone) -> String {
+        var calendar = calendar
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        let year = components.year ?? 0
+        let month = components.month ?? 0
+        let day = components.day ?? 0
+        return String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    private static func syncDayDate(_ value: String, calendar: Calendar, timeZone: TimeZone) -> Date? {
+        let parts = value.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: true)
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2]) else {
+            return nil
+        }
+
+        var normalizedCalendar = calendar
+        normalizedCalendar.timeZone = timeZone
+        let components = DateComponents(timeZone: timeZone, year: year, month: month, day: day)
+        guard let materialized = normalizedCalendar.date(from: components) else {
+            return nil
+        }
+        return normalizedCalendar.startOfDay(for: materialized)
+    }
+
+    private static func timestamp(from value: String) -> Date? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: value) {
+            return date
+        }
+
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        return plain.date(from: value)
     }
 
     private static func decodeUUID(from data: Data) -> UUID? {
@@ -724,4 +871,5 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                 || message.contains("undefined column")
                 || message.contains("42703"))
     }
+
 }
