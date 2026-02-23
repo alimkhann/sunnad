@@ -1,17 +1,23 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { submitWaitlist } from "@/lib/waitlist-submit";
 import { Turnstile } from "@/components/turnstile";
 import { landingConfig } from "@/lib/config";
 import { Sun, Moon, Globe, ChevronDown } from "lucide-react";
-import { AnimatePresence } from "framer-motion";
 import CountUp from "@/components/count-up";
 
 type Theme = "dark" | "light";
-type SupportedLocale = "en" | "ru" | "kz";
+type SupportedLocale = "en" | "ru" | "kk";
+type WaitlistSuccessStatus = "subscribed" | "already_subscribed";
+
+const screenshotLocaleByLocale: Record<SupportedLocale, "en" | "ru" | "kz"> = {
+  en: "en",
+  ru: "ru",
+  kk: "kz",
+};
 
 const translations = {
   en: {
@@ -41,6 +47,11 @@ const translations = {
         title: "Private Circles",
         desc: "Stay accountable without the noise. Create small groups with close friends to quietly support each other's consistency.",
       },
+      {
+        id: "analytics",
+        title: "See Your Progress",
+        desc: "Beautiful, private charts and streaks that motivate consistent practice without guilt.",
+      },
     ],
     faqTitle: "Frequently asked questions",
     faqSubtitle:
@@ -63,6 +74,10 @@ const translations = {
         a: "Your habitual data is completely private. We do not sell tracking data or use it for targeted advertising ever.",
       },
     ],
+    legal: {
+      terms: "Terms of Service",
+      privacy: "Privacy Policy",
+    },
   },
   ru: {
     heroTitle: "Одна привычка.\nБесконечный покой.",
@@ -91,6 +106,11 @@ const translations = {
         title: "Приватные Круги",
         desc: "Оставайтесь ответственными без лишнего шума. Создавайте небольшие группы с близкими друзьями, чтобы тихо поддерживать постоянство друг друга.",
       },
+      {
+        id: "analytics",
+        title: "Прогресс",
+        desc: "Красивые приватные графики и серии дней, которые мотивируют к постоянству без давления.",
+      },
     ],
     faqTitle: "Часто задаваемые вопросы",
     faqSubtitle:
@@ -113,8 +133,12 @@ const translations = {
         a: "Ваши данные о привычках полностью приватны. Мы никогда не продаем данные о трекинге и не используем их для таргетированной рекламы.",
       },
     ],
+    legal: {
+      terms: "Условия использования",
+      privacy: "Политика конфиденциальности",
+    },
   },
-  kz: {
+  kk: {
     heroTitle: "Бір әдет.\nШексіз тыныштық.",
     heroSubtitle: "Ешқандай визуалды шусыз, мінсіз исламдық әдет трекері.",
     waitlistCount: "адам қосылды",
@@ -141,6 +165,11 @@ const translations = {
         title: "Жеке Топтар",
         desc: "Артық шусыз жауапкершілікті сақтаңыз. Жақын достарыңызбен шағын топтар құрып, бір-біріңіздің тұрақтылығыңызды үнсіз қолдаңыз.",
       },
+      {
+        id: "analytics",
+        title: "Прогресс",
+        desc: "Әдемі жеке графиктер мен сериялар арқылы тұрақтылығыңызды көріңіз әрі ынталаныңыз.",
+      },
     ],
     faqTitle: "Жиі қойылатын сұрақтар",
     faqSubtitle:
@@ -163,19 +192,24 @@ const translations = {
         a: "Сіздің әдеттеріңіз туралы деректер толығымен құпия. Біз бақылау деректерін ешқашан сатпаймыз және оларды мақсатты жарнама үшін пайдаланбаймыз.",
       },
     ],
+    legal: {
+      terms: "Пайдалану шарттары",
+      privacy: "Құпиялылық саясаты",
+    },
   },
 };
 
-// Removed obsolete PhoneMockup
 // --- Form ---
 function MinimalWaitlist({
   locale,
   isDark,
   t,
+  onSuccess,
 }: {
-  locale: string;
+  locale: SupportedLocale;
   isDark?: boolean;
   t: any;
+  onSuccess?: (status: WaitlistSuccessStatus) => void;
 }) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<
@@ -194,11 +228,12 @@ function MinimalWaitlist({
       locale,
       variant: "14",
     });
-    setStatus(
-      res.status === "subscribed" || res.status === "already_subscribed"
-        ? "success"
-        : "error",
-    );
+    if (res.status === "subscribed" || res.status === "already_subscribed") {
+      setStatus("success");
+      onSuccess?.(res.status);
+      return;
+    }
+    setStatus("error");
   }
 
   return (
@@ -240,12 +275,12 @@ function MinimalWaitlist({
 }
 
 function FeaturesScroll({
-  locale,
+  screenshotLocale,
   theme,
   t,
   isDark,
 }: {
-  locale: string;
+  screenshotLocale: "en" | "ru" | "kz";
   theme: string;
   t: any;
   isDark: boolean;
@@ -257,9 +292,10 @@ function FeaturesScroll({
   });
 
   const activeIndex = useTransform(scrollYProgress, (v) => {
-    if (v < 0.33) return 0;
-    if (v < 0.66) return 1;
-    return 2;
+    if (v < 0.25) return 0;
+    if (v < 0.5) return 1;
+    if (v < 0.75) return 2;
+    return 3;
   });
 
   const [index, setIndex] = useState(0);
@@ -267,39 +303,45 @@ function FeaturesScroll({
     return activeIndex.on("change", (v) => setIndex(v));
   }, [activeIndex]);
 
-  const images = ["today", "dhikr", "groups"];
+  const images = ["today", "dhikr", "groups", "analytics"];
+
+  // Alternating positions: 0=left, 1=right, 2=left, 3=right
+  const positions = [
+    "md:left-[8%] md:-translate-x-0",
+    "md:left-[62%] md:-translate-x-0",
+    "md:left-[8%] md:-translate-x-0",
+    "md:left-[62%] md:-translate-x-0",
+  ];
 
   return (
     <section ref={containerRef} className="relative w-full h-[300vh] z-30">
       <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col items-center justify-center px-6">
-        {/* Texts container */}
+        {/* Text Content — AnimatePresence with blur+slide */}
         <div className="absolute inset-0 max-w-6xl mx-auto w-full h-full pointer-events-none">
-          {t.features.map((feat: any, i: number) => {
-            const isActive = index === i;
-            return (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 24, filter: "blur(10px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -24, filter: "blur(10px)" }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className={`absolute top-[10%] md:top-1/2 left-1/2 -translate-x-1/2 md:-translate-y-1/2 w-full max-w-[320px] md:max-w-[420px] text-center md:text-left ${positions[index]}`}
+            >
               <div
-                key={feat.id}
-                className={`absolute top-[10%] md:top-1/2 left-1/2 -translate-x-1/2 md:-translate-x-0 md:-translate-y-1/2 w-full max-w-[320px] md:max-w-[420px] text-center md:text-left transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-auto ${
-                  isActive
-                    ? "opacity-100 translate-y-0 md:translate-y-[-50%]"
-                    : "opacity-0 translate-y-8 md:translate-y-[-40%]"
-                } ${
-                  i % 2 === 0
-                    ? "md:left-[0%] md:-translate-x-0"
-                    : "md:left-[70%] md:-translate-x-0"
-                }`}
+                className={`text-xs tracking-[0.2em] font-medium mb-4 uppercase ${isDark ? "text-gray-400" : "text-gray-500"}`}
               >
-                <h3 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight">
-                  {feat.title}
-                </h3>
-                <p
-                  className={`text-base md:text-lg leading-relaxed ${isDark ? "text-gray-400" : "text-gray-500"}`}
-                >
-                  {feat.desc}
-                </p>
+                0{index + 1} / 0{t.features.length}
               </div>
-            );
-          })}
+              <h3 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight">
+                {t.features[index].title}
+              </h3>
+              <p
+                className={`text-base md:text-lg leading-relaxed ${isDark ? "text-gray-400" : "text-gray-500"}`}
+              >
+                {t.features[index].desc}
+              </p>
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         {/* Central Sticky Phone */}
@@ -308,11 +350,11 @@ function FeaturesScroll({
             <AnimatePresence mode="wait">
               <motion.img
                 key={index}
-                initial={{ opacity: 0, scale: 1 }}
+                initial={{ opacity: 0, scale: 1.03 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.4 }}
-                src={`/app-screenshots/${locale}_${images[index]}_${theme}.PNG`}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                src={`/app-screenshots/${screenshotLocale}_${images[index]}_${theme}.PNG`}
                 className="absolute inset-0 w-full h-full object-cover"
                 alt="Feature"
               />
@@ -399,7 +441,21 @@ function FAQSection({ t, isDark }: { t: any; isDark: boolean }) {
                       <div
                         className={`px-6 pb-6 pr-12 text-base leading-relaxed ${isDark ? "text-gray-400" : "text-gray-500"}`}
                       >
-                        {faq.a}
+                        {faq.a.split(" ").map((word: string, wi: number) => (
+                          <motion.span
+                            key={wi}
+                            initial={{ opacity: 0, filter: "blur(4px)" }}
+                            animate={{ opacity: 1, filter: "blur(0px)" }}
+                            transition={{
+                              delay: wi * 0.025,
+                              duration: 0.3,
+                              ease: "easeOut",
+                            }}
+                            className="inline-block mr-[0.25em]"
+                          >
+                            {word}
+                          </motion.span>
+                        ))}
                       </div>
                     </motion.div>
                   )}
@@ -413,24 +469,44 @@ function FAQSection({ t, isDark }: { t: any; isDark: boolean }) {
   );
 }
 
+async function fetchWaitlistCount(): Promise<number> {
+  try {
+    const res = await fetch("/api/waitlist-count", { cache: "no-store" });
+    const data = await res.json();
+    return typeof data.count === "number" ? data.count : 0;
+  } catch {
+    return 0;
+  }
+}
+
 // --- Page ---
-export default function V14Page({ locale: initialLocale }: { locale: string }) {
+export default function LandingPage({
+  locale: initialLocale,
+}: {
+  locale: string;
+}) {
   const [theme, setTheme] = useState<Theme>("dark");
   const [activeLocale, setActiveLocale] = useState<SupportedLocale>(
-    initialLocale === "ru" || initialLocale === "kz"
+    initialLocale === "ru" || initialLocale === "kk"
       ? (initialLocale as SupportedLocale)
       : "en",
   );
   const isDark = theme === "dark";
   const t = translations[activeLocale];
+  const screenshotLocale = screenshotLocaleByLocale[activeLocale];
 
-  const [count, setCount] = useState(1342);
+  // Fetch real waitlist count
+  const [count, setCount] = useState(0);
   useEffect(() => {
-    const int = setInterval(() => {
-      if (Math.random() > 0.5) setCount((c) => c + 1);
-    }, 5000);
-    return () => clearInterval(int);
+    void fetchWaitlistCount().then(setCount);
   }, []);
+
+  function handleWaitlistSuccess(status: WaitlistSuccessStatus): void {
+    if (status === "subscribed") {
+      setCount((prev) => prev + 1);
+    }
+    void fetchWaitlistCount().then(setCount);
+  }
 
   const containerRef = useRef(null);
   const { scrollYProgress } = useScroll({
@@ -469,7 +545,7 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
           <img
             src="/logo.png"
             alt="Sunnad Logo"
-            className={`w-6 h-6 object-contain`}
+            className="w-6 h-6 object-contain"
           />
           <span className="font-semibold text-[10px] md:text-sm tracking-tight hidden sm:block">
             Sunnad
@@ -490,7 +566,7 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
                 activeLocale === "en"
                   ? "ru"
                   : activeLocale === "ru"
-                    ? "kz"
+                    ? "kk"
                     : "en";
               setActiveLocale(next);
             }}
@@ -501,13 +577,6 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
               {activeLocale}
             </span>
           </button>
-
-          <Link
-            href={`/${activeLocale}`}
-            className={`text-[10px] md:text-sm font-medium transition-colors ${isDark ? "hover:text-gray-400" : "hover:text-gray-500"}`}
-          >
-            Back
-          </Link>
         </div>
       </header>
 
@@ -536,7 +605,12 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.4, ease: "easeOut" }}
           >
-            <MinimalWaitlist locale={activeLocale} isDark={isDark} t={t} />
+            <MinimalWaitlist
+              locale={activeLocale}
+              isDark={isDark}
+              t={t}
+              onSuccess={handleWaitlistSuccess}
+            />
 
             <div className="mt-8 text-sm font-medium text-gray-400 flex items-center justify-center gap-2">
               <span className="relative flex h-2 w-2">
@@ -547,7 +621,7 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
                 {count > 0 ? (
                   <CountUp to={count} separator="," duration={2} />
                 ) : (
-                  count.toLocaleString()
+                  "0"
                 )}
               </span>{" "}
               {t.waitlistCount}
@@ -567,15 +641,13 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
           className="absolute left-1/2 -translate-x-1/2 top-[4%] md:top-[8%] w-[240px] md:w-[360px] z-20"
         >
           <div className="relative w-full aspect-[450/920] rotate-[-10deg] md:rotate-[0deg] drop-shadow-2xl">
-            {/* Inner Screenshot */}
             <div className="absolute inset-[12px] md:inset-[18px] rounded-[24px] md:rounded-[36px] overflow-hidden bg-black z-10">
               <img
-                src={`/app-screenshots/${activeLocale}_today_${theme}.PNG`}
+                src={`/app-screenshots/${screenshotLocale}_today_${theme}.PNG`}
                 className="absolute inset-0 w-full h-full object-cover"
                 alt="Today"
               />
             </div>
-            {/* Bezel Overlay */}
             <img
               src="/app-screenshots/iphone_bezels_16_pro.png"
               className="absolute inset-0 w-full h-full object-contain pointer-events-none z-20"
@@ -590,15 +662,13 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
           className="absolute right-[65%] md:right-[22%] top-[50%] md:top-[21%] w-[160px] md:w-[260px] z-20 md:z-10"
         >
           <div className="relative w-full aspect-[450/920] rotate-[10deg] md:rotate-[4deg] drop-shadow-xl">
-            {/* Inner Screenshot */}
             <div className="absolute inset-[8px] md:inset-[13px] rounded-[16px] md:rounded-[26px] overflow-hidden bg-black z-10">
               <img
-                src={`/app-screenshots/${activeLocale}_analytics_${theme}.PNG`}
+                src={`/app-screenshots/${screenshotLocale}_analytics_${theme}.PNG`}
                 className="absolute inset-0 w-full h-full object-cover"
                 alt="Analytics"
               />
             </div>
-            {/* Bezel Overlay */}
             <img
               src="/app-screenshots/iphone_bezels_16_pro.png"
               className="absolute inset-0 w-full h-full object-contain pointer-events-none z-20"
@@ -613,15 +683,13 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
           className="absolute left-[-5%] md:left-[25%] top-[40%] md:top-[36%] w-[150px] md:w-[220px] z-10 md:z-20"
         >
           <div className="relative w-full aspect-[450/920] rotate-[12deg] md:rotate-[-8deg] drop-shadow-xl">
-            {/* Inner Screenshot */}
             <div className="absolute inset-[7px] md:inset-[11px] rounded-[14px] md:rounded-[22px] overflow-hidden bg-black z-10">
               <img
-                src={`/app-screenshots/${activeLocale}_dhikr_${theme}.PNG`}
+                src={`/app-screenshots/${screenshotLocale}_dhikr_${theme}.PNG`}
                 className="absolute inset-0 w-full h-full object-cover"
                 alt="Dhikr"
               />
             </div>
-            {/* Bezel Overlay */}
             <img
               src="/app-screenshots/iphone_bezels_16_pro.png"
               className="absolute inset-0 w-full h-full object-contain pointer-events-none z-20"
@@ -636,15 +704,13 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
           className="absolute right-[-5%] md:right-[53%] top-[30%] md:top-[16%] w-[180px] md:w-[280px] z-20"
         >
           <div className="relative w-full aspect-[450/920] rotate-[-10deg] md:rotate-[-4deg] drop-shadow-2xl">
-            {/* Inner Screenshot */}
             <div className="absolute inset-[9px] md:inset-[14px] rounded-[18px] md:rounded-[28px] overflow-hidden bg-black z-10">
               <img
-                src={`/app-screenshots/${activeLocale}_groups_${theme}.PNG`}
+                src={`/app-screenshots/${screenshotLocale}_groups_${theme}.PNG`}
                 className="absolute inset-0 w-full h-full object-cover"
                 alt="Groups"
               />
             </div>
-            {/* Bezel Overlay */}
             <img
               src="/app-screenshots/iphone_bezels_16_pro.png"
               className="absolute inset-0 w-full h-full object-contain pointer-events-none z-20"
@@ -655,7 +721,7 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
       </section>
 
       <FeaturesScroll
-        locale={activeLocale}
+        screenshotLocale={screenshotLocale}
         theme={theme}
         isDark={isDark}
         t={t}
@@ -670,7 +736,12 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
             {t.bottomTitle}
           </h2>
           <p className="text-gray-500 mb-12 text-lg">{t.bottomSubtitle}</p>
-          <MinimalWaitlist locale={activeLocale} isDark={isDark} t={t} />
+          <MinimalWaitlist
+            locale={activeLocale}
+            isDark={isDark}
+            t={t}
+            onSuccess={handleWaitlistSuccess}
+          />
           <div className="mt-8 text-sm font-medium text-gray-400 flex items-center justify-center gap-2">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -680,7 +751,7 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
               {count > 0 ? (
                 <CountUp to={count} separator="," duration={2} />
               ) : (
-                count.toLocaleString()
+                "0"
               )}
             </span>{" "}
             {t.waitlistCount}
@@ -691,16 +762,16 @@ export default function V14Page({ locale: initialLocale }: { locale: string }) {
       {/* Footer with Terms/Privacy */}
       <footer className="relative z-40 w-full flex justify-center gap-8 py-8 text-sm font-medium text-gray-500 bg-transparent">
         <Link
-          href={`/${activeLocale}/terms`}
+          href={`/${activeLocale}/terms?theme=${theme}`}
           className={`transition-colors ${isDark ? "hover:text-white" : "hover:text-black"}`}
         >
-          Terms of Service
+          {t.legal.terms}
         </Link>
         <Link
-          href={`/${activeLocale}/privacy`}
+          href={`/${activeLocale}/privacy?theme=${theme}`}
           className={`transition-colors ${isDark ? "hover:text-white" : "hover:text-black"}`}
         >
-          Privacy Policy
+          {t.legal.privacy}
         </Link>
       </footer>
     </div>

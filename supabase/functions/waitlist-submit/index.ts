@@ -5,8 +5,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
  *
  * Flow:
  *   1. Verify Cloudflare Turnstile token
- *   2. Rate-limit by IP hash (max 5 signups per IP per hour)
- *   3. Upsert subscriber into waitlist_subscribers
+ *   2. Rate-limit by IP hash (lenient window)
+ *   3. Insert/update subscriber into waitlist_subscribers
  *   4. Return success / already_subscribed / rate_limited / error
  */
 
@@ -20,16 +20,17 @@ const corsHeaders = {
 
 type WaitlistRequest = {
   email: string;
-  turnstile_token: string;
+  turnstile_token?: string;
+  turnstileToken?: string;
   platform?: string;
   locale?: string;
   variant?: string;
   timezone?: string;
   referral_source?: string;
+  source?: string;
 };
 
 Deno.serve(async (req: Request): Promise<Response> => {
-  // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -41,6 +42,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const supabaseURL = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const turnstileSecret = Deno.env.get("TURNSTILE_SECRET_KEY");
+  const hashSalt = Deno.env.get("WAITLIST_RATE_LIMIT_SALT") ?? "";
 
   if (!supabaseURL || !serviceRoleKey || !turnstileSecret) {
     return json({ error: "Function is not configured" }, 500);
@@ -53,40 +55,42 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  // ---- Validate required fields ----
   const email = normalizeEmail(body.email);
   if (!email) {
     return json({ error: "Invalid email" }, 400);
   }
 
-  if (!body.turnstile_token || typeof body.turnstile_token !== "string") {
+  const turnstileToken =
+    typeof body.turnstile_token === "string"
+      ? body.turnstile_token
+      : typeof body.turnstileToken === "string"
+        ? body.turnstileToken
+        : null;
+
+  if (!turnstileToken) {
     return json({ error: "Missing Turnstile token" }, 400);
   }
 
-  // ---- Verify Turnstile ----
-  const turnstileOk = await verifyTurnstile(
-    turnstileSecret,
-    body.turnstile_token,
-    getClientIP(req),
-  );
+  const clientIP = getClientIP(req);
+  const turnstileOk = await verifyTurnstile(turnstileSecret, turnstileToken, clientIP);
   if (!turnstileOk) {
     return json({ error: "Turnstile verification failed" }, 403);
   }
 
-  // ---- Rate-limit by IP hash ----
-  const clientIP = getClientIP(req);
-  const ipHash = clientIP ? await hashSHA256(clientIP) : null;
+  const ipHash = clientIP
+    ? await hashSHA256(hashSalt ? `${hashSalt}:${clientIP}` : clientIP)
+    : null;
   const admin = createClient(supabaseURL, serviceRoleKey);
 
   if (ipHash) {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     const { count, error: countErr } = await admin
       .from("waitlist_subscribers")
       .select("id", { count: "exact", head: true })
       .eq("ip_hash", ipHash)
-      .gte("created_at", oneHourAgo);
+      .gte("created_at", tenMinutesAgo);
 
-    if (!countErr && (count ?? 0) >= 5) {
+    if (!countErr && (count ?? 0) >= 10) {
       return json(
         {
           error: "Too many signups from this network. Try again later.",
@@ -97,8 +101,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   }
 
-  // ---- Normalize optional fields ----
-  const platform = normalizePlatform(body.platform);
+  const platform = normalizePlatform(body.platform, req.headers.get("user-agent"));
   const locale = normalizeLocale(body.locale);
   const variant = normalizeVariant(body.variant);
   const timezone =
@@ -106,64 +109,75 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const referralSource =
     typeof body.referral_source === "string"
       ? body.referral_source.slice(0, 128)
-      : null;
+      : typeof body.source === "string"
+        ? body.source.slice(0, 128)
+        : null;
 
-  // ---- Upsert subscriber ----
-  // ON CONFLICT on lower(email) → update platform/locale if changed
-  const { data, error: upsertErr } = await admin
+  const { data: existing, error: existingErr } = await admin
     .from("waitlist_subscribers")
-    .upsert(
-      {
-        email: email.toLowerCase(),
-        platform,
-        locale,
-        variant,
-        timezone,
-        referral_source: referralSource,
-        ip_hash: ipHash,
-        unsubscribed_at: null, // re-subscribe if previously unsubscribed
-      },
-      { onConflict: "lower(email)" }, // partial unique index
-    )
-    .select("id, subscribed_at, created_at")
+    .select("id, unsubscribed_at")
+    .ilike("email", email)
+    .maybeSingle();
+
+  if (existingErr) {
+    return json({ error: "Failed to check subscription" }, 500);
+  }
+
+  if (existing) {
+    const updatePayload: Record<string, unknown> = {
+      platform,
+      locale,
+      variant,
+      timezone,
+      referral_source: referralSource,
+      ip_hash: ipHash,
+      unsubscribed_at: null,
+    };
+
+    if (existing.unsubscribed_at) {
+      updatePayload.subscribed_at = new Date().toISOString();
+    }
+
+    const { error: updateErr } = await admin
+      .from("waitlist_subscribers")
+      .update(updatePayload)
+      .eq("id", existing.id);
+
+    if (updateErr) {
+      return json({ error: "Failed to update subscription" }, 500);
+    }
+
+    const resubscribed = Boolean(existing.unsubscribed_at);
+    return json(
+      { status: resubscribed ? "subscribed" : "already_subscribed", id: existing.id },
+      resubscribed ? 201 : 200,
+    );
+  }
+
+  const { data, error: insertErr } = await admin
+    .from("waitlist_subscribers")
+    .insert({
+      email,
+      platform,
+      locale,
+      variant,
+      timezone,
+      referral_source: referralSource,
+      ip_hash: ipHash,
+      unsubscribed_at: null,
+    })
+    .select("id")
     .single();
 
-  if (upsertErr) {
-    // If the upsert fails due to the unique index, try an update instead
-    if (upsertErr.code === "23505" || upsertErr.message?.includes("unique")) {
-      // Already exists — update instead
-      const { error: updateErr } = await admin
-        .from("waitlist_subscribers")
-        .update({
-          platform,
-          locale,
-          variant,
-          timezone,
-          referral_source: referralSource,
-          unsubscribed_at: null,
-        })
-        .ilike("email", email);
-
-      if (updateErr) {
-        return json({ error: "Failed to update subscription" }, 500);
-      }
+  if (insertErr) {
+    if (insertErr.code === "23505" || insertErr.message?.includes("unique")) {
       return json({ status: "already_subscribed" }, 200);
     }
     return json({ error: "Failed to create subscription" }, 500);
   }
 
-  // Detect if this was an insert or an update by comparing timestamps
-  const isNew =
-    data.created_at === data.subscribed_at ||
-    new Date(data.created_at).getTime() > Date.now() - 2000;
-
-  return json(
-    { status: isNew ? "subscribed" : "already_subscribed", id: data.id },
-    isNew ? 201 : 200,
-  );
+  return json({ status: "subscribed", id: data.id }, 201);
 });
-
-// ---- Helpers ----
 
 async function verifyTurnstile(
   secret: string,
@@ -211,14 +225,15 @@ async function hashSHA256(input: string): Promise<string> {
 function normalizeEmail(input: unknown): string | null {
   if (typeof input !== "string") return null;
   const trimmed = input.trim().toLowerCase();
-  // Basic email format check
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return null;
-  if (trimmed.length > 320) return null; // RFC 5321 max length
+  if (trimmed.length > 320) return null;
   return trimmed;
 }
 
-function normalizePlatform(input: unknown): string {
+function normalizePlatform(input: unknown, ua: string | null): string {
   if (input === "ios" || input === "android" || input === "both") return input;
+  if (ua && /iPhone|iPad|iPod|iOS/i.test(ua)) return "ios";
+  if (ua && /Android/i.test(ua)) return "android";
   return "unknown";
 }
 
@@ -228,13 +243,7 @@ function normalizeLocale(input: unknown): string {
 }
 
 function normalizeVariant(input: unknown): string | null {
-  if (
-    input === "1" ||
-    input === "2" ||
-    input === "3" ||
-    input === "4" ||
-    input === "5"
-  ) {
+  if (typeof input === "string" && /^[0-9]{1,2}$/.test(input)) {
     return input;
   }
   return null;

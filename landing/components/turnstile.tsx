@@ -86,6 +86,9 @@ export function Turnstile({
       widgetIdRef.current = window.turnstile.render(containerRef.current, {
         sitekey: siteKey,
         theme,
+        retry: "never",
+        "refresh-expired": "manual",
+        "refresh-timeout": "manual",
         callback: handleToken,
         "expired-callback": onExpired,
         "error-callback": onError,
