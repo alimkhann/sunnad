@@ -253,10 +253,18 @@ function MinimalWaitlist({
             className={`w-full border-none px-5 py-4 rounded-xl placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-all shadow-inner text-sm ${isDark ? "bg-[#1A1A1A] text-white" : "bg-[#F5F5F5] text-black"}`}
           />
           {hasTurnstile && (
-            <div className="rounded-xl overflow-hidden">
+            <div
+              className={`rounded-xl overflow-hidden ${token ? "hidden" : ""}`}
+            >
               <Turnstile
                 siteKey={landingConfig.turnstileSiteKey}
                 onToken={setToken}
+                onExpired={() => {
+                  setToken(null);
+                }}
+                onError={() => {
+                  setToken(null);
+                }}
                 theme={isDark ? "dark" : "light"}
               />
             </div>
@@ -307,10 +315,10 @@ function FeaturesScroll({
 
   // Alternating positions: 0=left, 1=right, 2=left, 3=right
   const positions = [
-    "md:left-[8%] md:-translate-x-0",
-    "md:left-[62%] md:-translate-x-0",
-    "md:left-[8%] md:-translate-x-0",
-    "md:left-[62%] md:-translate-x-0",
+    "md:left-[0%] md:-translate-x-0",
+    "md:left-[70%] md:-translate-x-0",
+    "md:left-[0%] md:-translate-x-0",
+    "md:left-[70%] md:-translate-x-0",
   ];
 
   return (
@@ -325,18 +333,18 @@ function FeaturesScroll({
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
               exit={{ opacity: 0, y: -24, filter: "blur(10px)" }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className={`absolute top-[10%] md:top-1/2 left-1/2 -translate-x-1/2 md:-translate-y-1/2 w-full max-w-[320px] md:max-w-[420px] text-center md:text-left ${positions[index]}`}
+              className={`absolute top-[10%] left-0 right-0 mx-auto w-full max-w-[280px] text-center md:top-1/3 md:right-auto md:mx-0 md:-translate-y-1/2 md:max-w-[420px] md:text-left ${positions[index]}`}
             >
               <div
-                className={`text-xs tracking-[0.2em] font-medium mb-4 uppercase ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                className={`text-[10px] md:text-xs tracking-[0.2em] font-medium mb-2 md:mb-4 uppercase ${isDark ? "text-gray-400" : "text-gray-500"}`}
               >
                 0{index + 1} / 0{t.features.length}
               </div>
-              <h3 className="text-3xl md:text-4xl font-bold mb-4 tracking-tight">
+              <h3 className="text-2xl md:text-4xl font-bold mb-2 md:mb-4 tracking-tight">
                 {t.features[index].title}
               </h3>
               <p
-                className={`text-base md:text-lg leading-relaxed ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                className={`text-sm md:text-lg leading-relaxed ${isDark ? "text-gray-400" : "text-gray-500"}`}
               >
                 {t.features[index].desc}
               </p>
@@ -350,7 +358,7 @@ function FeaturesScroll({
             <AnimatePresence mode="wait">
               <motion.img
                 key={index}
-                initial={{ opacity: 0, scale: 1.03 }}
+                initial={{ opacity: 0, scale: 1 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.5, ease: "easeOut" }}

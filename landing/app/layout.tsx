@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: "Sunnad — Build better habits, together",
   description:
     "An offline-first Islamic habit tracker with daily quotes, streaks, and group accountability.",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export const viewport: Viewport = {
