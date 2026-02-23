@@ -66,8 +66,12 @@ export function Turnstile({
 }: TurnstileProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const callbacksRef = useRef({ onToken, onExpired, onError });
 
-  const handleToken = useCallback((token: string) => onToken(token), [onToken]);
+  // Keep callbacks ref up to date without triggering re-renders
+  useEffect(() => {
+    callbacksRef.current = { onToken, onExpired, onError };
+  });
 
   useEffect(() => {
     let mounted = true;
@@ -86,9 +90,12 @@ export function Turnstile({
       widgetIdRef.current = window.turnstile.render(containerRef.current, {
         sitekey: siteKey,
         theme,
-        callback: handleToken,
-        "expired-callback": onExpired,
-        "error-callback": onError,
+        retry: "never",
+        "refresh-expired": "manual",
+        "refresh-timeout": "manual",
+        callback: (token: string) => callbacksRef.current.onToken(token),
+        "expired-callback": () => callbacksRef.current.onExpired?.(),
+        "error-callback": () => callbacksRef.current.onError?.(),
       });
     });
 
@@ -100,7 +107,7 @@ export function Turnstile({
         } catch {}
       }
     };
-  }, [siteKey, theme, handleToken, onExpired, onError]);
+  }, [siteKey, theme]);
 
   return <div ref={containerRef} className={className} />;
 }
