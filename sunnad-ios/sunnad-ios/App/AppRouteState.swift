@@ -259,10 +259,13 @@ final class AppRouteState: ObservableObject {
         case .welcome:
             onboardingStep = .templates
         case .templates:
+            dependencies.analytics.trackOnboarding(.templateSelected(count: selectedTemplateIDs.count))
             onboardingStep = .notifications
         case .notifications:
+            dependencies.analytics.trackOnboarding(.notificationsPrompted)
             onboardingStep = .joinGroups
         case .joinGroups:
+            dependencies.analytics.trackOnboarding(.completed)
             completeAsGuest()
         case .signIn, .signUp, .otp:
             break
@@ -305,11 +308,13 @@ final class AppRouteState: ObservableObject {
     }
 
     func enableOnboardingNotifications() {
+        dependencies.analytics.trackOnboarding(.notificationsEnabled)
         dependencies.requestLocalNotificationPermission()
         onboardingStep = .joinGroups
     }
 
     func skipOnboardingNotifications() {
+        dependencies.analytics.trackOnboarding(.notificationsSkipped)
         onboardingStep = .joinGroups
     }
 
@@ -333,6 +338,11 @@ final class AppRouteState: ObservableObject {
                 await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .none)
                 markOnboardingCompleted()
                 activeTab = .today
+                dependencies.analytics.trackAuth(
+                    kind: .signIn,
+                    provider: .email,
+                    status: .success
+                )
             } catch {
                 authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
@@ -340,15 +350,31 @@ final class AppRouteState: ObservableObject {
                     .storageFailure,
                     metadata: ["scope": "auth_sign_in", "error": error.localizedDescription]
                 )
+                dependencies.analytics.trackAuth(
+                    kind: .signIn,
+                    provider: .email,
+                    status: .failure,
+                    reason: "error"
+                )
             }
         }
     }
 
     func handleGoogleSignIn() {
+        dependencies.analytics.trackAuth(
+            kind: .signIn,
+            provider: .google,
+            status: .success
+        )
         handleOAuthSignIn(using: .google, intent: .signIn, fromProfileSurface: false)
     }
 
     func handleGoogleSignUp() {
+        dependencies.analytics.trackAuth(
+            kind: .signUp,
+            provider: .google,
+            status: .success
+        )
         handleOAuthSignIn(using: .google, intent: .signUp, fromProfileSurface: false)
     }
 
@@ -361,10 +387,20 @@ final class AppRouteState: ObservableObject {
     }
 
     func handleAppleSignIn() {
+        dependencies.analytics.trackAuth(
+            kind: .signIn,
+            provider: .apple,
+            status: .success
+        )
         handleOAuthSignIn(using: .apple, intent: .signIn, fromProfileSurface: false)
     }
 
     func handleAppleSignUp() {
+        dependencies.analytics.trackAuth(
+            kind: .signUp,
+            provider: .apple,
+            status: .success
+        )
         handleOAuthSignIn(using: .apple, intent: .signUp, fromProfileSurface: false)
     }
 
@@ -880,6 +916,8 @@ final class AppRouteState: ObservableObject {
                 )
             }
 
+            dependencies.analytics.reset()
+
             authErrorMessage = nil
             authSuccessMessage = nil
             user = .guest
@@ -916,6 +954,8 @@ final class AppRouteState: ObservableObject {
                 )
                 return
             }
+
+            dependencies.analytics.reset()
 
             pendingPasswordResetEmail = ""
             otpFlowMode = .signup
@@ -1537,6 +1577,7 @@ final class AppRouteState: ObservableObject {
         Task {
             await AvatarImageCache.shared.preload(url: self.user.avatarURL)
         }
+        identifySignedInUser(sessionUser)
     }
 
     private func refreshProfileFromRemote(showErrors: Bool) async {
@@ -1782,6 +1823,29 @@ final class AppRouteState: ObservableObject {
         let identifiers = await debugScheduler.debugPendingReminderRequestIdentifiers()
         debugPendingReminderCount = identifiers.count
         #endif
+    }
+
+    private func identifySignedInUser(_ sessionUser: SessionUser) {
+        let distinctId = sessionUser.id.uuidString
+
+        var userProperties: [String: Any] = [
+            "is_guest": false,
+            "language": language.rawValue,
+            "locale": language.localeIdentifier,
+        ]
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let nowString = formatter.string(from: Date())
+        let setOnce: [String: Any] = [
+            "first_seen_at": nowString,
+        ]
+
+        dependencies.analytics.identify(
+            distinctId,
+            userProperties: userProperties,
+            userPropertiesSetOnce: setOnce
+        )
     }
 
     #if DEBUG

@@ -36,6 +36,7 @@ struct sunnad_iosApp: App {
             SunnadRootView(dependencies: dependencies)
                 .tint(SunnadTheme.primary)
                 .onAppear {
+                    dependencies.analytics.trackLifecycle(.appOpened)
                     backgroundSyncScheduler.register()
                     backgroundSyncScheduler.schedule()
                 }
@@ -43,6 +44,7 @@ struct sunnad_iosApp: App {
         .modelContainer(dependencies.modelContainer)
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
+                dependencies.analytics.trackLifecycle(.appBackgrounded)
                 backgroundSyncScheduler.schedule()
             }
         }

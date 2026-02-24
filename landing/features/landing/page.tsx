@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import posthog from "posthog-js";
 import { submitWaitlist } from "@/lib/waitlist-submit";
 import { Turnstile } from "@/components/turnstile";
 import { landingConfig } from "@/lib/config";
@@ -198,6 +199,40 @@ const translations = {
     },
   },
 };
+
+function parseReferrerDomain(): string | null {
+  if (typeof document === "undefined") return null;
+  if (!document.referrer) return null;
+  try {
+    const url = new URL(document.referrer);
+    return url.hostname || null;
+  } catch {
+    return null;
+  }
+}
+
+function parseUtmParams(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const params = new URLSearchParams(window.location.search);
+  const result: Record<string, string> = {};
+
+  const mappings: Array<[string, string]> = [
+    ["utm_source", "utm_source"],
+    ["utm_medium", "utm_medium"],
+    ["utm_campaign", "utm_campaign"],
+    ["utm_content", "utm_content"],
+    ["utm_term", "utm_term"],
+  ];
+
+  for (const [param, key] of mappings) {
+    const value = params.get(param);
+    if (value) {
+      result[key] = value;
+    }
+  }
+
+  return result;
+}
 
 // --- Form ---
 function MinimalWaitlist({
@@ -507,6 +542,33 @@ export default function LandingPage({
   const [count, setCount] = useState(0);
   useEffect(() => {
     void fetchWaitlistCount().then(setCount);
+  }, []);
+
+   // Track landing page view (manual, privacy-safe)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+    if (!key) return;
+
+    const referrerDomain = parseReferrerDomain();
+    const utm = parseUtmParams();
+
+    const props: Record<string, unknown> = {
+      locale: activeLocale,
+      theme,
+      path: window.location.pathname,
+    };
+
+    if (referrerDomain) {
+      props.referrer_domain = referrerDomain;
+    }
+
+    Object.assign(props, utm);
+
+    posthog.capture("landing_viewed", props);
+    // Run once on mount; dependency array intentionally empty
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleWaitlistSuccess(status: WaitlistSuccessStatus): void {

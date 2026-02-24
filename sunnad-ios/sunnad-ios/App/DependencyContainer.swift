@@ -17,6 +17,7 @@ final class DependencyContainer {
     let environment: AppEnvironment
     let modelContainer: ModelContainer
 
+    let analytics: AnalyticsClient
     let analyticsLogger: AnalyticsLogging
     let habitsRepository: HabitsRepository
     let completionsRepository: CompletionsRepository
@@ -72,6 +73,11 @@ final class DependencyContainer {
         let logger = OSLogAnalyticsLogger(diagnosticsStore: diagnosticsStore)
 
         analyticsLogger = logger
+        if let posthogClient = PostHogAnalyticsClient(environment: environment) {
+            analytics = posthogClient
+        } else {
+            analytics = NoopAnalyticsClient()
+        }
         let localHabitsRepository = HabitsLocalRepository(
             modelContext: modelContext,
             logger: logger,
