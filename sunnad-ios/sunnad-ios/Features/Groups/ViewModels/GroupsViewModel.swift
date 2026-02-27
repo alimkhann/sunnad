@@ -11,6 +11,7 @@ final class GroupsViewModel: ObservableObject {
 
     private let groupsRepository: GroupsRepository
     private let logger: AnalyticsLogging
+    private var sharingUpdateRevisions: [UUID: Int] = [:]
 
     init(
         groupsRepository: GroupsRepository,
@@ -135,11 +136,23 @@ final class GroupsViewModel: ObservableObject {
     }
 
     func updateGroupSharing(groupID: UUID, habitIDs: Set<UUID>) async {
+        let revision = (sharingUpdateRevisions[groupID] ?? 0) + 1
+        sharingUpdateRevisions[groupID] = revision
+
+        applyOptimisticSharing(groupID: groupID, habitIDs: habitIDs)
+
         do {
             try await groupsRepository.updateSharing(groupID: groupID, habitIDs: habitIDs)
+            guard sharingUpdateRevisions[groupID] == revision else {
+                return
+            }
             await refreshGroup(groupID: groupID)
         } catch {
+            guard sharingUpdateRevisions[groupID] == revision else {
+                return
+            }
             errorMessage = error.localizedDescription
+            await refreshGroup(groupID: groupID)
             logger.log(.storageFailure, metadata: ["scope": "groups_update_sharing", "error": error.localizedDescription])
         }
     }
@@ -224,11 +237,14 @@ final class GroupsViewModel: ObservableObject {
     }
 
     private func refreshGroupProgress(for groups: [UIGroup]) -> [UIGroup] {
-        groups.map { group in
+        let today = Date()
+        return groups.map { group in
             var mutable = group
             let myMemberID = mutable.currentUserMemberID ?? mutable.ownerMemberID
 
-            let myHabits = habits.filter { mutable.sharedHabitIDs.contains($0.id) }
+            let myHabits = habits.filter {
+                mutable.sharedHabitIDs.contains($0.id) && $0.isScheduled(on: today)
+            }
             let mySharedHabits = myHabits.map {
                 UISharedHabit(
                     habitID: $0.id,
@@ -260,5 +276,13 @@ final class GroupsViewModel: ObservableObject {
 
             return mutable
         }
+    }
+
+    private func applyOptimisticSharing(groupID: UUID, habitIDs: Set<UUID>) {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else {
+            return
+        }
+        groups[index].sharedHabitIDs = habitIDs
+        groups = refreshGroupProgress(for: groups)
     }
 }
