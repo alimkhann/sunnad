@@ -1,0 +1,63 @@
+name: Backup Nightly
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: Backup ${{ matrix.environment }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, prod]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install backup dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq awscli
+
+      - name: Validate backup secrets
+        env:
+          SUPABASE_DB_URL: ${{ matrix.environment == 'dev' && secrets.SUPABASE_DEV_DB_URL || secrets.SUPABASE_PROD_DB_URL }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          test -n "$SUPABASE_DB_URL" || (echo "Missing SUPABASE_[DEV|PROD]_DB_URL" && exit 1)
+          test -n "$BACKUP_ENCRYPTION_PASSPHRASE" || (echo "Missing BACKUP_ENCRYPTION_PASSPHRASE" && exit 1)
+          test -n "$R2_BUCKET" || (echo "Missing R2_BUCKET" && exit 1)
+          test -n "$R2_ACCESS_KEY_ID" || (echo "Missing R2_ACCESS_KEY_ID" && exit 1)
+          test -n "$R2_SECRET_ACCESS_KEY" || (echo "Missing R2_SECRET_ACCESS_KEY" && exit 1)
+          test -n "$R2_ACCOUNT_ID" || (echo "Missing R2_ACCOUNT_ID" && exit 1)
+
+      - name: Run encrypted backup + upload to R2
+        env:
+          SUPABASE_DB_URL: ${{ matrix.environment == 'dev' && secrets.SUPABASE_DEV_DB_URL || secrets.SUPABASE_PROD_DB_URL }}
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_PREFIX: sunnad-db-backups
+        run: |
+          scripts/db/backup_remote.sh "${{ matrix.environment }}" backups/remote
+
+      - name: Upload backup manifest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-manifest-${{ matrix.environment }}
+          path: backups/remote/**/manifest.json

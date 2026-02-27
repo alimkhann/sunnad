@@ -16,4 +16,20 @@ landing/.env.dev
 landing/.env
 *.tsbuildinfo
 
+sunnad-ios/build/
+sunnad-ios/DerivedData/
+sunnad-ios/**/*.xcuserdata/
+sunnad-ios/**/*.xcuserstate
+
 .playwright-mcp
+
+# Database backup artifacts
+backups/**
+!backups/.gitkeep
+!backups/local/
+!backups/local/.gitkeep
+!backups/remote/
+!backups/remote/.gitkeep
+*.sql.enc
+*.sha256
+manifest.json

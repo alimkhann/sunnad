@@ -11,13 +11,17 @@ final class GroupsViewModel: ObservableObject {
 
     private let groupsRepository: GroupsRepository
     private let logger: AnalyticsLogging
+    private let analytics: AnalyticsClient
+    private var sharingUpdateRevisions: [UUID: Int] = [:]
 
     init(
         groupsRepository: GroupsRepository,
-        logger: AnalyticsLogging
+        logger: AnalyticsLogging,
+        analytics: AnalyticsClient
     ) {
         self.groupsRepository = groupsRepository
         self.logger = logger
+        self.analytics = analytics
     }
 
     func load(user: UIUserState, habits: [UIHabit]) async {
@@ -84,6 +88,7 @@ final class GroupsViewModel: ObservableObject {
             groups = refreshGroupProgress(for: groups)
             await refresh()
             errorMessage = nil
+            analytics.trackGroup(.created)
         } catch {
             errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_create", "error": error.localizedDescription])
@@ -98,9 +103,11 @@ final class GroupsViewModel: ObservableObject {
             groups = refreshGroupProgress(for: groups)
             await refresh()
             errorMessage = nil
+            analytics.trackGroup(.joinResult(status: "success", reason: nil))
         } catch {
             errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_join", "error": error.localizedDescription])
+            analytics.trackGroup(.joinResult(status: "failure", reason: "error"))
         }
     }
 
@@ -135,11 +142,28 @@ final class GroupsViewModel: ObservableObject {
     }
 
     func updateGroupSharing(groupID: UUID, habitIDs: Set<UUID>) async {
+        let before = groups.first(where: { $0.id == groupID })?.sharedHabitIDs ?? []
+        let revision = (sharingUpdateRevisions[groupID] ?? 0) + 1
+        sharingUpdateRevisions[groupID] = revision
+
+        applyOptimisticSharing(groupID: groupID, habitIDs: habitIDs)
+
         do {
             try await groupsRepository.updateSharing(groupID: groupID, habitIDs: habitIDs)
+            guard sharingUpdateRevisions[groupID] == revision else {
+                return
+            }
             await refreshGroup(groupID: groupID)
+            let delta = habitIDs.count - before.count
+            if delta != 0 {
+                analytics.trackGroup(.sharingUpdated(delta: delta, totalShared: habitIDs.count))
+            }
         } catch {
+            guard sharingUpdateRevisions[groupID] == revision else {
+                return
+            }
             errorMessage = error.localizedDescription
+            await refreshGroup(groupID: groupID)
             logger.log(.storageFailure, metadata: ["scope": "groups_update_sharing", "error": error.localizedDescription])
         }
     }
@@ -168,6 +192,7 @@ final class GroupsViewModel: ObservableObject {
             try await groupsRepository.leaveGroup(groupID: groupID)
             groups.removeAll(where: { $0.id == groupID })
             errorMessage = nil
+            analytics.trackGroup(.left)
         } catch {
             errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_leave", "error": error.localizedDescription])
@@ -203,10 +228,25 @@ final class GroupsViewModel: ObservableObject {
     }
 
     func sendNudge(groupID: UUID, memberID: UUID, habitID: UUID) async -> GroupNudgeStatus {
+        let habitType = habits.first(where: { $0.id == habitID })?.isDhikr == true ? "dhikr" : "binary"
         do {
-            return try await groupsRepository.sendNudge(groupID: groupID, toUserID: memberID, habitID: habitID)
+            let status = try await groupsRepository.sendNudge(groupID: groupID, toUserID: memberID, habitID: habitID)
+            let statusValue: String
+            switch status {
+            case .sent:
+                statusValue = "sent"
+            case .duplicate:
+                statusValue = "duplicate"
+            case .forbidden:
+                statusValue = "forbidden"
+            case .error:
+                statusValue = "error"
+            }
+            analytics.trackGroup(.nudgeResult(status: statusValue, habitType: habitType))
+            return status
         } catch {
             logger.log(.storageFailure, metadata: ["scope": "groups_send_nudge", "error": error.localizedDescription])
+            analytics.trackGroup(.nudgeResult(status: "error", habitType: habitType))
             return .error
         }
     }
@@ -224,11 +264,14 @@ final class GroupsViewModel: ObservableObject {
     }
 
     private func refreshGroupProgress(for groups: [UIGroup]) -> [UIGroup] {
-        groups.map { group in
+        let today = Date()
+        return groups.map { group in
             var mutable = group
             let myMemberID = mutable.currentUserMemberID ?? mutable.ownerMemberID
 
-            let myHabits = habits.filter { mutable.sharedHabitIDs.contains($0.id) }
+            let myHabits = habits.filter {
+                mutable.sharedHabitIDs.contains($0.id) && $0.isScheduled(on: today)
+            }
             let mySharedHabits = myHabits.map {
                 UISharedHabit(
                     habitID: $0.id,
@@ -260,5 +303,13 @@ final class GroupsViewModel: ObservableObject {
 
             return mutable
         }
+    }
+
+    private func applyOptimisticSharing(groupID: UUID, habitIDs: Set<UUID>) {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else {
+            return
+        }
+        groups[index].sharedHabitIDs = habitIDs
+        groups = refreshGroupProgress(for: groups)
     }
 }

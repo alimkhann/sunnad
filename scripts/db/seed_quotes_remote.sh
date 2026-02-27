@@ -3,8 +3,13 @@
 set -euo pipefail
 
 PROJECT_REF="${1:?Usage: seed_quotes.sh <project_ref>}"
-TOKEN="sbp_448951dce4dc4d4429ea508ff19fbe42304e9a82"
+TOKEN="${SUPABASE_ACCESS_TOKEN:-}"
 API="https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query"
+
+if [[ -z "$TOKEN" ]]; then
+  echo "SUPABASE_ACCESS_TOKEN must be set." >&2
+  exit 1
+fi
 
 run_sql() {
   local sql="$1"

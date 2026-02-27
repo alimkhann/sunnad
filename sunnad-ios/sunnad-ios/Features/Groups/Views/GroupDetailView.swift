@@ -58,6 +58,8 @@ struct GroupDetailView: View {
     @State private var expandedMemberIDs: Set<UUID> = []
     @State private var sharedHabitIDs: Set<UUID>
     @State private var isEditingSharing = false
+    @State private var pendingRemoteSharedHabitIDs: Set<UUID>?
+    @State private var sharingDebounceTask: Task<Void, Never>?
 
     @State private var reminderTarget: ReminderTarget?
     @State private var reminderToast: ReminderToast?
@@ -124,7 +126,16 @@ struct GroupDetailView: View {
             sharedHabitIDs = currentSharedHabitIDs() ?? group.sharedHabitIDs
         }
         .onChange(of: group.sharedHabitIDs) { oldValue, newValue in
+            _ = oldValue
+            if let pending = pendingRemoteSharedHabitIDs, newValue != pending {
+                return
+            }
+            pendingRemoteSharedHabitIDs = nil
             sharedHabitIDs = newValue
+        }
+        .onDisappear {
+            sharingDebounceTask?.cancel()
+            sharingDebounceTask = nil
         }
         .sheet(item: $reminderTarget) { target in
             ReminderPromptSheet(
@@ -469,7 +480,7 @@ struct GroupDetailView: View {
                                 } else {
                                     sharedHabitIDs.remove(habit.id)
                                 }
-                                onUpdateSharing(sharedHabitIDs)
+                                queueSharingUpdate()
                             }
                         )) {
                             HStack(spacing: 12) {
@@ -604,6 +615,20 @@ struct GroupDetailView: View {
             try? await Task.sleep(nanoseconds: 2_200_000_000)
             if reminderToast?.id == toast.id {
                 reminderToast = nil
+            }
+        }
+    }
+
+    private func queueSharingUpdate() {
+        let targetSharing = sharedHabitIDs
+        pendingRemoteSharedHabitIDs = targetSharing
+
+        sharingDebounceTask?.cancel()
+        sharingDebounceTask = Task {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                onUpdateSharing(targetSharing)
             }
         }
     }

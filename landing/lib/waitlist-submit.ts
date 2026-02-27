@@ -1,4 +1,5 @@
 import { landingConfig } from "./config";
+import { captureLandingEvent } from "./analytics";
 
 export type WaitlistStatus =
   | "subscribed"
@@ -19,6 +20,36 @@ function detectPlatform(): string {
   return "unknown";
 }
 
+function trackWaitlistSubmitted(
+  status: Extract<WaitlistStatus, "subscribed" | "already_subscribed">,
+  locale: string,
+  variant: string,
+) {
+  captureLandingEvent("landing_waitlist_submit_succeeded", {
+    status,
+    locale,
+    variant,
+    platform: detectPlatform(),
+    referral_source: "landing",
+  });
+}
+
+function trackWaitlistFailed(
+  status: Extract<WaitlistStatus, "rate_limited" | "error">,
+  locale: string,
+  variant: string,
+  errorType: string,
+) {
+  captureLandingEvent("landing_waitlist_submit_failed", {
+    status,
+    locale,
+    variant,
+    platform: detectPlatform(),
+    referral_source: "landing",
+    error_type: errorType,
+  });
+}
+
 export async function submitWaitlist(params: {
   email: string;
   turnstileToken: string;
@@ -26,6 +57,14 @@ export async function submitWaitlist(params: {
   variant: string;
 }): Promise<WaitlistResult> {
   const { email, turnstileToken, locale, variant } = params;
+  const platform = detectPlatform();
+
+  captureLandingEvent("landing_waitlist_submit_started", {
+    locale,
+    variant,
+    platform,
+    referral_source: "landing",
+  });
 
   try {
     const res = await fetch(
@@ -40,7 +79,7 @@ export async function submitWaitlist(params: {
           email,
           turnstile_token: turnstileToken,
           locale,
-          platform: detectPlatform(),
+          platform,
           variant,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           referral_source: "landing",
@@ -49,25 +88,36 @@ export async function submitWaitlist(params: {
     );
 
     if (res.status === 429) {
+      trackWaitlistFailed("rate_limited", locale, variant, "rate_limited");
       return { status: "rate_limited" };
     }
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
+      trackWaitlistFailed(
+        "error",
+        locale,
+        variant,
+        `http_${res.status.toString()}`,
+      );
       return { status: "error", message: text || `HTTP ${res.status}` };
     }
 
     const data = await res.json();
 
     if (data.status === "already_subscribed") {
+      trackWaitlistSubmitted("already_subscribed", locale, variant);
       return { status: "already_subscribed" };
     }
     if (data.status === "subscribed") {
+      trackWaitlistSubmitted("subscribed", locale, variant);
       return { status: "subscribed" };
     }
 
+    trackWaitlistFailed("error", locale, variant, "unexpected_response");
     return { status: "error", message: "Unexpected response" };
   } catch (err) {
+    trackWaitlistFailed("error", locale, variant, "network");
     return {
       status: "error",
       message: err instanceof Error ? err.message : "Network error",

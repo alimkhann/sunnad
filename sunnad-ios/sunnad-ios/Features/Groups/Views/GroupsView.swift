@@ -11,6 +11,7 @@ struct GroupsView: View {
     let onCreateGroup: () -> Void
     let onJoinGroup: () -> Void
     let onSignIn: () -> Void
+    let onOpenGroup: () -> Void
     let onUpdateGroupSharing: (UUID, Set<UUID>) -> Void
     let onToggleOwnHabit: (UUID) -> Void
     let onSendReminder: (UUID, UUID, UUID) async -> GroupNudgeStatus
@@ -135,6 +136,11 @@ struct GroupsView: View {
                                 .padding(.vertical, 12)
                             }
                             .buttonStyle(.plain)
+                            .simultaneousGesture(
+                                TapGesture().onEnded {
+                                    onOpenGroup()
+                                }
+                            )
 
                             if index < groups.count - 1 {
                                 Divider().padding(.leading, 62)
