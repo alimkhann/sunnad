@@ -31,18 +31,20 @@ final class DependencyContainer {
     private let localQuotesRepository: QuotesLocalRepository
     private let userDefaults: UserDefaults
 
+    @MainActor
     init(
-        environment: AppEnvironment = .current,
+        environment: AppEnvironment? = nil,
         modelContainer: ModelContainer? = nil,
         analytics: AnalyticsClient? = nil,
         authService: AuthService? = nil,
         deviceTokenSyncService: DeviceTokenSyncing? = nil,
         syncCoordinator: SyncCoordinating? = nil
     ) {
-        self.environment = environment
+        let resolvedEnvironment = environment ?? .current
+        self.environment = resolvedEnvironment
         self.userDefaults = .standard
         self.ownerScopeResolver = LocalOwnerScopeResolver(
-            namespace: environment.storageNamespace,
+            namespace: resolvedEnvironment.storageNamespace,
             userDefaults: userDefaults
         )
 
@@ -76,7 +78,7 @@ final class DependencyContainer {
         analyticsLogger = logger
         if let analytics {
             self.analytics = analytics
-        } else if let posthogClient = PostHogAnalyticsClient(environment: environment) {
+        } else if let posthogClient = PostHogAnalyticsClient(environment: resolvedEnvironment) {
             self.analytics = posthogClient
         } else {
             self.analytics = NoopAnalyticsClient()
@@ -99,9 +101,9 @@ final class DependencyContainer {
         reminderScheduler = UserNotificationReminderScheduler(logger: logger)
 
         let resolvedSupabase = Self.resolvedSupabaseConfig(
-            environment: environment,
+            environment: resolvedEnvironment,
             userDefaults: userDefaults,
-            cacheNamespace: environment.storageNamespace
+            cacheNamespace: resolvedEnvironment.storageNamespace
         )
 
         let supabaseClient: SupabaseClient?
@@ -156,7 +158,7 @@ final class DependencyContainer {
             self.authService = SupabaseAuthService(
                 client: client,
                 supabaseURL: config.url,
-                authRedirectURL: environment.authRedirectURL
+                authRedirectURL: resolvedEnvironment.authRedirectURL
             )
             #if DEBUG
             NSLog("Sunnad auth configured with Supabase URL: \(config.url.absoluteString)")
@@ -231,6 +233,7 @@ final class DependencyContainer {
         #endif
     }
 
+    @MainActor
     func seedLocalDataIfNeeded() {
         do {
             let modelContext = modelContainer.mainContext
