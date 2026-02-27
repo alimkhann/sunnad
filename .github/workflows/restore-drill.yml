@@ -1,0 +1,127 @@
+name: Restore Drill
+
+on:
+  schedule:
+    - cron: "30 4 * * 0"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Backup environment to restore (dev/prod)"
+        required: true
+        default: prod
+        type: choice
+        options:
+          - dev
+          - prod
+      manifest_key:
+        description: "Optional full manifest key in R2 (ends with /manifest.json)"
+        required: false
+        type: string
+
+jobs:
+  restore-drill:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clients
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client jq awscli
+
+      - name: Resolve restore context
+        env:
+          INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          INPUT_MANIFEST_KEY: ${{ inputs.manifest_key }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_PREFIX: sunnad-db-backups
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${INPUT_ENVIRONMENT:-}" ]]; then
+            backup_env="$INPUT_ENVIRONMENT"
+          else
+            backup_env="prod"
+          fi
+
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          export AWS_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
+          export AWS_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
+          export AWS_DEFAULT_REGION="auto"
+
+          mkdir -p backups/restore-drill
+
+          if [[ -n "${INPUT_MANIFEST_KEY:-}" ]]; then
+            manifest_key="$INPUT_MANIFEST_KEY"
+          else
+            manifest_key="$(
+              aws s3api list-objects-v2 \
+                --bucket "$R2_BUCKET" \
+                --prefix "${R2_PREFIX}/${backup_env}/" \
+                --endpoint-url "$endpoint" \
+                --output json |
+                jq -r '.Contents // [] | map(select(.Key | endswith("/manifest.json"))) | sort_by(.LastModified) | reverse | .[0].Key // empty'
+            )"
+          fi
+
+          test -n "$manifest_key" || (echo "No manifest found for ${backup_env}" && exit 1)
+          echo "BACKUP_ENV=${backup_env}" >> "$GITHUB_ENV"
+          echo "R2_ENDPOINT=${endpoint}" >> "$GITHUB_ENV"
+          echo "MANIFEST_KEY=${manifest_key}" >> "$GITHUB_ENV"
+
+      - name: Download manifest and artifacts
+        env:
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ env.R2_ENDPOINT }}
+          MANIFEST_KEY: ${{ env.MANIFEST_KEY }}
+        run: |
+          set -euo pipefail
+
+          export AWS_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
+          export AWS_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
+          export AWS_DEFAULT_REGION="auto"
+
+          mkdir -p backups/restore-drill
+          aws s3 cp "s3://${R2_BUCKET}/${MANIFEST_KEY}" backups/restore-drill/manifest.json --endpoint-url "$R2_ENDPOINT"
+
+          jq -r '.artifacts[] | .r2_key // empty' backups/restore-drill/manifest.json | while read -r key; do
+            test -n "$key" || continue
+            filename="$(basename "$key")"
+            aws s3 cp "s3://${R2_BUCKET}/${key}" "backups/restore-drill/${filename}" --endpoint-url "$R2_ENDPOINT"
+          done
+
+      - name: Restore + verify
+        env:
+          BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          RESTORE_DEV_DB_URL: ${{ secrets.SUPABASE_RESTORE_DEV_DB_URL }}
+          RESTORE_PROD_DB_URL: ${{ secrets.SUPABASE_RESTORE_PROD_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [[ "${BACKUP_ENV}" == "dev" ]]; then
+            TARGET_DB_URL="${RESTORE_DEV_DB_URL:-}"
+          else
+            TARGET_DB_URL="${RESTORE_PROD_DB_URL:-}"
+          fi
+          test -n "$TARGET_DB_URL" || (echo "Missing restore target DB URL secret" && exit 1)
+          scripts/db/restore_from_manifest.sh "$TARGET_DB_URL" backups/restore-drill/manifest.json
+
+      - name: Run DB smoke checks on restored target
+        env:
+          RESTORE_DEV_DB_URL: ${{ secrets.SUPABASE_RESTORE_DEV_DB_URL }}
+          RESTORE_PROD_DB_URL: ${{ secrets.SUPABASE_RESTORE_PROD_DB_URL }}
+        run: |
+          set -euo pipefail
+          if [[ "${BACKUP_ENV}" == "dev" ]]; then
+            TARGET_DB_URL="${RESTORE_DEV_DB_URL:-}"
+          else
+            TARGET_DB_URL="${RESTORE_PROD_DB_URL:-}"
+          fi
+          test -n "$TARGET_DB_URL" || (echo "Missing restore target DB URL secret" && exit 1)
+          psql "$TARGET_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/stage4_smoke.sql
