@@ -85,8 +85,8 @@ extension AnalyticsClient {
         }
     }
 
-    func trackScreen(_ screen: AnalyticsScreen) {
-        let name = screen.rawValue
+    func trackScreen(_ screenId: AnalyticsScreen) {
+        let name = screenId.rawValue
         screen(name, properties: ["screen_name": name])
     }
 

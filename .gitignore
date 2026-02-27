@@ -16,6 +16,11 @@ landing/.env.dev
 landing/.env
 *.tsbuildinfo
 
+sunnad-ios/build/
+sunnad-ios/DerivedData/
+sunnad-ios/**/*.xcuserdata/
+sunnad-ios/**/*.xcuserstate
+
 .playwright-mcp
 
 # Database backup artifacts

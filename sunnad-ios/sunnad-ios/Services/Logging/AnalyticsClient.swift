@@ -104,7 +104,13 @@ final class PostHogAnalyticsClient: AnalyticsClient {
 
     func setEnabled(_ isEnabled: Bool) {
         self.isEnabled = isEnabled
-        PostHogSDK.shared.optOut(isEnabled == false)
+        if isEnabled {
+            if PostHogSDK.shared.responds(to: #selector(PostHogSDK.optIn)) {
+                PostHogSDK.shared.optIn()
+            }
+        } else {
+            PostHogSDK.shared.optOut()
+        }
     }
 }
 

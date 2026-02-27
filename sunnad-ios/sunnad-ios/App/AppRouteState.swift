@@ -1828,7 +1828,7 @@ final class AppRouteState: ObservableObject {
     private func identifySignedInUser(_ sessionUser: SessionUser) {
         let distinctId = sessionUser.id.uuidString
 
-        var userProperties: [String: Any] = [
+        let userProperties: [String: Any] = [
             "is_guest": false,
             "language": language.rawValue,
             "locale": language.localeIdentifier,
