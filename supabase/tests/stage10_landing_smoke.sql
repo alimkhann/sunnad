@@ -49,7 +49,7 @@ do $$
 begin
   -- Valid platform values
   begin
-    insert into public.waitlist_subscribers (email, platform) values ('test-plat@example.com', 'windows');
+    insert into public.waitlist_subscribers (email, platform) values ('test-plat@example.com', 'playstation');
     raise exception 'Should have rejected invalid platform';
   exception when check_violation then
     null; -- expected
@@ -63,13 +63,10 @@ begin
     null; -- expected
   end;
 
-  -- Valid variant values
-  begin
-    insert into public.waitlist_subscribers (email, variant) values ('test-var@example.com', '123');
-    raise exception 'Should have rejected invalid variant';
-  exception when check_violation then
-    null; -- expected
-  end;
+  -- Newly accepted desktop platform values should pass
+  insert into public.waitlist_subscribers (email, platform, locale) values ('test-win@example.com', 'windows', 'ru');
+  insert into public.waitlist_subscribers (email, platform, locale) values ('test-mac@example.com', 'macos', 'kk');
+  insert into public.waitlist_subscribers (email, platform, locale) values ('test-linux@example.com', 'linux', 'ru');
 
   -- Valid campaign status
   begin
@@ -98,8 +95,8 @@ do $$
 declare
   sub_id uuid;
 begin
-  insert into public.waitlist_subscribers (email, platform, locale, variant, timezone)
-    values ('hello@sunnad.com', 'ios', 'en', '1', 'Asia/Almaty')
+  insert into public.waitlist_subscribers (email, platform, locale, timezone)
+    values ('hello@sunnad.com', 'ios', 'en', 'Asia/Almaty')
     returning id into sub_id;
 
   assert sub_id is not null, 'Insert should return an ID';

@@ -24,7 +24,6 @@ type WaitlistRequest = {
   turnstileToken?: string;
   platform?: string;
   locale?: string;
-  variant?: string;
   timezone?: string;
   referral_source?: string;
   source?: string;
@@ -103,7 +102,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const platform = normalizePlatform(body.platform, req.headers.get("user-agent"));
   const locale = normalizeLocale(body.locale);
-  const variant = normalizeVariant(body.variant);
   const timezone =
     typeof body.timezone === "string" ? body.timezone.slice(0, 64) : null;
   const referralSource =
@@ -127,7 +125,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const updatePayload: Record<string, unknown> = {
       platform,
       locale,
-      variant,
       timezone,
       referral_source: referralSource,
       ip_hash: ipHash,
@@ -160,7 +157,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       email,
       platform,
       locale,
-      variant,
       timezone,
       referral_source: referralSource,
       ip_hash: ipHash,
@@ -231,22 +227,33 @@ function normalizeEmail(input: unknown): string | null {
 }
 
 function normalizePlatform(input: unknown, ua: string | null): string {
-  if (input === "ios" || input === "android" || input === "both") return input;
-  if (ua && /iPhone|iPad|iPod|iOS/i.test(ua)) return "ios";
-  if (ua && /Android/i.test(ua)) return "android";
+  if (typeof input === "string") {
+    const normalized = input.trim().toLowerCase();
+    if (
+      normalized === "ios" ||
+      normalized === "android" ||
+      normalized === "macos" ||
+      normalized === "windows" ||
+      normalized === "linux" ||
+      normalized === "unknown"
+    ) {
+      return normalized;
+    }
+  }
+
+  const userAgent = (ua ?? "").toLowerCase();
+  if (userAgent === "") return "unknown";
+  if (/iphone|ipad|ipod|ios/.test(userAgent)) return "ios";
+  if (/android/.test(userAgent)) return "android";
+  if (/windows nt|win64|win32/.test(userAgent)) return "windows";
+  if (/macintosh|mac os x/.test(userAgent)) return "macos";
+  if (/linux|x11|cros/.test(userAgent)) return "linux";
   return "unknown";
 }
 
 function normalizeLocale(input: unknown): string {
   if (input === "en" || input === "ru" || input === "kk") return input;
   return "en";
-}
-
-function normalizeVariant(input: unknown): string | null {
-  if (typeof input === "string" && /^[0-9]{1,2}$/.test(input)) {
-    return input;
-  }
-  return null;
 }
 
 function json(body: Record<string, unknown>, status = 200): Response {

@@ -1,5 +1,5 @@
 import { isLocale } from "@/lib/i18n";
-import LandingPage from "@/features/landing/page";
+import LandingPage from "@/app/[locale]/_components/LandingPage";
 
 export default async function LocalePage({
   params,

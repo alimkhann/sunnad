@@ -22,57 +22,58 @@ const screenshotLocaleByLocale: Record<SupportedLocale, "en" | "ru" | "kz"> = {
 
 const translations = {
   en: {
-    heroTitle: "One habit.\nEndless peace.",
+    heroTitle: "Build steady habits.\nStay grounded daily.",
     heroSubtitle:
-      "Seamless Islamic habit tracking stripped of all visual noise.",
+      "A privacy-first Islamic habit tracker for today-focused routines, dhikr counting, daily quote reminders, and quiet accountability.",
     waitlistCount: "people joined",
     waitlistBtn: "Join Waitlist",
     waitlistJoining: "Joining...",
     waitlistSuccess: "You have been added.",
     waitlistPlaceholder: "Email address",
-    bottomTitle: "Glad you asked.",
-    bottomSubtitle: "Experience premium simplicity across the entire app.",
+    bottomTitle: "Start with calm clarity.",
+    bottomSubtitle:
+      "Join the waitlist for a focused app that helps you stay consistent without noise.",
     features: [
       {
         id: "today",
-        title: "Focus on Today",
-        desc: "A singular view of what matters right now. No timeline anxiety, no endless scrolling. Just your immediate daily habits.",
+        title: "Know What Matters Today",
+        desc: "See only habits due today, in one clean view. No feed, no clutter, and no endless scrolling.",
       },
       {
         id: "dhikr",
-        title: "Tactile Dhikr",
-        desc: "A beautifully haptic counter that feels like a physical object. Count your tasbih anywhere with effortless screen taps.",
+        title: "Dhikr That Feels Natural",
+        desc: "Use a tactile counter designed for quick, calm repetition, with a flow that stays out of your way.",
       },
       {
         id: "groups",
-        title: "Private Circles",
-        desc: "Stay accountable without the noise. Create small groups with close friends to quietly support each other's consistency.",
+        title: "Quiet Group Accountability",
+        desc: "Create small private circles with close friends and stay consistent together without public noise.",
       },
       {
         id: "analytics",
-        title: "See Your Progress",
-        desc: "Beautiful, private charts and streaks that motivate consistent practice without guilt.",
+        title: "Progress, Insights, Reminders",
+        desc: "Track streaks, review private progress insights, and use optional daily quote reminders to stay anchored.",
       },
     ],
     faqTitle: "Frequently asked questions",
     faqSubtitle:
-      "We are here to help you with any questions you may have. If you don't find what you need, please contact us at",
+      "If you do not find what you need, contact us at",
     faqs: [
       {
         q: "Is Sunnad fully free to use?",
-        a: "Yes, the core tracking features will always remain free. We plan to introduce optional premium themes later to support development.",
+        a: "Yes. Core habit tracking remains free. Optional paid extras may be introduced later to support development.",
       },
       {
-        q: "Can I create private groups with my friends?",
-        a: "Absolutely. You can invite friends to your circle to share streaks and hold each other accountable.",
+        q: "Is my data private?",
+        a: "Yes. Sunnad is built as offline-first, and we do not sell personal habit data or run ad-targeting on your routines.",
       },
       {
-        q: "How does the analytics tracking work?",
-        a: "We quietly log your daily completions and generate a beautiful, private timeline mapping your consistency over weeks and months.",
+        q: "Does Sunnad support reminders?",
+        a: "Yes. You can set one reminder per habit and optionally enable daily quote reminders.",
       },
       {
-        q: "Is my data secure?",
-        a: "Your habitual data is completely private. We do not sell tracking data or use it for targeted advertising ever.",
+        q: "Do I need an account to use it?",
+        a: "No. Personal tracking works without an account. Sign in only if you want group accountability features.",
       },
     ],
     legal: {
@@ -81,57 +82,58 @@ const translations = {
     },
   },
   ru: {
-    heroTitle: "Одна привычка.\nБесконечный покой.",
+    heroTitle: "Стабильные привычки.\nСпокойствие каждый день.",
     heroSubtitle:
-      "Понятный трекер исламских привычек без лишнего визуального шума.",
+      "Приватный исламский трекер привычек с фокусом на сегодня, счётчиком зикра, напоминаниями о цитате дня и тихой поддержкой в группах.",
     waitlistCount: "уже присоединились",
     waitlistBtn: "Присоединиться",
     waitlistJoining: "Идёт отправка...",
     waitlistSuccess: "Вы добавлены в список.",
     waitlistPlaceholder: "Ваш email",
-    bottomTitle: "Рады, что вы спросили.",
-    bottomSubtitle: "Премиальная простота на всём протяжении приложения.",
+    bottomTitle: "Начните спокойно и ясно.",
+    bottomSubtitle:
+      "Присоединяйтесь к листу ожидания приложения, которое помогает держать постоянство без лишнего шума.",
     features: [
       {
         id: "today",
-        title: "Фокус на Сегодня",
-        desc: "Единый взгляд на то, что важно прямо сейчас. Никакой тревоги из-за таймлайнов, никакого бесконечного скроллинга. Только ваши ежедневные привычки.",
+        title: "Видеть главное на сегодня",
+        desc: "Только привычки, которые важны сегодня. Без ленты, без перегруза, без бесконечного скролла.",
       },
       {
         id: "dhikr",
-        title: "Тактильный Зикр",
-        desc: "Красивый тактильный счетчик, который ощущается как физический объект. Считайте тасбих где угодно с легкими касаниями экрана.",
+        title: "Естественный зикр",
+        desc: "Тактильный счётчик для спокойного и удобного повторения, который не отвлекает от сути.",
       },
       {
         id: "groups",
-        title: "Приватные Круги",
-        desc: "Оставайтесь ответственными без лишнего шума. Создавайте небольшие группы с близкими друзьями, чтобы тихо поддерживать постоянство друг друга.",
+        title: "Тихая поддержка в группах",
+        desc: "Создавайте небольшие приватные круги с близкими и поддерживайте постоянство без публичного шума.",
       },
       {
         id: "analytics",
-        title: "Прогресс",
-        desc: "Красивые приватные графики и серии дней, которые мотивируют к постоянству без давления.",
+        title: "Прогресс, инсайты, напоминания",
+        desc: "Отслеживайте серии, смотрите приватные инсайты и включайте напоминания о ежедневной цитате.",
       },
     ],
     faqTitle: "Часто задаваемые вопросы",
     faqSubtitle:
-      "Мы здесь, чтобы помочь вам с любыми вопросами. Если вы не нашли ответ, свяжитесь с нами:",
+      "Если вы не нашли нужный ответ, напишите нам:",
     faqs: [
       {
         q: "Полностью ли бесплатно использование Sunnad?",
-        a: "Да, основные функции трекинга всегда будут бесплатными. Позже мы планируем добавить премиальные темы для поддержки разработки.",
+        a: "Да. Основной трекинг привычек остаётся бесплатным. Позже могут появиться дополнительные платные опции для поддержки разработки.",
       },
       {
-        q: "Могу ли я создавать приватные группы с друзьями?",
-        a: "Конечно. Вы можете приглашать друзей в свой круг, чтобы делиться сериями и поддерживать друг друга.",
+        q: "Мои данные действительно приватны?",
+        a: "Да. Sunnad построен по принципу offline-first, мы не продаём данные о привычках и не используем рекламный таргетинг по вашим действиям.",
       },
       {
-        q: "Как работает отслеживание аналитики?",
-        a: "Мы тихо записываем ваши ежедневные выполнения и создаем красивый, приватный таймлайн, отображающий вашу стабильность.",
+        q: "Есть ли напоминания?",
+        a: "Да. Можно включить одно напоминание на привычку и отдельно включить напоминание о цитате дня.",
       },
       {
-        q: "В безопасности ли мои данные?",
-        a: "Ваши данные о привычках полностью приватны. Мы никогда не продаем данные о трекинге и не используем их для таргетированной рекламы.",
+        q: "Нужен ли аккаунт для использования?",
+        a: "Нет. Для личного трекинга аккаунт не нужен. Вход требуется только для групповых функций.",
       },
     ],
     legal: {
@@ -140,57 +142,58 @@ const translations = {
     },
   },
   kk: {
-    heroTitle: "Бір әдет.\nШексіз тыныштық.",
-    heroSubtitle: "Ешқандай визуалды шусыз, мінсіз исламдық әдет трекері.",
+    heroTitle: "Тұрақты әдеттер.\nКүн сайын тыныштық.",
+    heroSubtitle:
+      "Бүгінге бағытталған исламдық әдет трекері: зікір санау, күнделікті дәйексөз еске салғыштары және тыныш топтық қолдау.",
     waitlistCount: "адам қосылды",
     waitlistBtn: "Тізімге қосылу",
     waitlistJoining: "Қосылуда...",
     waitlistSuccess: "Сіз тізімге қосылдыңыз.",
     waitlistPlaceholder: "Email мекенжайы",
-    bottomTitle: "Сұрағаныңызға қуаныштымыз.",
+    bottomTitle: "Сабырлы әрі түсінікті бастаңыз.",
     bottomSubtitle:
-      "Қосымшаның барлық жеріндегі премиум қарапайымдылықты сезініңіз.",
+      "Артық шусыз тұрақтылықты сақтауға көмектесетін қолданбаның күту тізіміне қосылыңыз.",
     features: [
       {
         id: "today",
-        title: "Бүгінге назар аудару",
-        desc: "Дәл қазір маңызды нәрсеге жалғыз көзқарас. Уақыт шкаласы туралы уайым жоқ, шексіз айналдыру жоқ. Тек сіздің күнделікті әдеттеріңіз.",
+        title: "Бүгін маңыздысын көру",
+        desc: "Тек бүгін орындалатын әдеттер. Лента жоқ, артық жүктеме жоқ, шексіз айналдыру жоқ.",
       },
       {
         id: "dhikr",
-        title: "Тактильді Зікір",
-        desc: "Физикалық нысан сияқты сезілетін әдемі тактильді есептегіш. Экранды жеңіл түрту арқылы кез келген жерде тасбих санаңыз.",
+        title: "Табиғи зікір",
+        desc: "Назарды бөлмейтін, жайлы қолданылатын тактильді санауышпен зікірді тыныш орындаңыз.",
       },
       {
         id: "groups",
-        title: "Жеке Топтар",
-        desc: "Артық шусыз жауапкершілікті сақтаңыз. Жақын достарыңызбен шағын топтар құрып, бір-біріңіздің тұрақтылығыңызды үнсіз қолдаңыз.",
+        title: "Тыныш топтық жауапкершілік",
+        desc: "Жақын достармен шағын жеке топ құрып, көпшілік шуынсыз бір-біріңізді қолдаңыз.",
       },
       {
         id: "analytics",
-        title: "Прогресс",
-        desc: "Әдемі жеке графиктер мен сериялар арқылы тұрақтылығыңызды көріңіз әрі ынталаныңыз.",
+        title: "Прогресс, инсайттар, еске салғыштар",
+        desc: "Серияларды бақылап, жеке инсайттарды көріп, күнделікті дәйексөз еске салғыштарын қосыңыз.",
       },
     ],
     faqTitle: "Жиі қойылатын сұрақтар",
     faqSubtitle:
-      "Біз сізге кез келген сұрақтар бойынша көмектесуге дайынбыз. Егер сіз өзіңізге қажетті жауапты таппасаңыз, бізге хабарласыңыз:",
+      "Қажетті жауап табылмаса, бізге жазыңыз:",
     faqs: [
       {
         q: "Sunnad қолданбасын пайдалану толығымен тегін бе?",
-        a: "Иә, негізгі бақылау мүмкіндіктері әрқашан тегін болып қалады. Кейінірек дамытуды қолдау үшін қосымша премиум тақырыптарды енгізуді жоспарлап отырмыз.",
+        a: "Иә. Негізгі әдет бақылауы тегін қалады. Кейінірек дамуды қолдау үшін қосымша ақылы опциялар пайда болуы мүмкін.",
       },
       {
-        q: "Достарыммен жеке топтар құра аламын ба?",
-        a: "Әрине. Достарыңызды өз ортаңызға шақырып, жетістіктеріңізбен бөлісе аласыз.",
+        q: "Деректерім жеке сақтала ма?",
+        a: "Иә. Sunnad offline-first қағидасына сүйенеді, әдет деректері сатылмайды және жарнамалық таргетинг үшін қолданылмайды.",
       },
       {
-        q: "Аналитика қалай жұмыс істейді?",
-        a: "Біз сіздің күнделікті орындауларыңызды үнсіз тіркейміз және тұрақтылығыңызды көрсететін әдемі, жеке таймлайн жасаймыз.",
+        q: "Еске салғыштар бар ма?",
+        a: "Иә. Әр әдетке бір еске салғыш қоюға болады және күнделікті дәйексөз еске салғышын бөлек қосуға болады.",
       },
       {
-        q: "Менің деректерім қауіпсіз бе?",
-        a: "Сіздің әдеттеріңіз туралы деректер толығымен құпия. Біз бақылау деректерін ешқашан сатпаймыз және оларды мақсатты жарнама үшін пайдаланбаймыз.",
+        q: "Қолдану үшін аккаунт керек пе?",
+        a: "Жоқ. Жеке трекинг аккаунтсыз жұмыс істейді. Кіру тек топтық функциялар үшін қажет.",
       },
     ],
     legal: {
@@ -261,7 +264,6 @@ function MinimalWaitlist({
       email,
       turnstileToken: token || "demo",
       locale,
-      variant: "14",
     });
     if (res.status === "subscribed" || res.status === "already_subscribed") {
       setStatus("success");
@@ -368,7 +370,7 @@ function FeaturesScroll({
     >
       <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col items-center justify-center px-6">
         {/* Text Content — AnimatePresence with blur+slide */}
-        <div className="absolute inset-0 max-w-6xl mx-auto w-full h-full pointer-events-none">
+        <div className="absolute inset-0 max-w-6xl mx-auto w-full h-full pointer-events-none z-30">
           <AnimatePresence mode="wait">
             <motion.div
               key={index}
@@ -376,7 +378,7 @@ function FeaturesScroll({
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
               exit={{ opacity: 0, y: -24, filter: "blur(10px)" }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className={`absolute top-[10%] left-0 right-0 mx-auto w-full max-w-[280px] text-center md:top-1/3 md:right-auto md:mx-0 md:-translate-y-1/2 md:max-w-[420px] md:text-left ${positions[index]}`}
+              className={`absolute top-[7%] left-0 right-0 mx-auto w-full max-w-[300px] px-4 text-center md:top-1/3 md:right-auto md:mx-0 md:px-0 md:-translate-y-1/2 md:max-w-[420px] md:text-left ${positions[index]}`}
             >
               <div
                 className={`text-[10px] md:text-xs tracking-[0.2em] font-medium mb-2 md:mb-4 uppercase ${isDark ? "text-gray-400" : "text-gray-500"}`}
@@ -396,7 +398,7 @@ function FeaturesScroll({
         </div>
 
         {/* Central Sticky Phone */}
-        <div className="relative w-[280px] md:w-[320px] aspect-[450/920] drop-shadow-[0_25px_50px_rgba(0,0,0,0.15)] z-10 md:absolute md:left-1/2 md:-translate-x-1/2 absolute top-1/2 -translate-y-[60%] md:-translate-y-1/2">
+        <div className="relative w-[280px] md:w-[320px] aspect-[450/920] drop-shadow-[0_25px_50px_rgba(0,0,0,0.15)] z-10 absolute left-1/2 -translate-x-1/2 bottom-[-26%] md:bottom-auto md:top-1/2 md:-translate-y-1/2">
           <div className="absolute inset-[13px] md:inset-[15px] rounded-[30px] md:rounded-[36px] overflow-hidden bg-black shadow-inner">
             <AnimatePresence mode="wait">
               <motion.img
@@ -783,7 +785,7 @@ export default function LandingPage({
         {/* Today */}
         <motion.div
           style={{ y: y1 }}
-          className="absolute left-1/2 -translate-x-1/2 top-[4%] md:top-[8%] w-[240px] md:w-[360px] z-20"
+          className="absolute left-1/2 -translate-x-1/2 top-[4%] md:top-[8%] w-[240px] md:w-[320px] lg:w-[340px] 2xl:w-[360px] z-20"
         >
           <div className="relative w-full aspect-[450/920] rotate-[-10deg] md:rotate-[0deg] drop-shadow-2xl">
             <div className="absolute inset-[12px] md:inset-[18px] rounded-[24px] md:rounded-[36px] overflow-hidden bg-black z-10">
@@ -804,7 +806,7 @@ export default function LandingPage({
         {/* Analytics */}
         <motion.div
           style={{ y: y3 }}
-          className="absolute right-[65%] md:right-[22%] top-[50%] md:top-[21%] w-[160px] md:w-[260px] z-20 md:z-10"
+          className="absolute right-[65%] md:right-[16%] lg:right-[18%] xl:right-[20%] 2xl:right-[22%] top-[50%] md:top-[21%] w-[160px] md:w-[220px] lg:w-[240px] xl:w-[250px] 2xl:w-[260px] z-20 md:z-30"
         >
           <div className="relative w-full aspect-[450/920] rotate-[10deg] md:rotate-[4deg] drop-shadow-xl">
             <div className="absolute inset-[8px] md:inset-[13px] rounded-[16px] md:rounded-[26px] overflow-hidden bg-black z-10">
@@ -825,7 +827,7 @@ export default function LandingPage({
         {/* Dhikr */}
         <motion.div
           style={{ y: y2 }}
-          className="absolute left-[-5%] md:left-[25%] top-[40%] md:top-[36%] w-[150px] md:w-[220px] z-10 md:z-20"
+          className="absolute left-[-5%] md:left-[18%] lg:left-[21%] xl:left-[23%] 2xl:left-[25%] top-[40%] md:top-[36%] w-[150px] md:w-[200px] lg:w-[210px] 2xl:w-[220px] z-10 md:z-30"
         >
           <div className="relative w-full aspect-[450/920] rotate-[12deg] md:rotate-[-8deg] drop-shadow-xl">
             <div className="absolute inset-[7px] md:inset-[11px] rounded-[14px] md:rounded-[22px] overflow-hidden bg-black z-10">
@@ -846,7 +848,7 @@ export default function LandingPage({
         {/* Groups */}
         <motion.div
           style={{ y: y4 }}
-          className="absolute right-[-5%] md:right-[53%] top-[30%] md:top-[16%] w-[180px] md:w-[280px] z-20"
+          className="absolute right-[-5%] md:right-[47%] lg:right-[49%] xl:right-[51%] 2xl:right-[53%] top-[30%] md:top-[16%] w-[180px] md:w-[240px] lg:w-[255px] xl:w-[270px] 2xl:w-[280px] z-20"
         >
           <div className="relative w-full aspect-[450/920] rotate-[-10deg] md:rotate-[-4deg] drop-shadow-2xl">
             <div className="absolute inset-[9px] md:inset-[14px] rounded-[18px] md:rounded-[28px] overflow-hidden bg-black z-10">

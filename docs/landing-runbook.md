@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Sunnad landing page is a Next.js 15 app located in `/landing/`. It supports 5 visual variants, 3 locales (EN/RU/KK), a waitlist signup with Cloudflare Turnstile, and a manual launch email system via Resend.
+The Sunnad landing page is a Next.js app located in `/landing/`. It supports 3 locales (EN/RU/KK), a waitlist signup with Cloudflare Turnstile, and a manual launch email system via Resend.
 
 ---
 
@@ -15,7 +15,6 @@ The Sunnad landing page is a Next.js 15 app located in `/landing/`. It supports 
 | `NEXT_PUBLIC_SUPABASE_URL`       | Supabase project URL                 | Yes      |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`  | Supabase anon/public key             | Yes      |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key        | Yes      |
-| `NEXT_PUBLIC_DEFAULT_VARIANT`    | Default variant (1–5), defaults to 1 | No       |
 
 ### Edge Functions (Supabase Secrets)
 
@@ -59,7 +58,7 @@ supabase db reset
 
 Tables created:
 
-- `waitlist_subscribers` — email signups with platform/locale/variant tracking
+- `waitlist_subscribers` — email signups with platform/locale tracking
 - `launch_campaigns` — email campaign drafts and send status
 - `launch_sends` — per-recipient send tracking with Resend message IDs
 
@@ -154,7 +153,7 @@ The function will:
 SELECT * FROM waitlist_subscriber_count_by_locale();
 
 -- Recent signups
-SELECT email, locale, variant, platform, subscribed_at
+SELECT email, locale, platform, subscribed_at
 FROM waitlist_subscribers
 WHERE unsubscribed_at IS NULL
 ORDER BY subscribed_at DESC
