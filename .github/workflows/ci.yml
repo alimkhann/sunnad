@@ -5,6 +5,33 @@ on:
     branches: [main]
 
 jobs:
+  repo-hygiene:
+    name: Repository hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Secret guardrail scan
+        run: |
+          set -euo pipefail
+          patterns=(
+            'sbp_[0-9a-f]{32,}'
+            'phc_[A-Za-z0-9]{32,}'
+            'ONESIGNAL_REST_API_KEY\\s*=\\s*[A-Za-z0-9]{16,}'
+            'SUPABASE_SERVICE_ROLE_KEY\\s*=\\s*[A-Za-z0-9._-]{16,}'
+          )
+
+          for pattern in "${patterns[@]}"; do
+            if rg --pcre2 -n "$pattern" --glob '!.git' --glob '!landing/package-lock.json' --glob '!**/*.md'; then
+              echo "Secret-like pattern detected: $pattern"
+              exit 1
+            fi
+          done
+
   supabase-db:
     name: Supabase DB checks
     runs-on: ubuntu-latest
@@ -66,7 +93,7 @@ jobs:
           xcodebuild \
             -project sunnad-ios/sunnad-ios.xcodeproj \
             -scheme sunnad-ios \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -configuration Debug \
             -skipPackagePluginValidation \
             test
@@ -92,6 +119,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
 
       - name: Build
         run: npm run build
