@@ -65,9 +65,13 @@ struct TodayViewModelTests {
         await vm.loadToday()
         #expect(vm.habits[0].completedToday == false)
 
-        await vm.toggleHabit(habit.id)
-
+        let transaction = vm.beginHabitToggle(habit.id)
+        #expect(transaction != nil)
         #expect(vm.habits[0].completedToday == true)
+        if let transaction {
+            let didCommit = await vm.commitHabitToggle(transaction)
+            #expect(didCommit)
+        }
     }
 
     @Test
@@ -150,6 +154,39 @@ struct TodayViewModelTests {
         #expect(!vm.habits[0].completedToday)
     }
 
+    @Test
+    func toggleRollbackRestoresPreviousStateWhenCommitFails() async {
+        let habit = Habit(
+            id: UUID(),
+            name: "Read Quran",
+            icon: "book.fill",
+            category: .spiritual,
+            type: .binary,
+            schedule: .daily
+        )
+
+        let vm = TodayViewModel(
+            habitsRepository: FakeHabitsRepository(habits: [habit]),
+            completionsRepository: ThrowingCompletionsRepository(),
+            quotesRepository: FakeQuotesRepository(quoteOfDay: Quote(locale: "en", text: "Quote", source: "Source", sortOrder: 0, active: true)),
+            logger: TestLogger(),
+            localeCode: "en",
+            now: { fixedDate }
+        )
+
+        await vm.loadToday()
+        let transaction = vm.beginHabitToggle(habit.id)
+        let unwrapped = transaction
+        #expect(unwrapped != nil)
+        #expect(vm.habits.first?.completedToday == true)
+        if let unwrapped {
+            let didCommit = await vm.commitHabitToggle(unwrapped)
+            #expect(!didCommit)
+            vm.rollbackHabitToggle(unwrapped)
+        }
+        #expect(vm.habits.first?.completedToday == false)
+    }
+
     private var fixedDate: Date {
         makeDate(year: 2026, month: 2, day: 19, hour: 10)
     }
@@ -207,6 +244,28 @@ final class ThrowingHabitsRepository: HabitsRepository, @unchecked Sendable {
     func deleteHabit(id: UUID) async throws {
         throw TestError()
     }
+}
+
+final class ThrowingCompletionsRepository: CompletionsRepository, @unchecked Sendable {
+    struct TestError: Error {}
+
+    func fetchCompletions(on day: Date, calendar: Calendar, timeZone: TimeZone) async throws -> [HabitCompletion] {
+        []
+    }
+
+    func fetchCompletions(for habitID: UUID) async throws -> [HabitCompletion] {
+        []
+    }
+
+    func fetchCompletion(habitID: UUID, on day: Date, calendar: Calendar, timeZone: TimeZone) async throws -> HabitCompletion? {
+        nil
+    }
+
+    func upsertCompletion(_ completion: HabitCompletion, calendar: Calendar, timeZone: TimeZone) async throws {
+        throw TestError()
+    }
+
+    func deleteCompletion(habitID: UUID, on day: Date, calendar: Calendar, timeZone: TimeZone) async throws {}
 }
 
 final class FakeCompletionsRepository: CompletionsRepository, @unchecked Sendable {

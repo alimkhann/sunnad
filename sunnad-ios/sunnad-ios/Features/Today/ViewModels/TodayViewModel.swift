@@ -3,7 +3,10 @@ import Foundation
 
 @MainActor
 final class TodayViewModel: ObservableObject {
-    struct HabitToggleResult {
+    struct HabitToggleTransaction {
+        let habitID: UUID
+        let previousValue: Int
+        let nextValue: Int
         let type: String
         let status: String
     }
@@ -110,51 +113,89 @@ final class TodayViewModel: ObservableObject {
         isLoading = false
     }
 
-    func toggleHabit(_ habitID: UUID) async -> HabitToggleResult? {
+    func beginHabitToggle(_ habitID: UUID) -> HabitToggleTransaction? {
         guard let habit = domainHabitsByID[habitID] else {
             return nil
         }
+        guard let index = habits.firstIndex(where: { $0.id == habitID }) else {
+            return nil
+        }
 
+        let currentValue: Int
+        if habit.type == .binary {
+            currentValue = habits[index].completedToday ? 1 : 0
+        } else {
+            currentValue = habits[index].dhikrCount
+        }
+
+        let nextValue: Int
+        switch habit.type {
+        case .binary:
+            nextValue = currentValue == 1 ? 0 : 1
+        case .dhikr:
+            nextValue = currentValue >= habit.normalizedTargetCount ? 0 : habit.normalizedTargetCount
+        }
+
+        var updatedHabit = habits[index]
+        if habit.type == .binary {
+            updatedHabit.completedToday = nextValue > 0
+        } else {
+            updatedHabit.dhikrCount = nextValue
+            updatedHabit.completedToday = nextValue >= habit.normalizedTargetCount
+            updatedHabit.dhikrCountsByKey[updatedHabit.selectedDhikrKey] = nextValue
+        }
+        habits[index] = updatedHabit
+
+        return HabitToggleTransaction(
+            habitID: habitID,
+            previousValue: currentValue,
+            nextValue: nextValue,
+            type: habit.type.rawValue,
+            status: nextValue > 0 ? "completed" : "uncompleted"
+        )
+    }
+
+    func commitHabitToggle(_ transaction: HabitToggleTransaction) async -> Bool {
+        guard domainHabitsByID[transaction.habitID] != nil else {
+            return false
+        }
         do {
             let today = now()
-            let existing = try await completionsRepository.fetchCompletion(
-                habitID: habitID,
-                on: today,
-                calendar: calendar,
-                timeZone: timeZone
-            )
-
-            let currentValue = existing?.value ?? 0
-            let nextValue: Int
-
-            switch habit.type {
-            case .binary:
-                nextValue = currentValue == 1 ? 0 : 1
-            case .dhikr:
-                nextValue = currentValue >= habit.normalizedTargetCount ? 0 : habit.normalizedTargetCount
-            }
-
             let completion = HabitCompletion(
-                habitID: habitID,
+                habitID: transaction.habitID,
                 dayDate: today,
-                value: nextValue,
-                completedAt: nextValue > 0 ? today : nil,
+                value: transaction.nextValue,
+                completedAt: transaction.nextValue > 0 ? today : nil,
                 updatedAt: today
             )
 
             try await completionsRepository.upsertCompletion(completion, calendar: calendar, timeZone: timeZone)
-            logger.log(.habitToggled, metadata: ["habit_id": habitID.uuidString, "value": "\(nextValue)"])
-
-            await loadToday()
-            return HabitToggleResult(
-                type: habit.type.rawValue,
-                status: nextValue > 0 ? "completed" : "uncompleted"
-            )
+            logger.log(.habitToggled, metadata: ["habit_id": transaction.habitID.uuidString, "value": "\(transaction.nextValue)"])
+            return true
         } catch {
             errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "today_toggle", "error": error.localizedDescription])
-            return nil
+            return false
         }
+    }
+
+    func rollbackHabitToggle(_ transaction: HabitToggleTransaction) {
+        guard let habit = domainHabitsByID[transaction.habitID] else {
+            return
+        }
+        guard let index = habits.firstIndex(where: { $0.id == transaction.habitID }) else {
+            return
+        }
+
+        var restoredHabit = habits[index]
+        if habit.type == .binary {
+            restoredHabit.completedToday = transaction.previousValue > 0
+        } else {
+            restoredHabit.dhikrCount = transaction.previousValue
+            restoredHabit.completedToday = transaction.previousValue >= habit.normalizedTargetCount
+            restoredHabit.dhikrCountsByKey[restoredHabit.selectedDhikrKey] = transaction.previousValue
+        }
+        habits[index] = restoredHabit
     }
 
     func saveCurrentQuote() async -> Bool {

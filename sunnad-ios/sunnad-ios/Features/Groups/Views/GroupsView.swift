@@ -128,14 +128,21 @@ struct GroupsView: View {
 
                                     Spacer()
 
-                                    Image(systemName: "chevron.right")
-                                        .font(.footnote)
-                                        .foregroundStyle(.tertiary)
+                                    if group.isPending {
+                                        ProgressView()
+                                            .progressViewStyle(.circular)
+                                            .tint(.secondary)
+                                    } else {
+                                        Image(systemName: "chevron.right")
+                                            .font(.footnote)
+                                            .foregroundStyle(.tertiary)
+                                    }
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 12)
                             }
                             .buttonStyle(.plain)
+                            .disabled(group.isPending)
                             .simultaneousGesture(
                                 TapGesture().onEnded {
                                     onOpenGroup()

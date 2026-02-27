@@ -154,6 +154,42 @@ struct ShellViewModelsTests {
     }
 
     @Test
+    func groupsViewModelKeepsLatestSharingSelectionUnderRapidUpdates() async throws {
+        let firstHabit = UIHabit(customTitle: "Read", iconSystemName: "book.fill", category: .spiritual)
+        let secondHabit = UIHabit(customTitle: "Dhikr", iconSystemName: "moon.stars.fill", category: .spiritual)
+
+        let me = GroupMember(name: "Ali", completedToday: 0, totalSharedHabits: 0, sharedHabits: [])
+        let group = Group(
+            name: "Circle",
+            code: "ABC123",
+            members: [me],
+            sharedHabitIDs: [],
+            ownerMemberID: me.id,
+            currentUserMemberID: me.id
+        )
+
+        let repository = DelayedSharingGroupsRepository(groups: [group])
+        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger(), analytics: NoopAnalyticsClient())
+
+        await vm.load(
+            user: UIUserState(isGuest: false, name: "Ali", email: "ali@sunnad.app"),
+            habits: [firstHabit, secondHabit]
+        )
+
+        guard let groupID = vm.groups.first?.id else {
+            Issue.record("Expected group to be loaded")
+            return
+        }
+
+        async let firstUpdate: Void = vm.updateGroupSharing(groupID: groupID, habitIDs: [firstHabit.id])
+        async let secondUpdate: Void = vm.updateGroupSharing(groupID: groupID, habitIDs: [firstHabit.id, secondHabit.id])
+        _ = await (firstUpdate, secondUpdate)
+
+        #expect(repository.lastSharedHabitIDs == Set([firstHabit.id, secondHabit.id]))
+        #expect(vm.groups.first?.sharedHabitIDs == Set([firstHabit.id, secondHabit.id]))
+    }
+
+    @Test
     func profileViewModelLoadsLocalHabitsAndSavedQuotes() async {
         let habit = Habit(
             id: UUID(),
@@ -248,6 +284,104 @@ final class FakeGroupsRepository: GroupsRepository, @unchecked Sendable {
     func updateSharing(groupID: UUID, habitIDs: Set<UUID>) async throws {
         guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
         groups[index].sharedHabitIDs = habitIDs
+    }
+
+    func leaveGroup(groupID: UUID) async throws {
+        groups.removeAll(where: { $0.id == groupID })
+    }
+
+    func deleteGroup(groupID: UUID) async throws {
+        groups.removeAll(where: { $0.id == groupID })
+    }
+
+    func kickMember(groupID: UUID, memberUserID: UUID) async throws {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+        groups[index].members.removeAll(where: { $0.id == memberUserID })
+    }
+
+    func refreshGroup(groupID: UUID) async throws -> Group? {
+        groups.first(where: { $0.id == groupID })
+    }
+
+    func sendNudge(groupID: UUID, toUserID: UUID, habitID: UUID) async throws -> GroupNudgeStatus {
+        _ = (groupID, toUserID, habitID)
+        return .sent
+    }
+
+    func replaceGroups(_ groups: [Group]) async throws {
+        self.groups = groups
+    }
+}
+
+final class DelayedSharingGroupsRepository: GroupsRepository, @unchecked Sendable {
+    var groups: [Group]
+    private var updateCallCount = 0
+    private(set) var lastSharedHabitIDs: Set<UUID> = []
+
+    init(groups: [Group]) {
+        self.groups = groups
+        self.lastSharedHabitIDs = groups.first?.sharedHabitIDs ?? []
+    }
+
+    func fetchGroups() async throws -> [Group] {
+        groups
+    }
+
+    func createGroup(name: String) async throws -> Group {
+        let me = GroupMember(name: "Ali", completedToday: 0, totalSharedHabits: 0, sharedHabits: [])
+        let group = Group(
+            name: name,
+            code: "ABC123",
+            joinLocked: false,
+            members: [me],
+            sharedHabitIDs: [],
+            ownerMemberID: me.id,
+            currentUserMemberID: me.id
+        )
+        groups.append(group)
+        return group
+    }
+
+    func joinGroup(code: String) async throws -> Group {
+        let me = GroupMember(name: "Ali", completedToday: 0, totalSharedHabits: 0, sharedHabits: [])
+        let group = Group(
+            name: "Group \(code)",
+            code: code,
+            joinLocked: false,
+            members: [me],
+            sharedHabitIDs: [],
+            ownerMemberID: me.id,
+            currentUserMemberID: me.id
+        )
+        groups.append(group)
+        return group
+    }
+
+    func renameGroup(groupID: UUID, name: String) async throws {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+        groups[index].name = name
+    }
+
+    func setJoinLock(groupID: UUID, locked: Bool) async throws {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+        groups[index].joinLocked = locked
+    }
+
+    func rotateInviteCode(groupID: UUID) async throws -> String {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return "NEWCODE" }
+        let code = "NEWCODE"
+        groups[index].code = code
+        return code
+    }
+
+    func updateSharing(groupID: UUID, habitIDs: Set<UUID>) async throws {
+        updateCallCount += 1
+        let delayNanos: UInt64 = updateCallCount == 1 ? 240_000_000 : 40_000_000
+        try? await Task.sleep(nanoseconds: delayNanos)
+
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+        groups[index].sharedHabitIDs = habitIDs
+        lastSharedHabitIDs = habitIDs
     }
 
     func leaveGroup(groupID: UUID) async throws {
