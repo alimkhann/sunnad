@@ -29,7 +29,7 @@ const translations = {
     waitlistJoining: "Joining...",
     waitlistSuccess: "You have been added.",
     waitlistPlaceholder: "Email address",
-    bottomTitle: "Start improving your d\u012bn today.",
+    bottomTitle: "Start improving your deen today.",
     bottomSubtitle:
       "Track the habits that matter and stay consistent with a simple, focused flow.",
     features: [
@@ -97,7 +97,7 @@ const translations = {
     waitlistJoining: "Идёт отправка...",
     waitlistSuccess: "Вы добавлены в список.",
     waitlistPlaceholder: "Ваш email",
-    bottomTitle: "Начните улучшать д\u012bn уже сегодня.",
+    bottomTitle: "Начните укреплять иман уже сегодня.",
     bottomSubtitle:
       "Отслеживайте важные привычки и сохраняйте постоянство в простом и сфокусированном формате.",
     features: [
@@ -165,7 +165,7 @@ const translations = {
     waitlistJoining: "Қосылуда...",
     waitlistSuccess: "Сіз тізімге қосылдыңыз.",
     waitlistPlaceholder: "Email мекенжайы",
-    bottomTitle: "Д\u012bnіңізді жақсартуды бүгін бастаңыз.",
+    bottomTitle: "Дініңізді жақсартуды бүгін бастаңыз.",
     bottomSubtitle:
       "Маңызды әдеттерді бақылап, қарапайым және нысаналы ағынмен тұрақтылықты сақтаңыз.",
     features: [
