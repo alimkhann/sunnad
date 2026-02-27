@@ -5,6 +5,7 @@
 - Support local and hosted project restore workflows.
 - Avoid committing raw SQL dumps into git.
 - Maintain encrypted, restorable backups for schema + data + roles.
+- Use GitHub Actions artifacts as the hosted backup store (no R2 dependency).
 
 ## Backup commands
 - Local (schema + data + roles + manifest):
@@ -21,38 +22,21 @@
 - A `manifest.json` is generated per backup and includes:
   - backup ID and timestamp
   - git SHA + migration head
-  - artifact list (`schema`, `data`, `roles`) + checksum + optional R2 keys
-
-## Cloudflare R2 setup (free/low-cost target)
-Required secrets/vars:
-- `R2_BUCKET`
-- `R2_ACCESS_KEY_ID`
-- `R2_SECRET_ACCESS_KEY`
-- `R2_ACCOUNT_ID` (or `R2_ENDPOINT`)
-- `R2_PREFIX` (optional, defaults to `db-backups`)
+  - artifact list (`schema`, `data`, `roles`) + checksums
 
 GitHub Actions secrets for automated backups:
 - `SUPABASE_DEV_DB_URL`
 - `SUPABASE_PROD_DB_URL`
 - `BACKUP_ENCRYPTION_PASSPHRASE`
-- `R2_BUCKET`
-- `R2_ACCESS_KEY_ID`
-- `R2_SECRET_ACCESS_KEY`
-- `R2_ACCOUNT_ID`
 
 GitHub Actions secrets for restore drills:
 - `SUPABASE_RESTORE_DEV_DB_URL`
 - `SUPABASE_RESTORE_PROD_DB_URL`
 
-Apply lifecycle retention policy:
-- `scripts/db/configure_r2_lifecycle.sh`
-- Retention rules:
-  - daily: 7 days
-  - weekly: 28 days
-  - monthly: 90 days
-
-List backup inventory (searchable by key):
-- `scripts/db/list_r2_backups.sh [dev|prod]`
+GitHub artifact retention policy is set automatically per backup class:
+- daily: 7 days
+- weekly: 28 days
+- monthly: 90 days
 
 ## Recommended schedule
 - Local: ad-hoc before risky migrations.
@@ -61,9 +45,9 @@ List backup inventory (searchable by key):
 
 ## Storage
 - Encrypt backup artifacts.
-- Upload encrypted artifacts to Cloudflare R2.
+- Upload encrypted artifacts as GitHub workflow artifacts.
 - Keep encryption passphrase only in:
-  - GitHub environment secrets
+  - GitHub Actions secrets
   - offline password manager
 
 ## Restore steps
@@ -85,6 +69,9 @@ List backup inventory (searchable by key):
   - baseline restore table checks
   - `supabase/tests/stage4_smoke.sql`
 - Document restore duration and issues after each drill.
+- Workflow restore source:
+  - default: latest successful `backup-nightly` run artifact for selected environment.
+  - optional: manual `source_run_id` and `artifact_name` overrides in `restore-drill.yml` dispatch form.
 
 ## Promotion helper
 - `scripts/db/promote_checklist.sh` prints the required local->dev->prod checklist.

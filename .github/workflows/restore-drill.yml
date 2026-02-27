@@ -13,10 +13,18 @@ on:
         options:
           - dev
           - prod
-      manifest_key:
-        description: "Optional full manifest key in R2 (ends with /manifest.json)"
+      source_run_id:
+        description: "Optional backup-nightly workflow run ID"
         required: false
         type: string
+      artifact_name:
+        description: "Optional backup artifact name (db-backup-<env>-<id>)"
+        required: false
+        type: string
+
+permissions:
+  actions: read
+  contents: read
 
 jobs:
   restore-drill:
@@ -29,17 +37,14 @@ jobs:
       - name: Install clients
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client jq awscli
+          sudo apt-get install -y postgresql-client jq unzip
 
-      - name: Resolve restore context
+      - name: Resolve backup artifact
         env:
-          INPUT_ENVIRONMENT: ${{ inputs.environment }}
-          INPUT_MANIFEST_KEY: ${{ inputs.manifest_key }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_PREFIX: sunnad-db-backups
+          GH_TOKEN: ${{ github.token }}
+          INPUT_ENVIRONMENT: ${{ github.event.inputs.environment }}
+          INPUT_SOURCE_RUN_ID: ${{ github.event.inputs.source_run_id }}
+          INPUT_ARTIFACT_NAME: ${{ github.event.inputs.artifact_name }}
         run: |
           set -euo pipefail
 
@@ -49,59 +54,65 @@ jobs:
             backup_env="prod"
           fi
 
-          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-          export AWS_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
-          export AWS_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
-          export AWS_DEFAULT_REGION="auto"
-
-          mkdir -p backups/restore-drill
-
-          if [[ -n "${INPUT_MANIFEST_KEY:-}" ]]; then
-            manifest_key="$INPUT_MANIFEST_KEY"
+          if [[ -n "${INPUT_SOURCE_RUN_ID:-}" ]]; then
+            run_id="$INPUT_SOURCE_RUN_ID"
           else
-            manifest_key="$(
-              aws s3api list-objects-v2 \
-                --bucket "$R2_BUCKET" \
-                --prefix "${R2_PREFIX}/${backup_env}/" \
-                --endpoint-url "$endpoint" \
-                --output json |
-                jq -r '.Contents // [] | map(select(.Key | endswith("/manifest.json"))) | sort_by(.LastModified) | reverse | .[0].Key // empty'
+            run_id="$(
+              gh api \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/backup-nightly.yml/runs?branch=main&status=success&per_page=30" \
+                --jq '.workflow_runs | map(select(.conclusion == "success")) | .[0].id // empty'
             )"
           fi
 
-          test -n "$manifest_key" || (echo "No manifest found for ${backup_env}" && exit 1)
-          echo "BACKUP_ENV=${backup_env}" >> "$GITHUB_ENV"
-          echo "R2_ENDPOINT=${endpoint}" >> "$GITHUB_ENV"
-          echo "MANIFEST_KEY=${manifest_key}" >> "$GITHUB_ENV"
+          test -n "$run_id" || (echo "Could not resolve a successful backup-nightly workflow run." && exit 1)
 
-      - name: Download manifest and artifacts
+          if [[ -n "${INPUT_ARTIFACT_NAME:-}" ]]; then
+            artifact_name="$INPUT_ARTIFACT_NAME"
+          else
+            prefix="db-backup-${backup_env}-"
+            artifact_name="$(
+              gh api \
+                "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100" \
+                --jq --arg prefix "$prefix" '.artifacts | map(select(.expired == false and (.name | startswith($prefix)))) | sort_by(.created_at) | reverse | .[0].name // empty'
+            )"
+          fi
+
+          test -n "$artifact_name" || (echo "No backup artifact found for environment: ${backup_env}" && exit 1)
+
+          artifact_id="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100" \
+              --jq --arg artifact_name "$artifact_name" '.artifacts[] | select(.name == $artifact_name and .expired == false) | .id' \
+              | head -n 1
+          )"
+          test -n "$artifact_id" || (echo "Could not resolve artifact ID for ${artifact_name}" && exit 1)
+
+          echo "BACKUP_ENV=${backup_env}" >> "$GITHUB_ENV"
+          echo "SOURCE_RUN_ID=${run_id}" >> "$GITHUB_ENV"
+          echo "ARTIFACT_NAME=${artifact_name}" >> "$GITHUB_ENV"
+          echo "ARTIFACT_ID=${artifact_id}" >> "$GITHUB_ENV"
+
+      - name: Download backup artifact
         env:
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_ENDPOINT: ${{ env.R2_ENDPOINT }}
-          MANIFEST_KEY: ${{ env.MANIFEST_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ env.ARTIFACT_ID }}
         run: |
           set -euo pipefail
-
-          export AWS_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID}"
-          export AWS_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY}"
-          export AWS_DEFAULT_REGION="auto"
-
           mkdir -p backups/restore-drill
-          aws s3 cp "s3://${R2_BUCKET}/${MANIFEST_KEY}" backups/restore-drill/manifest.json --endpoint-url "$R2_ENDPOINT"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > backups/restore-drill/backup.zip
+          unzip -qo backups/restore-drill/backup.zip -d backups/restore-drill
+          rm -f backups/restore-drill/backup.zip
 
-          jq -r '.artifacts[] | .r2_key // empty' backups/restore-drill/manifest.json | while read -r key; do
-            test -n "$key" || continue
-            filename="$(basename "$key")"
-            aws s3 cp "s3://${R2_BUCKET}/${key}" "backups/restore-drill/${filename}" --endpoint-url "$R2_ENDPOINT"
-          done
+          manifest_path="$(find backups/restore-drill -name manifest.json | head -n 1)"
+          test -n "$manifest_path" || (echo "Manifest not found in downloaded artifact" && exit 1)
+          echo "MANIFEST_PATH=${manifest_path}" >> "$GITHUB_ENV"
 
       - name: Restore + verify
         env:
           BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
           RESTORE_DEV_DB_URL: ${{ secrets.SUPABASE_RESTORE_DEV_DB_URL }}
           RESTORE_PROD_DB_URL: ${{ secrets.SUPABASE_RESTORE_PROD_DB_URL }}
+          MANIFEST_PATH: ${{ env.MANIFEST_PATH }}
         run: |
           set -euo pipefail
           if [[ "${BACKUP_ENV}" == "dev" ]]; then
@@ -110,7 +121,7 @@ jobs:
             TARGET_DB_URL="${RESTORE_PROD_DB_URL:-}"
           fi
           test -n "$TARGET_DB_URL" || (echo "Missing restore target DB URL secret" && exit 1)
-          scripts/db/restore_from_manifest.sh "$TARGET_DB_URL" backups/restore-drill/manifest.json
+          scripts/db/restore_from_manifest.sh "$TARGET_DB_URL" "$MANIFEST_PATH"
 
       - name: Run DB smoke checks on restored target
         env:

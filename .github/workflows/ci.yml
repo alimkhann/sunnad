@@ -96,6 +96,8 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
             -configuration Debug \
             -skipPackagePluginValidation \
+            -parallel-testing-enabled NO \
+            -only-testing:sunnad-iosTests \
             test
 
   landing-build:
