@@ -829,7 +829,7 @@ export default function LandingPage({
         {/* Analytics */}
         <motion.div
           style={{ y: y3 }}
-          className="absolute right-[65%] md:right-[4%] xl:right-[6%] 2xl:right-[23%] top-[50%] md:top-[21%] w-[160px] md:w-[260px] z-10"
+          className="absolute right-[65%] md:right-[4%] xl:right-[6%] 2xl:right-[23%] top-[50%] md:top-[21%] w-[160px] md:w-[260px] z-20"
         >
           <div className="relative w-full aspect-[450/920] rotate-[10deg] md:rotate-[4deg] drop-shadow-xl">
             <div className="absolute inset-[8px] md:inset-[13px] rounded-[16px] md:rounded-[26px] overflow-hidden bg-black z-10">

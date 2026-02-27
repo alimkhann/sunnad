@@ -76,6 +76,7 @@ export async function submitWaitlist(params: {
         headers: {
           "Content-Type": "application/json",
           apikey: landingConfig.supabaseAnonKey,
+          Authorization: `Bearer ${landingConfig.supabaseAnonKey}`,
         },
         body: JSON.stringify({
           email,
