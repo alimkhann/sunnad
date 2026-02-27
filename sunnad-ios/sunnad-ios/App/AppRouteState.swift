@@ -181,7 +181,8 @@ final class AppRouteState: ObservableObject {
 
         self.groupsViewModel = GroupsViewModel(
             groupsRepository: dependencies.groupsRepository,
-            logger: dependencies.analyticsLogger
+            logger: dependencies.analyticsLogger,
+            analytics: dependencies.analytics
         )
         self.profileViewModel = ProfileViewModel(
             habitsRepository: dependencies.habitsRepository,
@@ -257,15 +258,16 @@ final class AppRouteState: ObservableObject {
     func moveOnboardingForward() {
         switch onboardingStep {
         case .welcome:
+            dependencies.analytics.trackOnboardingStepCompleted(.welcome)
             onboardingStep = .templates
         case .templates:
-            dependencies.analytics.trackOnboarding(.templateSelected(count: selectedTemplateIDs.count))
+            dependencies.analytics.trackOnboardingStepCompleted(.templates)
             onboardingStep = .notifications
         case .notifications:
-            dependencies.analytics.trackOnboarding(.notificationsPrompted)
+            dependencies.analytics.trackOnboardingStepCompleted(.notifications)
             onboardingStep = .joinGroups
         case .joinGroups:
-            dependencies.analytics.trackOnboarding(.completed)
+            dependencies.analytics.trackOnboardingStepCompleted(.joinGroups)
             completeAsGuest()
         case .signIn, .signUp, .otp:
             break
@@ -274,11 +276,13 @@ final class AppRouteState: ObservableObject {
 
     func openSignIn() {
         clearAuthError()
+        dependencies.analytics.trackOnboardingStepCompleted(.joinGroups)
         onboardingStep = .signIn
     }
 
     func openSignUp() {
         clearAuthError()
+        dependencies.analytics.trackOnboardingStepCompleted(.joinGroups)
         onboardingStep = .signUp
     }
 
@@ -304,21 +308,23 @@ final class AppRouteState: ObservableObject {
         }
 
         replaceLocalHabits(with: habits)
+        dependencies.analytics.trackOnboardingStepCompleted(.templates)
         onboardingStep = .notifications
     }
 
     func enableOnboardingNotifications() {
-        dependencies.analytics.trackOnboarding(.notificationsEnabled)
+        dependencies.analytics.trackOnboardingStepCompleted(.notifications)
         dependencies.requestLocalNotificationPermission()
         onboardingStep = .joinGroups
     }
 
     func skipOnboardingNotifications() {
-        dependencies.analytics.trackOnboarding(.notificationsSkipped)
+        dependencies.analytics.trackOnboardingStepCompleted(.notifications)
         onboardingStep = .joinGroups
     }
 
     func completeAsGuest() {
+        dependencies.analytics.trackOnboardingStepCompleted(.joinGroups)
         user = .guest
         markOnboardingCompleted()
         activeTab = .today
@@ -361,20 +367,10 @@ final class AppRouteState: ObservableObject {
     }
 
     func handleGoogleSignIn() {
-        dependencies.analytics.trackAuth(
-            kind: .signIn,
-            provider: .google,
-            status: .success
-        )
         handleOAuthSignIn(using: .google, intent: .signIn, fromProfileSurface: false)
     }
 
     func handleGoogleSignUp() {
-        dependencies.analytics.trackAuth(
-            kind: .signUp,
-            provider: .google,
-            status: .success
-        )
         handleOAuthSignIn(using: .google, intent: .signUp, fromProfileSurface: false)
     }
 
@@ -387,20 +383,10 @@ final class AppRouteState: ObservableObject {
     }
 
     func handleAppleSignIn() {
-        dependencies.analytics.trackAuth(
-            kind: .signIn,
-            provider: .apple,
-            status: .success
-        )
         handleOAuthSignIn(using: .apple, intent: .signIn, fromProfileSurface: false)
     }
 
     func handleAppleSignUp() {
-        dependencies.analytics.trackAuth(
-            kind: .signUp,
-            provider: .apple,
-            status: .success
-        )
         handleOAuthSignIn(using: .apple, intent: .signUp, fromProfileSurface: false)
     }
 
@@ -429,6 +415,11 @@ final class AppRouteState: ObservableObject {
                 markOnboardingCompleted()
                 activeTab = .today
                 onboardingStep = .joinGroups
+                dependencies.analytics.trackAuth(
+                    kind: .signUp,
+                    provider: .email,
+                    status: .success
+                )
             } catch {
                 if case AuthServiceError.emailNotConfirmed = error {
                     pendingSignUpEmail = normalizedEmail
@@ -446,6 +437,12 @@ final class AppRouteState: ObservableObject {
                     .storageFailure,
                     metadata: ["scope": "auth_sign_up", "error": error.localizedDescription]
                 )
+                dependencies.analytics.trackAuth(
+                    kind: .signUp,
+                    provider: .email,
+                    status: .failure,
+                    reason: "error"
+                )
             }
         }
     }
@@ -458,15 +455,23 @@ final class AppRouteState: ObservableObject {
         resendOTP(fromProfileSurface: false)
     }
 
-    func toggleTodayHabit(_ habitID: UUID) {
+    func toggleTodayHabit(_ habitID: UUID, source: String = "today") {
         Task {
-            await todayViewModel.toggleHabit(habitID)
+            if let result = await todayViewModel.toggleHabit(habitID) {
+                dependencies.analytics.trackHabit(
+                    .completionToggled(
+                        type: result.type,
+                        status: result.status,
+                        source: source
+                    )
+                )
+            }
             await loadTodayData()
         }
     }
 
     func toggleHabit(_ habitID: UUID) {
-        toggleTodayHabit(habitID)
+        toggleTodayHabit(habitID, source: "groups")
     }
 
     func addTemplateHabits(_ templates: [HabitTemplate]) {
@@ -486,6 +491,13 @@ final class AppRouteState: ObservableObject {
             )
             habits.append(habit)
             persistHabit(habit)
+            dependencies.analytics.trackHabit(
+                .created(
+                    type: template.isDhikr ? "dhikr" : "binary",
+                    scheduleType: UIHabitSchedule.daily.rawValue,
+                    hasReminder: false
+                )
+            )
         }
     }
 
@@ -515,6 +527,13 @@ final class AppRouteState: ObservableObject {
         deletedHabitIDs.remove(habit.id)
         habits.append(habit)
         persistHabit(habit)
+        dependencies.analytics.trackHabit(
+            .created(
+                type: hasDhikrCounter ? "dhikr" : "binary",
+                scheduleType: schedule.rawValue,
+                hasReminder: reminderTime != nil
+            )
+        )
     }
 
     func updateHabit(_ habit: UIHabit) {
@@ -525,8 +544,37 @@ final class AppRouteState: ObservableObject {
             return
         }
 
+        let previous = habits[index]
+        let changedFields = changedHabitFields(from: previous, to: habit)
+        let editedFields = changedFields.filter {
+            $0 != "dhikr_count" && $0 != "dhikr_counts" && $0 != "selected_dhikr_key"
+        }
+
         habits[index] = habit
         persistHabit(habit)
+
+        if !editedFields.isEmpty {
+            dependencies.analytics.trackHabit(.edited(changedFields: editedFields))
+        }
+
+        if previous.reminderTime == nil, habit.reminderTime != nil {
+            dependencies.analytics.trackHabit(.reminderToggled(status: "enabled"))
+        } else if previous.reminderTime != nil, habit.reminderTime == nil {
+            dependencies.analytics.trackHabit(.reminderToggled(status: "disabled"))
+        }
+
+        if habit.isDhikr {
+            let delta = habit.dhikrCount - previous.dhikrCount
+            if delta > 0 {
+                dependencies.analytics.trackHabit(
+                    .counterIncremented(
+                        delta: delta,
+                        count: habit.dhikrCount,
+                        target: max(habit.dhikrTarget, 1)
+                    )
+                )
+            }
+        }
     }
 
     func reorderHabits(_ reordered: [UIHabit]) {
@@ -550,6 +598,7 @@ final class AppRouteState: ObservableObject {
         if case .habitDetail(let selectedID) = rootSheet, selectedID == habitID {
             rootSheet = nil
         }
+        let deletedHabitType = habits.first(where: { $0.id == habitID })?.isDhikr == true ? "dhikr" : "binary"
         deletedHabitIDs.insert(habitID)
         cancelAllPersistTasks()
         habits.removeAll(where: { $0.id == habitID })
@@ -559,6 +608,7 @@ final class AppRouteState: ObservableObject {
                 try await dependencies.habitsRepository.deleteHabit(id: habitID)
                 await groupsViewModel.updateHabitSharing(habitID: habitID, sharedGroupIDs: [])
                 await dependencies.reminderScheduler.removeReminder(habitID: habitID)
+                dependencies.analytics.trackHabit(.deleted(type: deletedHabitType))
                 await loadTodayData()
             } catch {
                 dependencies.analyticsLogger.log(.storageFailure, metadata: ["scope": "delete_habit", "error": error.localizedDescription])
@@ -568,9 +618,21 @@ final class AppRouteState: ObservableObject {
 
     func saveCurrentQuote() {
         Task {
-            await todayViewModel.saveCurrentQuote()
+            let didSave = await todayViewModel.saveCurrentQuote()
+            if didSave {
+                dependencies.analytics.trackQuote(.saved)
+            }
             await profileViewModel.load()
         }
+    }
+
+    func openQuoteOfDay() {
+        dependencies.analytics.trackQuote(.opened)
+        rootSheet = .quoteOfDay
+    }
+
+    func trackQuoteShared(channel: String?) {
+        dependencies.analytics.trackQuote(.shared(channel: channel))
     }
 
     func signInFromGroups() {
@@ -849,12 +911,23 @@ final class AppRouteState: ObservableObject {
                 await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .none)
                 markOnboardingCompleted()
                 fullScreen = nil
+                dependencies.analytics.trackAuth(
+                    kind: .signIn,
+                    provider: .email,
+                    status: .success
+                )
             } catch {
                 authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
                 dependencies.analyticsLogger.log(
                     .storageFailure,
                     metadata: ["scope": "auth_profile_sign_in", "error": error.localizedDescription]
+                )
+                dependencies.analytics.trackAuth(
+                    kind: .signIn,
+                    provider: .email,
+                    status: .failure,
+                    reason: "error"
                 )
             }
         }
@@ -876,6 +949,11 @@ final class AppRouteState: ObservableObject {
                 await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .signup)
                 markOnboardingCompleted()
                 fullScreen = nil
+                dependencies.analytics.trackAuth(
+                    kind: .signUp,
+                    provider: .email,
+                    status: .success
+                )
             } catch {
                 if case AuthServiceError.emailNotConfirmed = error {
                     pendingSignUpEmail = normalizedEmail
@@ -892,6 +970,12 @@ final class AppRouteState: ObservableObject {
                 dependencies.analyticsLogger.log(
                     .storageFailure,
                     metadata: ["scope": "auth_profile_sign_up", "error": error.localizedDescription]
+                )
+                dependencies.analytics.trackAuth(
+                    kind: .signUp,
+                    provider: .email,
+                    status: .failure,
+                    reason: "error"
                 )
             }
         }
@@ -971,6 +1055,14 @@ final class AppRouteState: ObservableObject {
             await profileViewModel.load()
             await loadTodayData()
         }
+    }
+
+    func trackScreen(_ screen: AnalyticsScreen) {
+        dependencies.analytics.trackScreen(screen)
+    }
+
+    func trackGroupOpened() {
+        dependencies.analytics.trackGroup(.opened)
     }
 
     func createGroup(name: String) {
@@ -1083,6 +1175,11 @@ final class AppRouteState: ObservableObject {
                 clearPendingOAuthIntent()
                 markOnboardingCompleted()
                 activeTab = .today
+                dependencies.analytics.trackAuth(
+                    kind: intent == .signUp ? .signUp : .signIn,
+                    provider: provider == .google ? .google : .apple,
+                    status: .success
+                )
                 if fromProfileSurface {
                     fullScreen = nil
                 }
@@ -1093,6 +1190,12 @@ final class AppRouteState: ObservableObject {
                 dependencies.analyticsLogger.log(
                     .storageFailure,
                     metadata: ["scope": "auth_oauth_\(provider.scope)", "error": error.localizedDescription]
+                )
+                dependencies.analytics.trackAuth(
+                    kind: intent == .signUp ? .signUp : .signIn,
+                    provider: provider == .google ? .google : .apple,
+                    status: .failure,
+                    reason: "error"
                 )
             }
         }
@@ -1133,6 +1236,13 @@ final class AppRouteState: ObservableObject {
                 user = sessionUser.asUIUserState
                 let promotionMode: GuestPromotionMode = otpFlowMode == .signup ? .signup : .none
                 await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: promotionMode)
+                if otpFlowMode == .signup {
+                    dependencies.analytics.trackAuth(
+                        kind: .signUp,
+                        provider: .email,
+                        status: .success
+                    )
+                }
             } catch {
                 authSuccessMessage = nil
                 authErrorMessage = error.localizedDescription
@@ -1144,6 +1254,14 @@ final class AppRouteState: ObservableObject {
                         "error": error.localizedDescription
                     ]
                 )
+                if otpFlowMode == .signup {
+                    dependencies.analytics.trackAuth(
+                        kind: .signUp,
+                        provider: .email,
+                        status: .failure,
+                        reason: "error"
+                    )
+                }
             }
         }
     }
@@ -1483,6 +1601,55 @@ final class AppRouteState: ObservableObject {
 
             self.persistTasks[habit.id] = nil
         }
+    }
+
+    private func changedHabitFields(from oldHabit: UIHabit, to newHabit: UIHabit) -> [String] {
+        var fields: [String] = []
+
+        if oldHabit.displayTitle != newHabit.displayTitle {
+            fields.append("name")
+        }
+        if oldHabit.iconSystemName != newHabit.iconSystemName {
+            fields.append("icon")
+        }
+        if oldHabit.category != newHabit.category {
+            fields.append("category")
+        }
+        if oldHabit.schedule != newHabit.schedule {
+            fields.append("schedule_type")
+        }
+        if oldHabit.weekdays != newHabit.weekdays {
+            fields.append("weekdays")
+        }
+        if normalizedReminderMinutes(oldHabit.reminderTime) != normalizedReminderMinutes(newHabit.reminderTime) {
+            fields.append("reminder_time")
+        }
+        if (oldHabit.reminderTime == nil) != (newHabit.reminderTime == nil) {
+            fields.append("reminder_enabled")
+        }
+        if oldHabit.dhikrTarget != newHabit.dhikrTarget {
+            fields.append("target")
+        }
+        if oldHabit.dhikrCount != newHabit.dhikrCount {
+            fields.append("dhikr_count")
+        }
+        if oldHabit.selectedDhikrKey != newHabit.selectedDhikrKey {
+            fields.append("selected_dhikr_key")
+        }
+        if oldHabit.dhikrCountsByKey != newHabit.dhikrCountsByKey {
+            fields.append("dhikr_counts")
+        }
+
+        return fields
+    }
+
+    private func normalizedReminderMinutes(_ date: Date?) -> Int? {
+        guard let date else { return nil }
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        guard let hour = components.hour, let minute = components.minute else {
+            return nil
+        }
+        return (hour * 60) + minute
     }
 
     private func markOnboardingCompleted() {
@@ -1925,7 +2092,7 @@ final class AppRouteState: ObservableObject {
                     rootSheet = .habitDetail(first.id)
                 }
             case "quote", "quote_of_day":
-                rootSheet = .quoteOfDay
+                openQuoteOfDay()
             case "create_group":
                 rootSheet = .createGroup
             case "join_group":

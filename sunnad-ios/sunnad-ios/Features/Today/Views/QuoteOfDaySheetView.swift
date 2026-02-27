@@ -5,6 +5,7 @@ struct QuoteOfDaySheetView: View {
     let quote: UIQuote
     let shareLink: URL
     let onSave: () -> Void
+    let onShare: (String?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var showsSavedConfirmation = false
@@ -42,6 +43,7 @@ struct QuoteOfDaySheetView: View {
                     }
 
                     PrimaryButton(title: L10n.t("common.share")) {
+                        onShare("system_share_sheet")
                         let shareFooter = L10n.t("quote.share.footer")
                             .replacingOccurrences(of: "https://www.sunnad.app", with: shareLink.absoluteString)
                             .replacingOccurrences(of: "https://sunnad.app", with: shareLink.absoluteString)

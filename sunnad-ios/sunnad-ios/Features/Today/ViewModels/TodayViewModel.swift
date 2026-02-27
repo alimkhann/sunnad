@@ -3,6 +3,11 @@ import Foundation
 
 @MainActor
 final class TodayViewModel: ObservableObject {
+    struct HabitToggleResult {
+        let type: String
+        let status: String
+    }
+
     @Published private(set) var habits: [UIHabit] = []
     @Published private(set) var quote: UIQuote = UIFixtures.dailyQuote
     @Published private(set) var savedQuotes: [UISavedQuote] = []
@@ -105,9 +110,9 @@ final class TodayViewModel: ObservableObject {
         isLoading = false
     }
 
-    func toggleHabit(_ habitID: UUID) async {
+    func toggleHabit(_ habitID: UUID) async -> HabitToggleResult? {
         guard let habit = domainHabitsByID[habitID] else {
-            return
+            return nil
         }
 
         do {
@@ -141,13 +146,18 @@ final class TodayViewModel: ObservableObject {
             logger.log(.habitToggled, metadata: ["habit_id": habitID.uuidString, "value": "\(nextValue)"])
 
             await loadToday()
+            return HabitToggleResult(
+                type: habit.type.rawValue,
+                status: nextValue > 0 ? "completed" : "uncompleted"
+            )
         } catch {
             errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "today_toggle", "error": error.localizedDescription])
+            return nil
         }
     }
 
-    func saveCurrentQuote() async {
+    func saveCurrentQuote() async -> Bool {
         do {
             let quoteToSave: Quote
             if let currentQuote {
@@ -159,10 +169,11 @@ final class TodayViewModel: ObservableObject {
             try await quotesRepository.saveQuote(quoteToSave, savedAt: now())
             let saved = try await quotesRepository.fetchSavedQuotes()
             savedQuotes = saved.map { $0.asUISavedQuote() }
+            return true
         } catch {
             errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "save_quote", "error": error.localizedDescription])
+            return false
         }
     }
 }
-

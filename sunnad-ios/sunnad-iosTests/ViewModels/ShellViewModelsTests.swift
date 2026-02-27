@@ -24,7 +24,7 @@ struct ShellViewModelsTests {
         )
 
         let repository = FakeGroupsRepository(groups: [persisted])
-        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger())
+        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger(), analytics: NoopAnalyticsClient())
 
         await vm.load(user: UIUserState(isGuest: false, name: "Ali", email: "a@b.com"), habits: [habit])
 
@@ -70,7 +70,7 @@ struct ShellViewModelsTests {
         )
 
         let repository = FakeGroupsRepository(groups: [persisted])
-        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger())
+        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger(), analytics: NoopAnalyticsClient())
 
         await vm.load(
             user: UIUserState(isGuest: false, name: "Ali", email: "ali@sunnad.app"),
@@ -88,7 +88,7 @@ struct ShellViewModelsTests {
     func groupsViewModelPersistsCreateGroup() async {
         let habit = UIHabit(customTitle: "Read", iconSystemName: "book.fill", category: .spiritual)
         let repository = FakeGroupsRepository(groups: [])
-        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger())
+        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger(), analytics: NoopAnalyticsClient())
 
         await vm.load(user: UIUserState(isGuest: false, name: "Ali", email: "a@b.com"), habits: [habit])
         await vm.createGroup(name: "Circle")
@@ -102,7 +102,7 @@ struct ShellViewModelsTests {
     func groupsViewModelJoinGroupMarksCurrentUserAsNonOwner() async throws {
         let habit = UIHabit(customTitle: "Read", iconSystemName: "book.fill", category: .spiritual)
         let repository = FakeGroupsRepository(groups: [])
-        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger())
+        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger(), analytics: NoopAnalyticsClient())
 
         await vm.load(user: UIUserState(isGuest: false, name: "Ali", email: "a@b.com"), habits: [habit])
         await vm.joinGroup(code: "ABC123")
@@ -117,7 +117,7 @@ struct ShellViewModelsTests {
     func groupsViewModelKickMemberRejectedWhenCurrentUserNotOwner() async throws {
         let habit = UIHabit(customTitle: "Read", iconSystemName: "book.fill", category: .spiritual)
         let repository = FakeGroupsRepository(groups: [])
-        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger())
+        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger(), analytics: NoopAnalyticsClient())
 
         await vm.load(user: UIUserState(isGuest: false, name: "Ali", email: "a@b.com"), habits: [habit])
         await vm.joinGroup(code: "ABC123")
@@ -129,6 +129,28 @@ struct ShellViewModelsTests {
 
         let updatedGroup = try #require(vm.groups.first)
         #expect(updatedGroup.members.count == memberCountBefore)
+    }
+
+    @Test
+    func groupsViewModelEmitsGroupAnalyticsEvents() async throws {
+        let habit = UIHabit(customTitle: "Read", iconSystemName: "book.fill", category: .spiritual)
+        let repository = FakeGroupsRepository(groups: [])
+        let analytics = TestAnalyticsClient()
+        let vm = GroupsViewModel(groupsRepository: repository, logger: TestLogger(), analytics: analytics)
+
+        await vm.load(user: UIUserState(isGuest: false, name: "Ali", email: "a@b.com"), habits: [habit])
+        await vm.createGroup(name: "Circle")
+        await vm.joinGroup(code: "ABC123")
+
+        let joinedGroup = try #require(vm.groups.first(where: { $0.currentUserMemberID != $0.ownerMemberID }))
+        let targetMemberID = try #require(joinedGroup.members.first(where: { $0.id != joinedGroup.currentUserMemberID })?.id)
+        _ = await vm.sendNudge(groupID: joinedGroup.id, memberID: targetMemberID, habitID: habit.id)
+        await vm.leaveGroup(joinedGroup.id)
+
+        #expect(analytics.captures.contains(where: { $0.event == "group_created" }))
+        #expect(analytics.captures.contains(where: { $0.event == "group_join_result" }))
+        #expect(analytics.captures.contains(where: { $0.event == "group_nudge_result" }))
+        #expect(analytics.captures.contains(where: { $0.event == "group_left" }))
     }
 
     @Test

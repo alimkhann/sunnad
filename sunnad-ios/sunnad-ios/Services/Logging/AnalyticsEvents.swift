@@ -4,21 +4,18 @@ enum AnalyticsScreen: String {
     case today = "today"
     case groups = "groups"
     case profile = "profile"
+    case insights = "insights"
     case onboarding = "onboarding"
 }
 
-enum AnalyticsLifecycleEvent {
-    case appOpened
-    case appBackgrounded
-}
-
-enum AnalyticsOnboardingEvent {
-    case started
-    case templateSelected(count: Int)
-    case notificationsPrompted
-    case notificationsEnabled
-    case notificationsSkipped
-    case completed
+enum AnalyticsOnboardingStep: String {
+    case welcome = "welcome"
+    case templates = "templates"
+    case notifications = "notifications"
+    case joinGroups = "join_groups"
+    case signIn = "sign_in"
+    case signUp = "sign_up"
+    case otp = "otp"
 }
 
 enum AnalyticsAuthEventKind: String {
@@ -40,71 +37,46 @@ enum AnalyticsAuthStatus: String {
 enum AnalyticsHabitEvent {
     case created(type: String, scheduleType: String, hasReminder: Bool)
     case edited(changedFields: [String])
-    case archived
-    case unarchived
-    case completed(type: String, source: String, count: Int)
-    case uncompleted
-    case reminderEnabled
-    case reminderDisabled
-    case counterIncremented(type: String, delta: Int)
+    case deleted(type: String)
+    case completionToggled(type: String, status: String, source: String)
+    case reminderToggled(status: String)
+    case counterIncremented(delta: Int, count: Int, target: Int)
 }
 
 enum AnalyticsQuoteEvent {
-    case viewed
+    case opened
     case saved
-    case unsaved
     case shared(channel: String?)
 }
 
 enum AnalyticsGroupEvent {
     case opened
     case created
-    case joinStarted
-    case joinSucceeded
-    case joinFailed(reason: String)
+    case joinResult(status: String, reason: String?)
     case left
-    case memberViewed(count: Int)
-    case sharingUpdated(delta: Int)
-    case nudgeSent(habitType: String)
-    case nudgeFailed(reason: String)
+    case sharingUpdated(delta: Int, totalShared: Int)
+    case nudgeResult(status: String, habitType: String)
 }
 
 enum AnalyticsSyncEvent {
-    case started(trigger: String)
-    case succeeded(durationMs: Int, pulled: Int, pushed: Int)
-    case failed(stage: String, code: String, durationMs: Int)
+    case result(
+        trigger: String,
+        status: String,
+        durationMs: Int,
+        pulled: Int,
+        pushed: Int,
+        stage: String?,
+        code: String?
+    )
 }
 
 extension AnalyticsClient {
-    func trackLifecycle(_ event: AnalyticsLifecycleEvent) {
-        switch event {
-        case .appOpened:
-            capture("app_opened", properties: nil)
-        case .appBackgrounded:
-            capture("app_backgrounded", properties: nil)
-        }
-    }
-
     func trackScreen(_ screenId: AnalyticsScreen) {
-        let name = screenId.rawValue
-        screen(name, properties: ["screen_name": name])
+        capture("screen_viewed", properties: ["screen_name": screenId.rawValue])
     }
 
-    func trackOnboarding(_ event: AnalyticsOnboardingEvent) {
-        switch event {
-        case .started:
-            capture("onboarding_started", properties: nil)
-        case .templateSelected(let count):
-            capture("onboarding_template_selected", properties: ["template_count": count])
-        case .notificationsPrompted:
-            capture("onboarding_notifications_prompted", properties: nil)
-        case .notificationsEnabled:
-            capture("onboarding_notifications_enabled", properties: nil)
-        case .notificationsSkipped:
-            capture("onboarding_notifications_skipped", properties: nil)
-        case .completed:
-            capture("onboarding_completed", properties: nil)
-        }
+    func trackOnboardingStepCompleted(_ step: AnalyticsOnboardingStep) {
+        capture("onboarding_step_completed", properties: ["step_name": step.rawValue])
     }
 
     func trackAuth(
@@ -122,18 +94,7 @@ extension AnalyticsClient {
         if let reason {
             props["reason"] = reason
         }
-        let eventName: String
-        switch (kind, status) {
-        case (.signIn, .success):
-            eventName = "auth_sign_in_success"
-        case (.signIn, .failure):
-            eventName = "auth_sign_in_failed"
-        case (.signUp, .success):
-            eventName = "auth_sign_up_success"
-        case (.signUp, .failure):
-            eventName = "auth_sign_up_failed"
-        }
-        capture(eventName, properties: props)
+        capture("auth_result", properties: props)
     }
 
     func trackHabit(_ event: AnalyticsHabitEvent) {
@@ -148,32 +109,27 @@ extension AnalyticsClient {
                 ]
             )
         case let .edited(changedFields):
-            capture("habit_edited", properties: ["changed_fields": changedFields])
-        case .archived:
-            capture("habit_archived", properties: nil)
-        case .unarchived:
-            capture("habit_unarchived", properties: nil)
-        case let .completed(type, source, count):
+            capture("habit_updated", properties: ["changed_fields": changedFields])
+        case let .deleted(type):
+            capture("habit_deleted", properties: ["type": type])
+        case let .completionToggled(type, status, source):
             capture(
-                "habit_completed",
+                "habit_completion_toggled",
                 properties: [
                     "type": type,
+                    "status": status,
                     "source": source,
-                    "count": count,
                 ]
             )
-        case .uncompleted:
-            capture("habit_uncompleted", properties: nil)
-        case .reminderEnabled:
-            capture("habit_reminder_enabled", properties: nil)
-        case .reminderDisabled:
-            capture("habit_reminder_disabled", properties: nil)
-        case let .counterIncremented(type, delta):
+        case let .reminderToggled(status):
+            capture("habit_reminder_toggled", properties: ["status": status])
+        case let .counterIncremented(delta, count, target):
             capture(
                 "habit_counter_incremented",
                 properties: [
-                    "type": type,
                     "delta": delta,
+                    "count": count,
+                    "target": target,
                 ]
             )
         }
@@ -181,12 +137,10 @@ extension AnalyticsClient {
 
     func trackQuote(_ event: AnalyticsQuoteEvent) {
         switch event {
-        case .viewed:
-            capture("quote_viewed", properties: nil)
+        case .opened:
+            capture("quote_opened", properties: nil)
         case .saved:
             capture("quote_saved", properties: nil)
-        case .unsaved:
-            capture("quote_unsaved", properties: nil)
         case let .shared(channel):
             var props: [String: Any] = [:]
             if let channel {
@@ -202,48 +156,38 @@ extension AnalyticsClient {
             capture("group_opened", properties: nil)
         case .created:
             capture("group_created", properties: nil)
-        case .joinStarted:
-            capture("group_join_started", properties: nil)
-        case .joinSucceeded:
-            capture("group_join_succeeded", properties: nil)
-        case let .joinFailed(reason):
-            capture("group_join_failed", properties: ["reason": reason])
+        case let .joinResult(status, reason):
+            var properties: [String: Any] = ["status": status]
+            if let reason {
+                properties["reason"] = reason
+            }
+            capture("group_join_result", properties: properties)
         case .left:
             capture("group_left", properties: nil)
-        case let .memberViewed(count):
-            capture("group_member_viewed", properties: ["count": count])
-        case let .sharingUpdated(delta):
-            capture("group_sharing_updated", properties: ["delta": delta])
-        case let .nudgeSent(habitType):
-            capture("nudge_sent", properties: ["habit_type": habitType])
-        case let .nudgeFailed(reason):
-            capture("nudge_failed", properties: ["reason": reason])
+        case let .sharingUpdated(delta, totalShared):
+            capture("group_sharing_updated", properties: ["delta": delta, "total_shared": totalShared])
+        case let .nudgeResult(status, habitType):
+            capture("group_nudge_result", properties: ["status": status, "habit_type": habitType])
         }
     }
 
     func trackSync(_ event: AnalyticsSyncEvent) {
         switch event {
-        case let .started(trigger):
-            capture("sync_started", properties: ["trigger": trigger])
-        case let .succeeded(durationMs, pulled, pushed):
-            capture(
-                "sync_succeeded",
-                properties: [
-                    "duration_ms": durationMs,
-                    "pulled_count": pulled,
-                    "pushed_count": pushed,
-                ]
-            )
-        case let .failed(stage, code, durationMs):
-            capture(
-                "sync_failed",
-                properties: [
-                    "stage": stage,
-                    "error_code": code,
-                    "duration_ms": durationMs,
-                ]
-            )
+        case let .result(trigger, status, durationMs, pulled, pushed, stage, code):
+            var properties: [String: Any] = [
+                "trigger": trigger,
+                "status": status,
+                "duration_ms": durationMs,
+                "pulled_count": pulled,
+                "pushed_count": pushed,
+            ]
+            if let stage {
+                properties["stage"] = stage
+            }
+            if let code {
+                properties["error_code"] = code
+            }
+            capture("sync_cycle_result", properties: properties)
         }
     }
 }
-

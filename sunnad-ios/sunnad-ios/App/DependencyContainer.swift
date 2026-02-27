@@ -34,6 +34,7 @@ final class DependencyContainer {
     init(
         environment: AppEnvironment = .current,
         modelContainer: ModelContainer? = nil,
+        analytics: AnalyticsClient? = nil,
         authService: AuthService? = nil,
         deviceTokenSyncService: DeviceTokenSyncing? = nil,
         syncCoordinator: SyncCoordinating? = nil
@@ -73,10 +74,12 @@ final class DependencyContainer {
         let logger = OSLogAnalyticsLogger(diagnosticsStore: diagnosticsStore)
 
         analyticsLogger = logger
-        if let posthogClient = PostHogAnalyticsClient(environment: environment) {
-            analytics = posthogClient
+        if let analytics {
+            self.analytics = analytics
+        } else if let posthogClient = PostHogAnalyticsClient(environment: environment) {
+            self.analytics = posthogClient
         } else {
-            analytics = NoopAnalyticsClient()
+            self.analytics = NoopAnalyticsClient()
         }
         let localHabitsRepository = HabitsLocalRepository(
             modelContext: modelContext,
@@ -122,6 +125,7 @@ final class DependencyContainer {
                 client: client,
                 modelContext: modelContext,
                 logger: logger,
+                analytics: self.analytics,
                 userDefaults: userDefaults,
                 ownerScopeProvider: ownerScopeResolver
             )

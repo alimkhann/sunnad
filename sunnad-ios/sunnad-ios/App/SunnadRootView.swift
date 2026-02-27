@@ -42,6 +42,16 @@ struct SunnadRootView: View {
                 mainTabs
             }
         }
+        .onAppear {
+            trackCurrentScreen()
+        }
+        .onChange(of: state.activeTab) { _, _ in
+            guard !state.showsOnboarding else { return }
+            trackCurrentScreen()
+        }
+        .onChange(of: state.showsOnboarding) { _, _ in
+            trackCurrentScreen()
+        }
         .environment(\.locale, Locale(identifier: state.language.localeIdentifier))
         .preferredColorScheme(state.appearance.colorScheme)
         .sheet(item: $state.rootSheet, content: sheetView)
@@ -55,11 +65,11 @@ struct SunnadRootView: View {
                 TodayView(
                     habits: state.todayHabits,
                     quote: state.todayQuote,
-                    onToggle: state.toggleTodayHabit,
+                    onToggle: { state.toggleTodayHabit($0) },
                     onSelectHabit: { state.rootSheet = .habitDetail($0.id) },
                     onManage: { state.fullScreen = .schedule },
                     onAddHabit: { state.rootSheet = .addHabit },
-                    onOpenQuote: { state.rootSheet = .quoteOfDay }
+                    onOpenQuote: state.openQuoteOfDay
                 )
             }
             .sunnadSolidBars()
@@ -78,6 +88,7 @@ struct SunnadRootView: View {
                     onCreateGroup: { state.rootSheet = .createGroup },
                     onJoinGroup: { state.rootSheet = .joinGroup },
                     onSignIn: state.signInFromGroups,
+                    onOpenGroup: state.trackGroupOpened,
                     onUpdateGroupSharing: state.updateGroupSharing,
                     onToggleOwnHabit: state.toggleHabit,
                     onSendReminder: state.sendGroupNudge,
@@ -113,7 +124,10 @@ struct SunnadRootView: View {
                     },
                     onOpenSavedQuotes: { state.rootSheet = .savedQuotes },
                     onOpenLanguagePicker: { state.rootSheet = .languagePicker },
-                    onOpenInsights: { state.fullScreen = .insightsPlaceholder },
+                    onOpenInsights: {
+                        state.trackScreen(.insights)
+                        state.fullScreen = .insightsPlaceholder
+                    },
                     onSignIn: state.openProfileSignIn,
                     onSignOut: state.signOut,
                     onEditProfile: state.openProfileEditor,
@@ -186,6 +200,9 @@ struct SunnadRootView: View {
                 shareLink: state.publicAppLink,
                 onSave: {
                     state.saveCurrentQuote()
+                },
+                onShare: { channel in
+                    state.trackQuoteShared(channel: channel)
                 }
             )
         case .createGroup:
@@ -203,6 +220,22 @@ struct SunnadRootView: View {
                 title: L10n.t("groups.reminder.placeholder.title"),
                 message: L10n.t("groups.reminder.placeholder.subtitle")
             )
+        }
+    }
+
+    private func trackCurrentScreen() {
+        if state.showsOnboarding {
+            state.trackScreen(.onboarding)
+            return
+        }
+
+        switch state.activeTab {
+        case .today:
+            state.trackScreen(.today)
+        case .groups:
+            state.trackScreen(.groups)
+        case .profile:
+            state.trackScreen(.profile)
         }
     }
 

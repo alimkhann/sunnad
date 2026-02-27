@@ -343,6 +343,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     private let client: SupabaseClient
     private let modelContext: ModelContext
     private let logger: AnalyticsLogging
+    private let analytics: AnalyticsClient
     private let userDefaults: UserDefaults
     private let ownerScopeProvider: LocalOwnerScopeProviding
     private let encoder = JSONEncoder()
@@ -356,12 +357,14 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         client: SupabaseClient,
         modelContext: ModelContext,
         logger: AnalyticsLogging,
+        analytics: AnalyticsClient,
         userDefaults: UserDefaults = .standard,
         ownerScopeProvider: LocalOwnerScopeProviding
     ) {
         self.client = client
         self.modelContext = modelContext
         self.logger = logger
+        self.analytics = analytics
         self.userDefaults = userDefaults
         self.ownerScopeProvider = ownerScopeProvider
     }
@@ -557,6 +560,12 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         guard let activeUserID else { return }
         guard !isRunningCycle else { return }
         isRunningCycle = true
+        let startedAt = Date()
+        var pushedCount = 0
+        var pulledCount = 0
+        var status = "success"
+        var stage: String?
+        var errorCode: String?
 
         logger.log(.syncStarted, metadata: ["scope": "sync_cycle", "trigger": trigger.rawValue])
 
@@ -566,11 +575,27 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         }
 
         do {
-            try await pushOutbox(activeUserID: activeUserID)
-            try await pullPersonalData(activeUserID: activeUserID)
+            pushedCount = try await pushOutbox(activeUserID: activeUserID)
+            pulledCount = try await pullPersonalData(activeUserID: activeUserID)
         } catch {
+            status = "failed"
+            stage = "sync_cycle"
+            errorCode = Self.syncErrorCode(from: error)
             logger.log(.storageFailure, metadata: ["scope": "sync_cycle", "error": error.localizedDescription])
         }
+
+        let durationMs = max(Int(Date().timeIntervalSince(startedAt) * 1000), 0)
+        analytics.trackSync(
+            .result(
+                trigger: trigger.rawValue,
+                status: status,
+                durationMs: durationMs,
+                pulled: pulledCount,
+                pushed: pushedCount,
+                stage: stage,
+                code: errorCode
+            )
+        )
     }
 
     func enqueueHabitUpsert(habitID: UUID) async {
@@ -636,13 +661,14 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         }
     }
 
-    private func pushOutbox(activeUserID: UUID) async throws {
+    private func pushOutbox(activeUserID: UUID) async throws -> Int {
         let ownerScope = ownerScopeProvider.currentOwnerScopeRawValue
         let descriptor = FetchDescriptor<LocalOutboxEventEntity>(
             predicate: #Predicate { $0.ownerScope == ownerScope },
             sortBy: [SortDescriptor(\.createdAt, order: .forward)]
         )
         let events = try modelContext.fetch(descriptor)
+        var pushedCount = 0
 
         for event in events {
             if event.attemptCount >= outboxMaxAttempts {
@@ -653,6 +679,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 try await apply(event: event, activeUserID: activeUserID)
                 modelContext.delete(event)
                 try modelContext.save()
+                pushedCount += 1
             } catch {
                 event.attemptCount += 1
                 event.lastError = error.localizedDescription
@@ -670,6 +697,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 )
             }
         }
+        return pushedCount
     }
 
     private func apply(event: LocalOutboxEventEntity, activeUserID: UUID) async throws {
@@ -791,31 +819,33 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             .execute()
     }
 
-    private func pullPersonalData(activeUserID: UUID) async throws {
+    private func pullPersonalData(activeUserID: UUID) async throws -> Int {
+        var pulledCount = 0
         for resource in Resource.allCases {
             let cursor = try cursorDate(for: resource.rawValue)
             let cursorString = Self.timestampString(cursor)
             switch resource {
             case .habits:
-                try await pullHabits(activeUserID: activeUserID, cursorString: cursorString)
+                pulledCount += try await pullHabits(activeUserID: activeUserID, cursorString: cursorString)
             case .completions:
-                try await pullCompletions(activeUserID: activeUserID, cursorString: cursorString)
+                pulledCount += try await pullCompletions(activeUserID: activeUserID, cursorString: cursorString)
             case .savedQuotes:
-                try await pullSavedQuotes(activeUserID: activeUserID, cursorString: cursorString)
+                pulledCount += try await pullSavedQuotes(activeUserID: activeUserID, cursorString: cursorString)
             case .quotes:
-                try await pullQuotes(cursorString: cursorString)
+                pulledCount += try await pullQuotes(cursorString: cursorString)
             case .groups:
-                try await pullGroups(activeUserID: activeUserID, cursorString: cursorString)
+                pulledCount += try await pullGroups(activeUserID: activeUserID, cursorString: cursorString)
             case .groupMembers:
-                try await pullGroupMembers(activeUserID: activeUserID, cursorString: cursorString)
+                pulledCount += try await pullGroupMembers(activeUserID: activeUserID, cursorString: cursorString)
             case .groupSharedHabits:
-                try await pullGroupSharedHabits(activeUserID: activeUserID, cursorString: cursorString)
+                pulledCount += try await pullGroupSharedHabits(activeUserID: activeUserID, cursorString: cursorString)
             }
             try setCursorDate(Date(), for: resource.rawValue)
         }
+        return pulledCount
     }
 
-    private func pullHabits(activeUserID: UUID, cursorString: String) async throws {
+    private func pullHabits(activeUserID: UUID, cursorString: String) async throws -> Int {
         let response = try await client
             .from("habits")
             .select("id,name,icon,type,target_count,schedule,weekdays,reminder_enabled,reminder_time,sort_order,archived,created_at,updated_at")
@@ -831,6 +861,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         if !rows.isEmpty {
             try modelContext.save()
         }
+        return rows.count
     }
 
     private func mergeHabit(_ row: HabitPullRow) throws {
@@ -887,7 +918,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         )
     }
 
-    private func pullCompletions(activeUserID: UUID, cursorString: String) async throws {
+    private func pullCompletions(activeUserID: UUID, cursorString: String) async throws -> Int {
         let windowStart = Self.syncDayDateString(
             for: Date().addingTimeInterval(-40 * 24 * 60 * 60),
             calendar: .current,
@@ -910,6 +941,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         if !rows.isEmpty {
             try modelContext.save()
         }
+        return rows.count
     }
 
     private func mergeCompletion(_ row: CompletionPullRow) throws {
@@ -949,7 +981,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         )
     }
 
-    private func pullSavedQuotes(activeUserID: UUID, cursorString: String) async throws {
+    private func pullSavedQuotes(activeUserID: UUID, cursorString: String) async throws -> Int {
         let response = try await client
             .from("saved_quotes")
             .select("quote_id,saved_at,updated_at")
@@ -965,6 +997,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         if !rows.isEmpty {
             try modelContext.save()
         }
+        return rows.count
     }
 
     private func mergeSavedQuote(_ row: SavedQuotePullRow) throws {
@@ -994,7 +1027,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         )
     }
 
-    private func pullQuotes(cursorString: String) async throws {
+    private func pullQuotes(cursorString: String) async throws -> Int {
         let response = try await client
             .from("quotes")
             .select("id,locale,text,source,sort_order,active,created_at,updated_at")
@@ -1009,6 +1042,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         if !rows.isEmpty {
             try modelContext.save()
         }
+        return rows.count
     }
 
     private func mergeQuote(_ row: QuotePullRow) throws {
@@ -1042,7 +1076,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         )
     }
 
-    private func pullGroups(activeUserID: UUID, cursorString: String) async throws {
+    private func pullGroups(activeUserID: UUID, cursorString: String) async throws -> Int {
         let response: PostgrestResponse<Void>
         do {
             response = try await client
@@ -1078,6 +1112,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             try modelContext.save()
         }
         _ = activeUserID
+        return rows.count
     }
 
     private func mergeGroup(_ row: GroupPullRow) throws {
@@ -1109,7 +1144,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         )
     }
 
-    private func pullGroupMembers(activeUserID: UUID, cursorString: String) async throws {
+    private func pullGroupMembers(activeUserID: UUID, cursorString: String) async throws -> Int {
         let response = try await client
             .from("group_members")
             .select("group_id,user_id,role,updated_at")
@@ -1125,6 +1160,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             try modelContext.save()
         }
         _ = activeUserID
+        return rows.count
     }
 
     private func mergeGroupMember(_ row: GroupMemberPullRow) throws {
@@ -1149,7 +1185,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         )
     }
 
-    private func pullGroupSharedHabits(activeUserID: UUID, cursorString: String) async throws {
+    private func pullGroupSharedHabits(activeUserID: UUID, cursorString: String) async throws -> Int {
         let response = try await client
             .from("group_shared_habits")
             .select("group_id,user_id,habit_id,shared,updated_at")
@@ -1165,6 +1201,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             try modelContext.save()
         }
         _ = activeUserID
+        return rows.count
     }
 
     private func mergeGroupSharedHabit(_ row: GroupSharedHabitPullRow) throws {
@@ -1284,6 +1321,11 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         let plain = ISO8601DateFormatter()
         plain.formatOptions = [.withInternetDateTime]
         return plain.date(from: value)
+    }
+
+    private static func syncErrorCode(from error: Error) -> String {
+        let nsError = error as NSError
+        return "\(nsError.domain)#\(nsError.code)"
     }
 
     private func completionID(from existingID: String, sourceScope: String, targetScope: String) -> String {

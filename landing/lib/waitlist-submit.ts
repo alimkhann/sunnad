@@ -1,5 +1,5 @@
-import posthog from "posthog-js";
 import { landingConfig } from "./config";
+import { captureLandingEvent } from "./analytics";
 
 export type WaitlistStatus =
   | "subscribed"
@@ -25,9 +25,7 @@ function trackWaitlistSubmitted(
   locale: string,
   variant: string,
 ) {
-  if (typeof window === "undefined") return;
-
-  posthog.capture("waitlist_submitted", {
+  captureLandingEvent("landing_waitlist_submit_succeeded", {
     status,
     locale,
     variant,
@@ -42,9 +40,7 @@ function trackWaitlistFailed(
   variant: string,
   errorType: string,
 ) {
-  if (typeof window === "undefined") return;
-
-  posthog.capture("waitlist_submit_failed", {
+  captureLandingEvent("landing_waitlist_submit_failed", {
     status,
     locale,
     variant,
@@ -61,6 +57,14 @@ export async function submitWaitlist(params: {
   variant: string;
 }): Promise<WaitlistResult> {
   const { email, turnstileToken, locale, variant } = params;
+  const platform = detectPlatform();
+
+  captureLandingEvent("landing_waitlist_submit_started", {
+    locale,
+    variant,
+    platform,
+    referral_source: "landing",
+  });
 
   try {
     const res = await fetch(
@@ -75,7 +79,7 @@ export async function submitWaitlist(params: {
           email,
           turnstile_token: turnstileToken,
           locale,
-          platform: detectPlatform(),
+          platform,
           variant,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           referral_source: "landing",

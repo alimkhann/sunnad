@@ -55,6 +55,8 @@ final class PostHogAnalyticsClient: AnalyticsClient {
             "app_version": appVersion,
             "build_number": buildNumber,
             "platform": "ios",
+            "surface": "ios",
+            "schema_version": 2,
             "environment": environment.rawValue,
             "locale": locale,
         ]
@@ -174,4 +176,3 @@ private extension PostHogAnalyticsClient {
         }
     }
 }
-

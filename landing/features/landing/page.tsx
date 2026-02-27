@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import posthog from "posthog-js";
 import { submitWaitlist } from "@/lib/waitlist-submit";
+import { captureLandingEvent } from "@/lib/analytics";
 import { Turnstile } from "@/components/turnstile";
 import { landingConfig } from "@/lib/config";
 import { Sun, Moon, Globe, ChevronDown } from "lucide-react";
@@ -322,13 +322,15 @@ function FeaturesScroll({
   theme,
   t,
   isDark,
+  sectionRef,
 }: {
   screenshotLocale: "en" | "ru" | "kz";
   theme: string;
   t: any;
   isDark: boolean;
+  sectionRef: React.MutableRefObject<HTMLElement | null>;
 }) {
-  const containerRef = useRef(null);
+  const containerRef = useRef<HTMLElement | null>(null);
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end end"],
@@ -357,7 +359,13 @@ function FeaturesScroll({
   ];
 
   return (
-    <section ref={containerRef} className="relative w-full h-[300vh] z-30">
+    <section
+      ref={(node) => {
+        containerRef.current = node;
+        sectionRef.current = node;
+      }}
+      className="relative w-full h-[300vh] z-30"
+    >
       <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col items-center justify-center px-6">
         {/* Text Content — AnimatePresence with blur+slide */}
         <div className="absolute inset-0 max-w-6xl mx-auto w-full h-full pointer-events-none">
@@ -414,11 +422,20 @@ function FeaturesScroll({
   );
 }
 
-function FAQSection({ t, isDark }: { t: any; isDark: boolean }) {
+function FAQSection({
+  t,
+  isDark,
+  sectionRef,
+}: {
+  t: any;
+  isDark: boolean;
+  sectionRef: React.MutableRefObject<HTMLElement | null>;
+}) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
     <section
+      ref={sectionRef}
       className={`relative z-40 w-full py-32 px-6 ${isDark ? "bg-[#0A0A0A]/50" : "bg-gray-50/50"} border-y ${isDark ? "border-white/5" : "border-black/5"}`}
     >
       <div className="max-w-4xl mx-auto">
@@ -537,6 +554,12 @@ export default function LandingPage({
   const isDark = theme === "dark";
   const t = translations[activeLocale];
   const screenshotLocale = screenshotLocaleByLocale[activeLocale];
+  const heroSectionRef = useRef<HTMLElement | null>(null);
+  const featuresSectionRef = useRef<HTMLElement | null>(null);
+  const faqSectionRef = useRef<HTMLElement | null>(null);
+  const bottomCTASectionRef = useRef<HTMLElement | null>(null);
+  const viewedSectionsRef = useRef<Set<string>>(new Set());
+  const hasTrackedAllSectionsRef = useRef(false);
 
   // Fetch real waitlist count
   const [count, setCount] = useState(0);
@@ -544,12 +567,9 @@ export default function LandingPage({
     void fetchWaitlistCount().then(setCount);
   }, []);
 
-   // Track landing page view (manual, privacy-safe)
+  // Track landing page view (manual, privacy-safe)
   useEffect(() => {
     if (typeof window === "undefined") return;
-
-    const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-    if (!key) return;
 
     const referrerDomain = parseReferrerDomain();
     const utm = parseUtmParams();
@@ -566,10 +586,62 @@ export default function LandingPage({
 
     Object.assign(props, utm);
 
-    posthog.capture("landing_viewed", props);
+    captureLandingEvent("landing_page_viewed", props);
     // Run once on mount; dependency array intentionally empty
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const sectionEntries: Array<{ id: string; element: HTMLElement | null }> = [
+      { id: "hero", element: heroSectionRef.current },
+      { id: "feature_scroll", element: featuresSectionRef.current },
+      { id: "faq", element: faqSectionRef.current },
+      { id: "bottom_cta", element: bottomCTASectionRef.current },
+    ];
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const sectionId = entry.target.getAttribute("data-section-id");
+          if (!sectionId) continue;
+          if (viewedSectionsRef.current.has(sectionId)) continue;
+
+          viewedSectionsRef.current.add(sectionId);
+          captureLandingEvent("landing_section_viewed", {
+            locale: activeLocale,
+            theme,
+            path: window.location.pathname,
+            section_id: sectionId,
+          });
+
+          if (
+            viewedSectionsRef.current.size === 4 &&
+            !hasTrackedAllSectionsRef.current
+          ) {
+            hasTrackedAllSectionsRef.current = true;
+            captureLandingEvent("landing_all_sections_viewed", {
+              locale: activeLocale,
+              theme,
+              path: window.location.pathname,
+              sections_total: 4,
+            });
+          }
+        }
+      },
+      { threshold: 0.45 },
+    );
+
+    for (const item of sectionEntries) {
+      if (!item.element) continue;
+      item.element.setAttribute("data-section-id", item.id);
+      observer.observe(item.element);
+    }
+
+    return () => observer.disconnect();
+  }, [activeLocale, theme]);
 
   function handleWaitlistSuccess(status: WaitlistSuccessStatus): void {
     if (status === "subscribed") {
@@ -578,7 +650,7 @@ export default function LandingPage({
     void fetchWaitlistCount().then(setCount);
   }
 
-  const containerRef = useRef(null);
+  const containerRef = useRef<HTMLElement | null>(null);
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start end", "end start"],
@@ -651,7 +723,10 @@ export default function LandingPage({
       </header>
 
       {/* Hero */}
-      <main className="relative z-10 flex flex-col items-center pt-[20vh] pb-[10vh] px-6 text-center">
+      <main
+        ref={heroSectionRef}
+        className="relative z-10 flex flex-col items-center pt-[20vh] pb-[10vh] px-6 text-center"
+      >
         <div className="w-full max-w-3xl">
           <motion.h1
             initial={{ opacity: 0, filter: "blur(10px)", y: 20 }}
@@ -795,12 +870,16 @@ export default function LandingPage({
         theme={theme}
         isDark={isDark}
         t={t}
+        sectionRef={featuresSectionRef}
       />
 
-      <FAQSection isDark={isDark} t={t} />
+      <FAQSection isDark={isDark} t={t} sectionRef={faqSectionRef} />
 
       {/* Bottom Waitlist Section */}
-      <section className="relative z-40 bg-transparent pb-20 pt-32 px-6 md:h-[80vh] flex md:items-center">
+      <section
+        ref={bottomCTASectionRef}
+        className="relative z-40 bg-transparent pb-20 pt-32 px-6 md:h-[80vh] flex md:items-center"
+      >
         <div className="max-w-3xl mx-auto flex flex-col items-center text-center w-full">
           <h2 className="text-4xl md:text-5xl font-bold tracking-tighter mb-6">
             {t.bottomTitle}
