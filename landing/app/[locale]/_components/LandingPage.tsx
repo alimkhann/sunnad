@@ -421,7 +421,7 @@ function FeaturesScroll({
         </div>
 
         {/* Central Sticky Phone */}
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-[-24%] md:bottom-auto md:top-1/2 md:-translate-y-1/2 w-[286px] md:w-[320px] aspect-[450/920] drop-shadow-[0_25px_50px_rgba(0,0,0,0.15)] z-10">
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-[-10%] md:bottom-auto md:top-1/2 md:-translate-y-1/2 w-[286px] md:w-[320px] aspect-[450/920] drop-shadow-[0_25px_50px_rgba(0,0,0,0.15)] z-10">
           <div className="absolute inset-[13px] md:inset-[15px] rounded-[30px] md:rounded-[36px] overflow-hidden bg-black shadow-inner">
             <AnimatePresence mode="wait">
               <motion.img
@@ -757,7 +757,7 @@ export default function LandingPage({
             initial={{ opacity: 0, filter: "blur(10px)", y: 20 }}
             animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
             transition={{ duration: 1, ease: "easeOut" }}
-            className="text-6xl md:text-[5.5rem] font-bold tracking-tighter leading-[1.05] mb-6 whitespace-pre-line"
+            className="text-5xl md:text-[5.4rem] font-bold tracking-tighter leading-[1.05] mb-6 whitespace-pre-line"
           >
             {t.heroTitle}
           </motion.h1>
@@ -808,7 +808,7 @@ export default function LandingPage({
         {/* Today */}
         <motion.div
           style={{ y: y1 }}
-          className="absolute left-1/2 -translate-x-1/2 top-[4%] md:left-[58%] md:top-[8%] w-[240px] md:w-[250px] lg:w-[280px] xl:w-[300px] 2xl:w-[320px] z-20"
+          className="absolute left-1/2 -translate-x-1/2 top-[4%] md:top-[8%] w-[240px] md:w-[360px] z-20"
         >
           <div className="relative w-full aspect-[450/920] rotate-[-10deg] md:rotate-[0deg] drop-shadow-2xl">
             <div className="absolute inset-[12px] md:inset-[18px] rounded-[24px] md:rounded-[36px] overflow-hidden bg-black z-10">
@@ -829,7 +829,7 @@ export default function LandingPage({
         {/* Analytics */}
         <motion.div
           style={{ y: y3 }}
-          className="absolute right-[65%] top-[50%] w-[160px] md:left-[80%] md:right-auto md:-translate-x-1/2 md:top-[21%] md:w-[170px] lg:w-[190px] xl:w-[210px] 2xl:w-[230px] z-20"
+          className="absolute right-[65%] md:right-[4%] xl:right-[6%] 2xl:right-[23%] top-[50%] md:top-[21%] w-[160px] md:w-[260px] z-10"
         >
           <div className="relative w-full aspect-[450/920] rotate-[10deg] md:rotate-[4deg] drop-shadow-xl">
             <div className="absolute inset-[8px] md:inset-[13px] rounded-[16px] md:rounded-[26px] overflow-hidden bg-black z-10">
@@ -850,7 +850,7 @@ export default function LandingPage({
         {/* Dhikr */}
         <motion.div
           style={{ y: y2 }}
-          className="absolute left-[-5%] top-[40%] w-[150px] md:left-[14%] md:-translate-x-1/2 md:top-[34%] md:w-[165px] lg:w-[180px] xl:w-[190px] 2xl:w-[205px] z-20"
+          className="absolute left-[-5%] md:left-[10%] xl:left-[12%] 2xl:left-[25%] top-[40%] md:top-[36%] w-[150px] md:w-[220px] z-10"
         >
           <div className="relative w-full aspect-[450/920] rotate-[12deg] md:rotate-[-8deg] drop-shadow-xl">
             <div className="absolute inset-[7px] md:inset-[11px] rounded-[14px] md:rounded-[22px] overflow-hidden bg-black z-10">
@@ -871,7 +871,7 @@ export default function LandingPage({
         {/* Groups */}
         <motion.div
           style={{ y: y4 }}
-          className="absolute right-[-5%] top-[30%] w-[180px] md:left-[36%] md:right-auto md:-translate-x-1/2 md:top-[16%] md:w-[210px] lg:w-[230px] xl:w-[245px] 2xl:w-[260px] z-20"
+          className="absolute right-[-5%] md:right-[53%] top-[30%] md:top-[16%] w-[180px] md:w-[280px] z-20"
         >
           <div className="relative w-full aspect-[450/920] rotate-[-10deg] md:rotate-[-4deg] drop-shadow-2xl">
             <div className="absolute inset-[9px] md:inset-[14px] rounded-[18px] md:rounded-[28px] overflow-hidden bg-black z-10">
