@@ -151,6 +151,7 @@ struct NotificationSchedulerTests {
         let plans = [
             QuoteReminderPlan(
                 identifier: "quote-reminder-2026-02-21",
+                title: "- Prophet Muhammad ﷺ",
                 body: "The best deeds are consistent, even if small.",
                 dateComponents: DateComponents(year: 2026, month: 2, day: 21, hour: 9, minute: 0)
             )
@@ -163,6 +164,7 @@ struct NotificationSchedulerTests {
         #expect(request != nil)
         #expect(trigger?.dateComponents.hour == 9)
         #expect(trigger?.dateComponents.minute == 0)
+        #expect(request?.content.title == plans[0].title)
         #expect(request?.content.body == plans[0].body)
     }
 
@@ -174,6 +176,7 @@ struct NotificationSchedulerTests {
         let plans = [
             QuoteReminderPlan(
                 identifier: "quote-reminder-2026-02-22",
+                title: "Daily quote",
                 body: "Verily, with hardship comes ease.",
                 dateComponents: DateComponents(year: 2026, month: 2, day: 22, hour: 9, minute: 0)
             )

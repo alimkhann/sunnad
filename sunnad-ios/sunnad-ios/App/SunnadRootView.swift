@@ -118,6 +118,7 @@ struct SunnadRootView: View {
                     selectedLanguage: state.language,
                     selectedAppearance: $state.appearance,
                     notificationPreferences: $state.notificationPreferences,
+                    feedbackPreferences: $state.feedbackPreferences,
                     onManageHabits: {
                         state.activeTab = .today
                         state.fullScreen = .schedule
@@ -186,7 +187,8 @@ struct SunnadRootView: View {
                     groups: state.groupsViewModel.groups,
                     lastSevenCompletionMarksOverride: state.lastSevenCompletionMarks(for: habitID),
                     onDelete: state.deleteHabit,
-                    onUpdateHabitSharing: state.updateHabitSharing
+                    onUpdateHabitSharing: state.updateHabitSharing,
+                    onDhikrIncremented: state.handleDhikrCounterIncrement
                 )
             } else {
                 PlaceholderScreen(

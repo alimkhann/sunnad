@@ -12,6 +12,8 @@ final class AppRouteState: ObservableObject {
         static let habitRemindersEnabled = "sunnad.notifications.habit.enabled"
         static let quoteRemindersEnabled = "sunnad.notifications.quote.enabled"
         static let groupRemindersEnabled = "sunnad.notifications.group.enabled"
+        static let hapticsEnabled = "sunnad.feedback.haptics.enabled"
+        static let soundsEnabled = "sunnad.feedback.sounds.enabled"
     }
 
     private enum PasswordRecoverySource {
@@ -63,6 +65,11 @@ final class AppRouteState: ObservableObject {
                 await syncGroupReminderPreferenceIfNeeded()
                 await refreshDebugReminderCountIfNeeded()
             }
+        }
+    }
+    @Published var feedbackPreferences = UIFeedbackPreferences() {
+        didSet {
+            persistFeedbackPreferences()
         }
     }
     @Published var showsOnboarding = true
@@ -161,6 +168,7 @@ final class AppRouteState: ObservableObject {
     private var otpResendCooldownsByKey: [String: Date] = [:]
     private var activeOTPResendKey: String?
     private var otpResendTimerTask: Task<Void, Never>?
+    private var todayReloadTask: Task<Void, Never>?
     private var currentSessionUserID: UUID?
 
     init(dependencies: DependencyContainer, userDefaults: UserDefaults = .standard) {
@@ -208,6 +216,7 @@ final class AppRouteState: ObservableObject {
         #endif
 
         notificationPreferences = loadNotificationPreferences()
+        feedbackPreferences = loadFeedbackPreferences()
 
         Task {
             await restoreAuthSessionIfNeeded()
@@ -217,6 +226,7 @@ final class AppRouteState: ObservableObject {
 
     deinit {
         otpResendTimerTask?.cancel()
+        todayReloadTask?.cancel()
     }
 
     var todayHabits: [UIHabit] {
@@ -456,22 +466,44 @@ final class AppRouteState: ObservableObject {
     }
 
     func toggleTodayHabit(_ habitID: UUID, source: String = "today") {
+        guard let transaction = todayViewModel.beginHabitToggle(habitID) else {
+            return
+        }
+
+        dependencies.analytics.trackHabit(
+            .completionToggled(
+                type: transaction.type,
+                status: transaction.status,
+                source: source
+            )
+        )
+        if transaction.status == "completed" {
+            dependencies.interactionFeedback.habitCompleted(hapticsEnabled: feedbackPreferences.hapticsEnabled)
+        }
+
         Task {
-            if let result = await todayViewModel.toggleHabit(habitID) {
-                dependencies.analytics.trackHabit(
-                    .completionToggled(
-                        type: result.type,
-                        status: result.status,
-                        source: source
-                    )
-                )
+            let didCommit = await todayViewModel.commitHabitToggle(transaction)
+            if didCommit {
+                scheduleTodayReload()
+            } else {
+                todayViewModel.rollbackHabitToggle(transaction)
             }
-            await loadTodayData()
         }
     }
 
     func toggleHabit(_ habitID: UUID) {
         toggleTodayHabit(habitID, source: "groups")
+    }
+
+    func handleDhikrCounterIncrement(reachedTarget: Bool) {
+        dependencies.interactionFeedback.dhikrIncremented(hapticsEnabled: feedbackPreferences.hapticsEnabled)
+        guard reachedTarget else {
+            return
+        }
+        dependencies.interactionFeedback.dhikrTargetReached(
+            hapticsEnabled: feedbackPreferences.hapticsEnabled,
+            soundsEnabled: feedbackPreferences.soundsEnabled
+        )
     }
 
     func addTemplateHabits(_ templates: [HabitTemplate]) {
@@ -595,6 +627,7 @@ final class AppRouteState: ObservableObject {
     }
 
     func deleteHabit(_ habitID: UUID) {
+        dependencies.interactionFeedback.destructiveAction(hapticsEnabled: feedbackPreferences.hapticsEnabled)
         if case .habitDetail(let selectedID) = rootSheet, selectedID == habitID {
             rootSheet = nil
         }
@@ -1090,12 +1123,14 @@ final class AppRouteState: ObservableObject {
     }
 
     func leaveGroup(_ groupID: UUID) {
+        dependencies.interactionFeedback.destructiveAction(hapticsEnabled: feedbackPreferences.hapticsEnabled)
         Task {
             await groupsViewModel.leaveGroup(groupID)
         }
     }
 
     func deleteGroup(_ groupID: UUID) {
+        dependencies.interactionFeedback.destructiveAction(hapticsEnabled: feedbackPreferences.hapticsEnabled)
         Task {
             await groupsViewModel.deleteGroup(groupID)
         }
@@ -1138,7 +1173,11 @@ final class AppRouteState: ObservableObject {
     }
 
     func sendGroupNudge(groupID: UUID, memberID: UUID, habitID: UUID) async -> GroupNudgeStatus {
-        await groupsViewModel.sendNudge(groupID: groupID, memberID: memberID, habitID: habitID)
+        let status = await groupsViewModel.sendNudge(groupID: groupID, memberID: memberID, habitID: habitID)
+        if status == .sent {
+            dependencies.interactionFeedback.groupNudgeSent(hapticsEnabled: feedbackPreferences.hapticsEnabled)
+        }
+        return status
     }
 
     private func handleOAuthSignIn(
@@ -1385,10 +1424,29 @@ final class AppRouteState: ObservableObject {
         )
     }
 
+    private func loadFeedbackPreferences() -> UIFeedbackPreferences {
+        let hasStoredHaptics = userDefaults.object(forKey: LocalStateKeys.hapticsEnabled) != nil
+        let hasStoredSounds = userDefaults.object(forKey: LocalStateKeys.soundsEnabled) != nil
+
+        return UIFeedbackPreferences(
+            hapticsEnabled: hasStoredHaptics
+                ? userDefaults.bool(forKey: LocalStateKeys.hapticsEnabled)
+                : true,
+            soundsEnabled: hasStoredSounds
+                ? userDefaults.bool(forKey: LocalStateKeys.soundsEnabled)
+                : false
+        )
+    }
+
     private func persistNotificationPreferences() {
         userDefaults.set(notificationPreferences.habitReminders, forKey: LocalStateKeys.habitRemindersEnabled)
         userDefaults.set(notificationPreferences.quoteReminder, forKey: LocalStateKeys.quoteRemindersEnabled)
         userDefaults.set(notificationPreferences.groupReminders, forKey: LocalStateKeys.groupRemindersEnabled)
+    }
+
+    private func persistFeedbackPreferences() {
+        userDefaults.set(feedbackPreferences.hapticsEnabled, forKey: LocalStateKeys.hapticsEnabled)
+        userDefaults.set(feedbackPreferences.soundsEnabled, forKey: LocalStateKeys.soundsEnabled)
     }
 
     private func syncGroupReminderPreferenceIfNeeded() async {
@@ -1463,6 +1521,17 @@ final class AppRouteState: ObservableObject {
                 Task { await self.loadTodayData() }
             }
             .store(in: &cancellables)
+    }
+
+    private func scheduleTodayReload() {
+        todayReloadTask?.cancel()
+        todayReloadTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+            await self?.loadTodayData()
+        }
     }
 
     private func loadTodayData() async {

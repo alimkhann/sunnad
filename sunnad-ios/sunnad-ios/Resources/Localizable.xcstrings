@@ -3884,6 +3884,52 @@
       }
     },
     "Layer": {},
+    "feedback.haptics": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haptics"
+          }
+        },
+        "kk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Діріл кері байланысы"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тактильный отклик"
+          }
+        }
+      }
+    },
+    "feedback.sounds": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sounds"
+          }
+        },
+        "kk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дыбыстар"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Звуки"
+          }
+        }
+      }
+    },
     "notifications.group_reminders": {
       "extractionState": "manual",
       "localizations": {
@@ -3949,6 +3995,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Напоминание о цитате дня"
+          }
+        }
+      }
+    },
+    "notifications.quote_daily_fallback_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daily quote"
+          }
+        },
+        "kk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Күнделікті нақыл сөз"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цитата дня"
           }
         }
       }
@@ -4823,6 +4892,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Конфиденциальность"
+          }
+        }
+      }
+    },
+    "profile.sounds_haptics": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sounds & Haptics"
+          }
+        },
+        "kk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дыбыстар мен діріл"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Звуки и тактильный отклик"
           }
         }
       }

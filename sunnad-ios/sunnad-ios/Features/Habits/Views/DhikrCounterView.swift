@@ -5,6 +5,7 @@ struct DhikrCounterView: View {
     @Binding var target: Int
     @Binding var selectedDhikrKey: String
     @Binding var countsByDhikr: [String: Int]
+    let onIncremented: (Bool) -> Void
 
     private let commonDhikrs = [
         "dhikr.choice.subhanallah",
@@ -151,7 +152,10 @@ struct DhikrCounterView: View {
     }
 
     private func increment() {
+        let previous = count
         count = min(count + 1, max(target, 1))
+        let reachedTarget = previous < target && count >= target
+        onIncremented(reachedTarget)
     }
 
     private func bootstrapDhikrCountsIfNeeded() {

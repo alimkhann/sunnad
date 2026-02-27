@@ -91,7 +91,12 @@ final class UserNotificationReminderScheduler: LocalReminderScheduling, Reminder
 
         for plan in plans {
             let trigger = UNCalendarNotificationTrigger(dateMatching: plan.dateComponents, repeats: false)
-            await addQuoteRequest(id: plan.identifier, body: plan.body, trigger: trigger)
+            await addQuoteRequest(
+                id: plan.identifier,
+                title: plan.title,
+                body: plan.body,
+                trigger: trigger
+            )
         }
 
         logger.log(.reminderSynced, metadata: ["scope": "quote", "enabled": "true", "count": "\(desiredIDs.count)"])
@@ -193,14 +198,15 @@ final class UserNotificationReminderScheduler: LocalReminderScheduling, Reminder
         "\(IdentifierPrefix.habit)\(habitID.uuidString)"
     }
 
-    private func addQuoteRequest(id: String, body: String, trigger: UNNotificationTrigger) async {
+    private func addQuoteRequest(id: String, title: String, body: String, trigger: UNNotificationTrigger) async {
         let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedBody.isEmpty else {
             return
         }
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let content = UNMutableNotificationContent()
-        content.title = L10n.t("notifications.quote_reminder")
+        content.title = trimmedTitle.isEmpty ? L10n.t("notifications.quote_daily_fallback_title") : trimmedTitle
         content.body = trimmedBody
         content.sound = .default
         content.userInfo = ["type": "quote_of_day"]

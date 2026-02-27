@@ -462,6 +462,23 @@ struct AppRouteStateAuthTests {
         #expect(state.authSuccessMessage == L10n.t("auth.change_password.updated"))
     }
 
+    @Test
+    func feedbackPreferencesPersistAcrossStateRebuild() async throws {
+        let defaults = makeIsolatedUserDefaults()
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: FakeAuthService(currentUserValue: nil),
+            deviceTokenSyncService: FakeDeviceTokenSyncService()
+        )
+
+        let firstState = AppRouteState(dependencies: dependencies, userDefaults: defaults)
+        firstState.feedbackPreferences = UIFeedbackPreferences(hapticsEnabled: false, soundsEnabled: true)
+
+        let rebuiltState = AppRouteState(dependencies: dependencies, userDefaults: defaults)
+        #expect(rebuiltState.feedbackPreferences.hapticsEnabled == false)
+        #expect(rebuiltState.feedbackPreferences.soundsEnabled == true)
+    }
+
     private func waitUntil(timeoutNanoseconds: UInt64, condition: @escaping @MainActor () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(TimeInterval(timeoutNanoseconds) / 1_000_000_000)
         while Date() < deadline {

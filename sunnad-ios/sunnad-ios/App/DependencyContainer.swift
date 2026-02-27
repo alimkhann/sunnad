@@ -25,6 +25,7 @@ final class DependencyContainer {
     let groupsRepository: GroupsRepository
     let syncCoordinator: SyncCoordinating
     let reminderScheduler: LocalReminderScheduling
+    let interactionFeedback: InteractionFeedbackClient
     let authService: AuthService
     let deviceTokenSyncService: DeviceTokenSyncing
     let ownerScopeResolver: LocalOwnerScopeResolver
@@ -36,6 +37,7 @@ final class DependencyContainer {
         environment: AppEnvironment? = nil,
         modelContainer: ModelContainer? = nil,
         analytics: AnalyticsClient? = nil,
+        interactionFeedback: InteractionFeedbackClient? = nil,
         authService: AuthService? = nil,
         deviceTokenSyncService: DeviceTokenSyncing? = nil,
         syncCoordinator: SyncCoordinating? = nil
@@ -99,6 +101,7 @@ final class DependencyContainer {
             ownerScopeProvider: ownerScopeResolver
         )
         reminderScheduler = UserNotificationReminderScheduler(logger: logger)
+        self.interactionFeedback = interactionFeedback ?? SystemInteractionFeedbackClient()
 
         let resolvedSupabase = Self.resolvedSupabaseConfig(
             environment: resolvedEnvironment,
@@ -319,6 +322,7 @@ final class DependencyContainer {
                     plans.append(
                         QuoteReminderPlan(
                             identifier: "quote-reminder-\(dayFormatter.string(from: day))",
+                            title: Self.quoteReminderTitle(from: quote.source),
                             body: snippet,
                             dateComponents: dateComponents
                         )
@@ -421,5 +425,16 @@ final class DependencyContainer {
         }
         let endIndex = normalized.index(normalized.startIndex, offsetBy: maxLength)
         return String(normalized[..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private static func quoteReminderTitle(from source: String?) -> String {
+        let normalizedAuthor = source?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\n", with: " ")
+
+        if let normalizedAuthor, !normalizedAuthor.isEmpty {
+            return "- \(normalizedAuthor)"
+        }
+        return L10n.t("notifications.quote_daily_fallback_title")
     }
 }

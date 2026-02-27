@@ -10,6 +10,7 @@ struct ProfileView: View {
     let selectedLanguage: AppLanguage
     @Binding var selectedAppearance: AppAppearance
     @Binding var notificationPreferences: UINotificationPreferences
+    @Binding var feedbackPreferences: UIFeedbackPreferences
 
     let onManageHabits: () -> Void
     let onOpenSavedQuotes: () -> Void
@@ -27,6 +28,7 @@ struct ProfileView: View {
     let helpURL: URL
 
     @State private var showsNotificationSettings = false
+    @State private var showsSoundsHapticsSettings = false
     @State private var showsFeedback = false
     @State private var showsAppearancePicker = false
     @State private var confirmsSignOut = false
@@ -117,6 +119,11 @@ struct ProfileView: View {
                         title: L10n.t("profile.notifications"),
                         action: { showsNotificationSettings = true }
                     )
+                    Divider().padding(.leading, 16)
+                    profileLinkRow(
+                        title: L10n.t("profile.sounds_haptics"),
+                        action: { showsSoundsHapticsSettings = true }
+                    )
                     if !user.isGuest {
                         Divider().padding(.leading, 16)
                         profileLinkRow(
@@ -200,6 +207,9 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showsNotificationSettings) {
             NotificationSettingsSheet(preferences: $notificationPreferences)
+        }
+        .sheet(isPresented: $showsSoundsHapticsSettings) {
+            SoundsHapticsSettingsSheet(preferences: $feedbackPreferences)
         }
         .sheet(isPresented: $showsFeedback) {
             FeedbackSheetView()

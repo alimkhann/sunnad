@@ -24,6 +24,7 @@ struct HabitDetailSheetView: View {
     let lastSevenCompletionMarksOverride: [Bool]?
     let onDelete: (UUID) -> Void
     let onUpdateHabitSharing: (UUID, Set<UUID>) -> Void
+    let onDhikrIncremented: (Bool) -> Void
 
     @State private var mode: HabitDetailMode = .details
     @State private var isSymbolPickerPresented = false
@@ -51,7 +52,8 @@ struct HabitDetailSheetView: View {
                             count: $habit.dhikrCount,
                             target: $habit.dhikrTarget,
                             selectedDhikrKey: $habit.selectedDhikrKey,
-                            countsByDhikr: $habit.dhikrCountsByKey
+                            countsByDhikr: $habit.dhikrCountsByKey,
+                            onIncremented: onDhikrIncremented
                         )
                     }
                 } else {

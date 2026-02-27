@@ -55,6 +55,11 @@ struct UINotificationPreferences: Equatable {
     var groupReminders = true
 }
 
+struct UIFeedbackPreferences: Equatable {
+    var hapticsEnabled = true
+    var soundsEnabled = false
+}
+
 enum AppTab: String, CaseIterable, Identifiable {
     case today
     case groups
@@ -417,6 +422,7 @@ struct UIGroup: Identifiable, Hashable {
     var sharedHabitIDs: Set<UUID>
     var ownerMemberID: UUID
     var currentUserMemberID: UUID?
+    var isPending: Bool
 
     init(
         id: UUID = UUID(),
@@ -426,7 +432,8 @@ struct UIGroup: Identifiable, Hashable {
         members: [UIGroupMember],
         sharedHabitIDs: Set<UUID>,
         ownerMemberID: UUID? = nil,
-        currentUserMemberID: UUID? = nil
+        currentUserMemberID: UUID? = nil,
+        isPending: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -436,5 +443,6 @@ struct UIGroup: Identifiable, Hashable {
         self.sharedHabitIDs = sharedHabitIDs
         self.ownerMemberID = ownerMemberID ?? members.first?.id ?? UUID()
         self.currentUserMemberID = currentUserMemberID
+        self.isPending = isPending
     }
 }
