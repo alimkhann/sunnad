@@ -65,7 +65,7 @@ begin
 
   -- Valid variant values
   begin
-    insert into public.waitlist_subscribers (email, variant) values ('test-var@example.com', '6');
+    insert into public.waitlist_subscribers (email, variant) values ('test-var@example.com', '123');
     raise exception 'Should have rejected invalid variant';
   exception when check_violation then
     null; -- expected
@@ -185,6 +185,9 @@ begin
   set local role postgres;
 end $$;
 
-raise notice '=== ALL STAGE 10 SMOKE TESTS PASSED ===';
+do $$
+begin
+  raise notice '=== ALL STAGE 10 SMOKE TESTS PASSED ===';
+end $$;
 
 rollback;
