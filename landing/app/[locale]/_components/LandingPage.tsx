@@ -13,6 +13,7 @@ import CountUp from "@/components/count-up";
 type Theme = "dark" | "light";
 type SupportedLocale = "en" | "ru" | "kk";
 type WaitlistSuccessStatus = "subscribed" | "already_subscribed";
+type CtaLocation = "hero" | "bottom_cta";
 
 const screenshotLocaleByLocale: Record<SupportedLocale, "en" | "ru" | "kz"> = {
   en: "en",
@@ -59,26 +60,32 @@ const translations = {
       "If you do not find what you need, contact us at",
     faqs: [
       {
+        id: "is_free",
         q: "Is Sunnad free to use?",
         a: "Yes, the core habit tracking and group features will always remain free. We may add optional premium icons and themes in the future to support development.",
       },
       {
+        id: "private_groups",
         q: "Can I create private groups with my friends?",
         a: "Yes. You can create invite-only groups so only people you choose can see your habits and check-ins. Perfect for close friends, family, or a small study circle.",
       },
       {
+        id: "habits_supported",
         q: "What kind of habits can I track?",
         a: "You can track multiple Islamic habits through templates such as prayer, Qur'an, adhkar, sadaqah, studying, and more, and see them in one focused view of your day.",
       },
       {
+        id: "analytics_work",
         q: "How does the analytics tracking work?",
         a: "Sunnad shows streaks, completion rates, and gentle charts so you can notice patterns without feeling guilt or overwhelmed.",
       },
       {
+        id: "security_privacy",
         q: "Is my data secure and private?",
         a: "Your data is encrypted in transit, and private by default. Group members only see what you choose to share inside each group.",
       },
       {
+        id: "social_feed",
         q: "Is this a social network or a feed?",
         a: "No. Sunnad is intentionally minimal: no endless scrolling, no likes, no comments, just focused habit tracking and group accountability.",
       },
@@ -127,26 +134,32 @@ const translations = {
       "Если вы не нашли нужный ответ, напишите нам:",
     faqs: [
       {
+        id: "is_free",
         q: "Sunnad бесплатный?",
         a: "Да, базовый трекинг привычек и групповые функции всегда останутся бесплатными. В будущем могут появиться только опциональные премиум-иконки и темы для поддержки разработки.",
       },
       {
+        id: "private_groups",
         q: "Можно создавать приватные группы с друзьями?",
         a: "Да. Вы можете создавать группы только по приглашению, чтобы привычки и отметки видели только выбранные вами люди. Это удобно для близких друзей, семьи или небольшой учебной группы.",
       },
       {
+        id: "habits_supported",
         q: "Какие привычки можно отслеживать?",
         a: "Можно отслеживать разные исламские привычки через шаблоны: намаз, Коран, азкары, садака, учеба и другие, и видеть их в одном сфокусированном плане на день.",
       },
       {
+        id: "analytics_work",
         q: "Как работает аналитика?",
         a: "Sunnad показывает серии, процент выполнения и мягкие графики, чтобы вы замечали закономерности без чувства вины и перегруза.",
       },
       {
+        id: "security_privacy",
         q: "Мои данные защищены и приватны?",
         a: "Данные шифруются при передаче и по умолчанию остаются приватными. Участники группы видят только то, чем вы решили поделиться в конкретной группе.",
       },
       {
+        id: "social_feed",
         q: "Это социальная сеть или лента?",
         a: "Нет. Sunnad намеренно минималистичен: без бесконечной ленты, лайков и комментариев, только сфокусированный трекинг привычек и групповая ответственность.",
       },
@@ -195,26 +208,32 @@ const translations = {
       "Қажетті жауап табылмаса, бізге жазыңыз:",
     faqs: [
       {
+        id: "is_free",
         q: "Sunnad тегін бе?",
         a: "Иә, негізгі әдет бақылауы мен топ мүмкіндіктері әрқашан тегін болады. Дамуды қолдау үшін болашақта тек қосымша премиум иконкалар мен тақырыптар қосылуы мүмкін.",
       },
       {
+        id: "private_groups",
         q: "Достармен жеке топ құруға бола ма?",
         a: "Иә. Тек шақыру арқылы кіретін топтар жасай аласыз, сонда әдеттеріңіз бен белгілеулеріңізді тек өзіңіз таңдаған адамдар көреді. Бұл жақын достарға, отбасыға немесе шағын оқу шеңберіне ыңғайлы.",
       },
       {
+        id: "habits_supported",
         q: "Қандай әдеттерді бақылай аламын?",
         a: "Намаз, Құран, азкар, садақа, оқу және басқа исламдық әдеттерді үлгілер арқылы бақылап, барлығын бір күндік нысаналы көріністе көре аласыз.",
       },
       {
+        id: "analytics_work",
         q: "Аналитика қалай жұмыс істейді?",
         a: "Sunnad серияларды, орындалу пайызын және жұмсақ графиктерді көрсетеді, сондықтан өз үлгілеріңізді кінә сезімінсіз және артық жүктемесіз байқайсыз.",
       },
       {
+        id: "security_privacy",
         q: "Деректерім қауіпсіз әрі жеке ме?",
         a: "Деректер тасымалдау кезінде шифрланады және әдепкіде жеке сақталады. Топ мүшелері тек сіз бөліскен ақпаратты ғана көреді.",
       },
       {
+        id: "social_feed",
         q: "Бұл әлеуметтік желі не лента ма?",
         a: "Жоқ. Sunnad әдейі минимал: шексіз скролл, лайк, пікір жоқ, тек нысаналы әдет бақылауы және топтық жауапкершілік.",
       },
@@ -263,11 +282,15 @@ function parseUtmParams(): Record<string, string> {
 // --- Form ---
 function MinimalWaitlist({
   locale,
+  theme,
+  ctaLocation,
   isDark,
   t,
   onSuccess,
 }: {
   locale: SupportedLocale;
+  theme: Theme;
+  ctaLocation: CtaLocation;
   isDark?: boolean;
   t: any;
   onSuccess?: (status: WaitlistSuccessStatus) => void;
@@ -277,16 +300,26 @@ function MinimalWaitlist({
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [token, setToken] = useState<string | null>(null);
+  const [hasTrackedFormStart, setHasTrackedFormStart] = useState(false);
   const hasTurnstile = Boolean(landingConfig.turnstileSiteKey);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email || status === "loading") return;
+
+    captureLandingEvent("landing_cta_clicked", {
+      locale,
+      theme,
+      path: window.location.pathname,
+      cta_location: ctaLocation,
+    });
+
     setStatus("loading");
     const res = await submitWaitlist({
       email,
       turnstileToken: token || "demo",
       locale,
+      ctaLocation,
     });
     if (res.status === "subscribed" || res.status === "already_subscribed") {
       setStatus("success");
@@ -309,6 +342,16 @@ function MinimalWaitlist({
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onFocus={() => {
+              if (hasTrackedFormStart) return;
+              setHasTrackedFormStart(true);
+              captureLandingEvent("landing_waitlist_form_started", {
+                locale,
+                theme,
+                path: window.location.pathname,
+                cta_location: ctaLocation,
+              });
+            }}
             placeholder={t.waitlistPlaceholder}
             className={`w-full border-none px-5 py-4 rounded-xl placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-all shadow-inner text-sm ${isDark ? "bg-[#1A1A1A] text-white" : "bg-[#F5F5F5] text-black"}`}
           />
@@ -451,10 +494,12 @@ function FAQSection({
   t,
   isDark,
   sectionRef,
+  onFAQExpanded,
 }: {
   t: any;
   isDark: boolean;
   sectionRef: React.MutableRefObject<HTMLElement | null>;
+  onFAQExpanded: (questionID: string) => void;
 }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -484,7 +529,7 @@ function FAQSection({
             const isOpen = openIndex === i;
             return (
               <div
-                key={i}
+                key={faq.id ?? i}
                 className={`overflow-hidden rounded-2xl border transition-colors ${
                   isDark
                     ? "bg-[#111] border-white/5"
@@ -492,7 +537,13 @@ function FAQSection({
                 }`}
               >
                 <button
-                  onClick={() => setOpenIndex(isOpen ? null : i)}
+                  onClick={() => {
+                    const nextOpen = isOpen ? null : i;
+                    setOpenIndex(nextOpen);
+                    if (nextOpen != null && faq.id) {
+                      onFAQExpanded(faq.id);
+                    }
+                  }}
                   className="w-full flex items-center justify-between p-6 text-left"
                 >
                   <span className="text-lg font-medium">{faq.q}</span>
@@ -585,6 +636,7 @@ export default function LandingPage({
   const bottomCTASectionRef = useRef<HTMLElement | null>(null);
   const viewedSectionsRef = useRef<Set<string>>(new Set());
   const hasTrackedAllSectionsRef = useRef(false);
+  const lastViewedSectionRef = useRef<string | null>(null);
 
   // Fetch real waitlist count
   const [count, setCount] = useState(0);
@@ -635,6 +687,7 @@ export default function LandingPage({
           if (viewedSectionsRef.current.has(sectionId)) continue;
 
           viewedSectionsRef.current.add(sectionId);
+          lastViewedSectionRef.current = sectionId;
           captureLandingEvent("landing_section_viewed", {
             locale: activeLocale,
             theme,
@@ -647,6 +700,7 @@ export default function LandingPage({
             !hasTrackedAllSectionsRef.current
           ) {
             hasTrackedAllSectionsRef.current = true;
+            lastViewedSectionRef.current = "bottom_cta";
             captureLandingEvent("landing_all_sections_viewed", {
               locale: activeLocale,
               theme,
@@ -666,6 +720,74 @@ export default function LandingPage({
     }
 
     return () => observer.disconnect();
+  }, [activeLocale, theme]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const trackedDepths = new Set<number>();
+    const thresholds = [25, 50, 75, 100];
+
+    const emitDepth = () => {
+      const doc = document.documentElement;
+      const scrollTop = window.scrollY || doc.scrollTop || 0;
+      const viewport = window.innerHeight || doc.clientHeight || 0;
+      const totalHeight = Math.max(doc.scrollHeight, document.body.scrollHeight);
+      if (totalHeight <= 0) return;
+
+      const percent = Math.min(100, Math.round(((scrollTop + viewport) / totalHeight) * 100));
+      for (const threshold of thresholds) {
+        if (percent < threshold || trackedDepths.has(threshold)) continue;
+        trackedDepths.add(threshold);
+        captureLandingEvent("landing_scroll_depth", {
+          locale: activeLocale,
+          theme,
+          path: window.location.pathname,
+          depth_percent: threshold,
+        });
+      }
+    };
+
+    emitDepth();
+    window.addEventListener("scroll", emitDepth, { passive: true });
+    window.addEventListener("resize", emitDepth);
+    return () => {
+      window.removeEventListener("scroll", emitDepth);
+      window.removeEventListener("resize", emitDepth);
+    };
+  }, [activeLocale, theme]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const startedAt = Date.now();
+    let sent = false;
+
+    const emitExit = () => {
+      if (sent) return;
+      sent = true;
+      const timeOnPageSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+      captureLandingEvent("landing_page_exited", {
+        locale: activeLocale,
+        theme,
+        path: window.location.pathname,
+        time_on_page_seconds: timeOnPageSeconds,
+        last_section_viewed: lastViewedSectionRef.current ?? "none",
+      });
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        emitExit();
+      }
+    };
+
+    window.addEventListener("pagehide", emitExit);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      emitExit();
+      window.removeEventListener("pagehide", emitExit);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [activeLocale, theme]);
 
   function handleWaitlistSuccess(status: WaitlistSuccessStatus): void {
@@ -777,6 +899,8 @@ export default function LandingPage({
           >
             <MinimalWaitlist
               locale={activeLocale}
+              theme={theme}
+              ctaLocation="hero"
               isDark={isDark}
               t={t}
               onSuccess={handleWaitlistSuccess}
@@ -898,7 +1022,19 @@ export default function LandingPage({
         sectionRef={featuresSectionRef}
       />
 
-      <FAQSection isDark={isDark} t={t} sectionRef={faqSectionRef} />
+      <FAQSection
+        isDark={isDark}
+        t={t}
+        sectionRef={faqSectionRef}
+        onFAQExpanded={(questionID) => {
+          captureLandingEvent("landing_faq_expanded", {
+            locale: activeLocale,
+            theme,
+            path: window.location.pathname,
+            question_id: questionID,
+          });
+        }}
+      />
 
       {/* Bottom Waitlist Section */}
       <section
@@ -912,6 +1048,8 @@ export default function LandingPage({
           <p className="text-gray-500 mb-12 text-lg">{t.bottomSubtitle}</p>
           <MinimalWaitlist
             locale={activeLocale}
+            theme={theme}
+            ctaLocation="bottom_cta"
             isDark={isDark}
             t={t}
             onSuccess={handleWaitlistSuccess}
