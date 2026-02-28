@@ -1,0 +1,471 @@
+package com.arystan.almasuly.sunnadandroid.features.profile
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.arystan.almasuly.sunnadandroid.BuildConfig
+import com.arystan.almasuly.sunnadandroid.R
+import com.arystan.almasuly.sunnadandroid.core.model.SessionUser
+import com.arystan.almasuly.sunnadandroid.services.AppAppearance
+import com.arystan.almasuly.sunnadandroid.services.AppLanguage
+import com.arystan.almasuly.sunnadandroid.ui.components.SunnadCard
+import com.arystan.almasuly.sunnadandroid.ui.components.SunnadListRow
+import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenPadding
+import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenSurface
+import com.arystan.almasuly.sunnadandroid.ui.components.SunnadSectionHeader
+
+@Composable
+fun ProfileScreen(
+    state: ProfileUiState,
+    user: SessionUser?,
+    onRefresh: () -> Unit,
+    onSetLanguage: (AppLanguage) -> Unit,
+    onSetAppearance: (AppAppearance) -> Unit,
+    onSetHabitReminder: (Boolean) -> Unit,
+    onSetQuoteReminder: (Boolean) -> Unit,
+    onSetGroupReminder: (Boolean) -> Unit,
+    onSetHaptics: (Boolean) -> Unit,
+    onSetSounds: (Boolean) -> Unit,
+    onClearSavedQuotes: () -> Unit,
+    onRequestSignIn: () -> Unit,
+    onSignOut: () -> Unit,
+    onOpenSavedQuotes: () -> Unit,
+    onOpenInsights: () -> Unit,
+    debugAuthStatus: String? = null
+) {
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    var showAppearanceDialog by remember { mutableStateOf(false) }
+    var showNotificationDialog by remember { mutableStateOf(false) }
+    var showSoundDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) { onRefresh() }
+
+    SunnadScreenSurface {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = SunnadScreenPadding),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Text(
+                    text = stringResource(R.string.tab_profile),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            item { SunnadSectionHeader(stringResource(R.string.profile_account_section)) }
+            item {
+                SunnadCard(contentPadding = 10.dp) {
+                    if (user == null) {
+                        SunnadListRow(
+                            title = stringResource(R.string.profile_guest_mode),
+                            subtitle = stringResource(R.string.profile_tap_sign_in_short),
+                            leading = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Person,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            trailing = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = onRequestSignIn
+                        )
+                    } else {
+                        SunnadListRow(
+                            title = user.displayName,
+                            subtitle = user.email,
+                            leading = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Person,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        )
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                        SunnadListRow(
+                            title = stringResource(R.string.auth_sign_out),
+                            trailing = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = onSignOut
+                        )
+                    }
+                }
+            }
+
+            item { SunnadSectionHeader(stringResource(R.string.profile_saved_section)) }
+            item {
+                SunnadCard(contentPadding = 10.dp) {
+                    SunnadListRow(
+                        title = stringResource(R.string.profile_saved_quotes),
+                        subtitle = stringResource(R.string.profile_saved_quotes_count, state.savedQuotes.size),
+                        trailing = {
+                            Icon(
+                                imageVector = Icons.Rounded.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        onClick = onOpenSavedQuotes
+                    )
+                }
+            }
+
+            item { SunnadSectionHeader(stringResource(R.string.profile_habits_section)) }
+            item {
+                SunnadCard(contentPadding = 10.dp) {
+                    SunnadListRow(
+                        title = stringResource(R.string.profile_manage_habits),
+                        trailing = {
+                            Icon(
+                                imageVector = Icons.Rounded.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    )
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    SunnadListRow(
+                        title = stringResource(R.string.profile_insights),
+                        trailing = {
+                            Icon(
+                                imageVector = Icons.Rounded.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        onClick = onOpenInsights
+                    )
+                }
+            }
+
+            item { SunnadSectionHeader(stringResource(R.string.profile_settings_section)) }
+            item {
+                SunnadCard(contentPadding = 10.dp) {
+                    SunnadListRow(
+                        title = stringResource(R.string.profile_appearance),
+                        subtitle = appearanceDisplayName(state.appearance),
+                        trailing = {
+                            Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        },
+                        onClick = { showAppearanceDialog = true }
+                    )
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    SunnadListRow(
+                        title = stringResource(R.string.profile_language),
+                        subtitle = languageDisplayName(state.language),
+                        trailing = {
+                            Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        },
+                        onClick = { showLanguageDialog = true }
+                    )
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    SunnadListRow(
+                        title = stringResource(R.string.profile_notifications),
+                        trailing = {
+                            Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        },
+                        onClick = { showNotificationDialog = true }
+                    )
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    SunnadListRow(
+                        title = stringResource(R.string.profile_sounds_haptics),
+                        trailing = {
+                            Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        },
+                        onClick = { showSoundDialog = true }
+                    )
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    SunnadListRow(
+                        title = stringResource(R.string.profile_privacy),
+                        trailing = {
+                            Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    )
+                }
+            }
+
+            item { SunnadSectionHeader(stringResource(R.string.profile_support_section)) }
+            item {
+                SunnadCard(contentPadding = 10.dp) {
+                    SunnadListRow(
+                        title = stringResource(R.string.profile_help_faq),
+                        trailing = { Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    )
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                    SunnadListRow(
+                        title = stringResource(R.string.profile_send_feedback),
+                        trailing = { Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    )
+                }
+            }
+
+            item { SunnadSectionHeader(stringResource(R.string.profile_danger_section)) }
+            item {
+                SunnadCard(contentPadding = 10.dp) {
+                    SunnadListRow(
+                        title = stringResource(R.string.profile_delete_data),
+                        leading = {
+                            Icon(
+                                imageVector = Icons.Rounded.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFFF4D5A)
+                            )
+                        },
+                        titleColor = Color(0xFFFF4D5A),
+                        trailing = {
+                            Icon(
+                                imageVector = Icons.Rounded.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        onClick = onClearSavedQuotes
+                    )
+                }
+            }
+
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.profile_version, BuildConfig.VERSION_NAME),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    debugAuthStatus?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+            }
+
+            item { Box(modifier = Modifier.height(96.dp)) }
+        }
+    }
+
+    if (showLanguageDialog) {
+        AlertDialog(
+            onDismissRequest = { showLanguageDialog = false },
+            title = { Text(stringResource(R.string.profile_language)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppLanguage.entries.forEach { language ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(languageDisplayName(language))
+                            TextButton(onClick = {
+                                onSetLanguage(language)
+                                showLanguageDialog = false
+                            }) {
+                                Text(if (state.language == language) stringResource(R.string.common_selected) else stringResource(R.string.common_select))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLanguageDialog = false }) {
+                    Text(stringResource(R.string.common_done))
+                }
+            }
+        )
+    }
+
+    if (showAppearanceDialog) {
+        AlertDialog(
+            onDismissRequest = { showAppearanceDialog = false },
+            title = { Text(stringResource(R.string.profile_appearance)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppAppearance.entries.forEach { appearance ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(appearanceDisplayName(appearance))
+                            TextButton(onClick = {
+                                onSetAppearance(appearance)
+                                showAppearanceDialog = false
+                            }) {
+                                Text(if (state.appearance == appearance) stringResource(R.string.common_selected) else stringResource(R.string.common_select))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAppearanceDialog = false }) {
+                    Text(stringResource(R.string.common_done))
+                }
+            }
+        )
+    }
+
+    if (showNotificationDialog) {
+        AlertDialog(
+            onDismissRequest = { showNotificationDialog = false },
+            title = { Text(stringResource(R.string.profile_notifications)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NotificationToggle(stringResource(R.string.profile_habit_reminders), state.settings.habitRemindersEnabled, onSetHabitReminder)
+                    NotificationToggle(stringResource(R.string.profile_quote_reminder), state.settings.quoteReminderEnabled, onSetQuoteReminder)
+                    NotificationToggle(stringResource(R.string.profile_group_reminders), state.settings.groupRemindersEnabled, onSetGroupReminder)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showNotificationDialog = false }) {
+                    Text(stringResource(R.string.common_done))
+                }
+            }
+        )
+    }
+
+    if (showSoundDialog) {
+        AlertDialog(
+            onDismissRequest = { showSoundDialog = false },
+            title = { Text(stringResource(R.string.profile_sounds_haptics)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NotificationToggle(stringResource(R.string.profile_haptics), state.settings.hapticsEnabled, onSetHaptics)
+                    NotificationToggle(stringResource(R.string.profile_sounds), state.settings.soundsEnabled, onSetSounds)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSoundDialog = false }) {
+                    Text(stringResource(R.string.common_done))
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SavedQuotesSheet(
+    state: ProfileUiState,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = SunnadScreenPadding, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.profile_saved_quotes),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (state.savedQuotes.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.profile_saved_quotes_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                state.savedQuotes.forEach { quote ->
+                    SunnadCard {
+                        Text(quote.text, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = quote.author,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            Box(modifier = Modifier.height(12.dp))
+        }
+    }
+}
+
+@Composable
+private fun NotificationToggle(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun languageDisplayName(language: AppLanguage): String {
+    return when (language) {
+        AppLanguage.EN -> stringResource(R.string.language_english)
+        AppLanguage.RU -> stringResource(R.string.language_russian)
+        AppLanguage.KK -> stringResource(R.string.language_kazakh)
+    }
+}
+
+@Composable
+private fun appearanceDisplayName(appearance: AppAppearance): String {
+    return when (appearance) {
+        AppAppearance.SYSTEM -> stringResource(R.string.appearance_system)
+        AppAppearance.LIGHT -> stringResource(R.string.appearance_light)
+        AppAppearance.DARK -> stringResource(R.string.appearance_dark)
+    }
+}
