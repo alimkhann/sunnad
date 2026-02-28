@@ -44,3 +44,6 @@ backups/**
 *.sql.enc
 *.sha256
 manifest.json
+
+# Local source asset copy (moved into Android resources)
+apple-logo.png
