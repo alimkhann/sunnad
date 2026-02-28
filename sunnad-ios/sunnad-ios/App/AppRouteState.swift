@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Network
 import SwiftUI
 import UIKit
 
@@ -12,6 +13,11 @@ final class AppRouteState: ObservableObject {
         static let habitRemindersEnabled = "sunnad.notifications.habit.enabled"
         static let quoteRemindersEnabled = "sunnad.notifications.quote.enabled"
         static let groupRemindersEnabled = "sunnad.notifications.group.enabled"
+        static let hapticsEnabled = "sunnad.feedback.haptics.enabled"
+        static let soundsEnabled = "sunnad.feedback.sounds.enabled"
+        static func analyticsFirstSeenDate(distinctID: String) -> String {
+            "sunnad.analytics.first_seen.\(distinctID)"
+        }
     }
 
     private enum PasswordRecoverySource {
@@ -63,6 +69,12 @@ final class AppRouteState: ObservableObject {
                 await syncGroupReminderPreferenceIfNeeded()
                 await refreshDebugReminderCountIfNeeded()
             }
+            updateAnalyticsPersonPropertiesIfNeeded()
+        }
+    }
+    @Published var feedbackPreferences = UIFeedbackPreferences() {
+        didSet {
+            persistFeedbackPreferences()
         }
     }
     @Published var showsOnboarding = true
@@ -85,6 +97,7 @@ final class AppRouteState: ObservableObject {
             Task {
                 await groupsViewModel.syncHabits(habits)
             }
+            updateAnalyticsPersonPropertiesIfNeeded()
         }
     }
 
@@ -161,11 +174,22 @@ final class AppRouteState: ObservableObject {
     private var otpResendCooldownsByKey: [String: Date] = [:]
     private var activeOTPResendKey: String?
     private var otpResendTimerTask: Task<Void, Never>?
+    private var todayReloadTask: Task<Void, Never>?
     private var currentSessionUserID: UUID?
+    private var streakByHabitID: [UUID: Int] = [:]
+    private let sessionTracker: AppSessionAnalyticsTracker
+    private let connectivityMonitor = NWPathMonitor()
+    private let connectivityMonitorQueue = DispatchQueue(label: "com.sunnad.connectivity.monitor")
 
     init(dependencies: DependencyContainer, userDefaults: UserDefaults = .standard) {
         self.dependencies = dependencies
         self.userDefaults = userDefaults
+        self.sessionTracker = AppSessionAnalyticsTracker(
+            analytics: dependencies.analytics,
+            consumeNotificationOpenSource: {
+                dependencies.notificationInteractionTracker.consumePendingOpenSource()
+            }
+        )
 
         let initialHabits = UIFixtures.initialHabits
 
@@ -202,12 +226,14 @@ final class AppRouteState: ObservableObject {
         bindTodayViewModel()
         bindChildViewModels()
         bindTimeChangeNotifications()
+        startConnectivityMonitoring()
 
         #if DEBUG
         applyDebugLaunchOverrides()
         #endif
 
         notificationPreferences = loadNotificationPreferences()
+        feedbackPreferences = loadFeedbackPreferences()
 
         Task {
             await restoreAuthSessionIfNeeded()
@@ -217,6 +243,8 @@ final class AppRouteState: ObservableObject {
 
     deinit {
         otpResendTimerTask?.cancel()
+        todayReloadTask?.cancel()
+        connectivityMonitor.cancel()
     }
 
     var todayHabits: [UIHabit] {
@@ -456,22 +484,52 @@ final class AppRouteState: ObservableObject {
     }
 
     func toggleTodayHabit(_ habitID: UUID, source: String = "today") {
+        guard let transaction = todayViewModel.beginHabitToggle(habitID) else {
+            return
+        }
+
+        dependencies.analytics.trackHabit(
+            .completionToggled(
+                type: transaction.type,
+                status: transaction.status,
+                source: source
+            )
+        )
+        if transaction.status == "completed" {
+            dependencies.interactionFeedback.habitCompleted(hapticsEnabled: feedbackPreferences.hapticsEnabled)
+        }
+
         Task {
-            if let result = await todayViewModel.toggleHabit(habitID) {
-                dependencies.analytics.trackHabit(
-                    .completionToggled(
-                        type: result.type,
-                        status: result.status,
-                        source: source
-                    )
-                )
+            let didCommit = await todayViewModel.commitHabitToggle(transaction)
+            if didCommit {
+                scheduleTodayReload()
+            } else {
+                todayViewModel.rollbackHabitToggle(transaction)
             }
-            await loadTodayData()
         }
     }
 
     func toggleHabit(_ habitID: UUID) {
         toggleTodayHabit(habitID, source: "groups")
+    }
+
+    func appDidBecomeActive() {
+        sessionTracker.appDidBecomeActive()
+    }
+
+    func appDidEnterBackground() {
+        sessionTracker.appDidEnterBackground()
+    }
+
+    func handleDhikrCounterIncrement(reachedTarget: Bool) {
+        dependencies.interactionFeedback.dhikrIncremented(hapticsEnabled: feedbackPreferences.hapticsEnabled)
+        guard reachedTarget else {
+            return
+        }
+        dependencies.interactionFeedback.dhikrTargetReached(
+            hapticsEnabled: feedbackPreferences.hapticsEnabled,
+            soundsEnabled: feedbackPreferences.soundsEnabled
+        )
     }
 
     func addTemplateHabits(_ templates: [HabitTemplate]) {
@@ -495,7 +553,8 @@ final class AppRouteState: ObservableObject {
                 .created(
                     type: template.isDhikr ? "dhikr" : "binary",
                     scheduleType: UIHabitSchedule.daily.rawValue,
-                    hasReminder: false
+                    hasReminder: false,
+                    targetCount: template.isDhikr ? 33 : 0
                 )
             )
         }
@@ -531,7 +590,8 @@ final class AppRouteState: ObservableObject {
             .created(
                 type: hasDhikrCounter ? "dhikr" : "binary",
                 scheduleType: schedule.rawValue,
-                hasReminder: reminderTime != nil
+                hasReminder: reminderTime != nil,
+                targetCount: hasDhikrCounter ? habit.dhikrTarget : 0
             )
         )
     }
@@ -595,6 +655,7 @@ final class AppRouteState: ObservableObject {
     }
 
     func deleteHabit(_ habitID: UUID) {
+        dependencies.interactionFeedback.destructiveAction(hapticsEnabled: feedbackPreferences.hapticsEnabled)
         if case .habitDetail(let selectedID) = rootSheet, selectedID == habitID {
             rootSheet = nil
         }
@@ -836,6 +897,7 @@ final class AppRouteState: ObservableObject {
     }
 
     func handleIncomingURL(_ url: URL) {
+        sessionTracker.markDeepLinkOpened()
         guard isPotentialAuthCallbackURL(url) else {
             return
         }
@@ -1090,12 +1152,14 @@ final class AppRouteState: ObservableObject {
     }
 
     func leaveGroup(_ groupID: UUID) {
+        dependencies.interactionFeedback.destructiveAction(hapticsEnabled: feedbackPreferences.hapticsEnabled)
         Task {
             await groupsViewModel.leaveGroup(groupID)
         }
     }
 
     func deleteGroup(_ groupID: UUID) {
+        dependencies.interactionFeedback.destructiveAction(hapticsEnabled: feedbackPreferences.hapticsEnabled)
         Task {
             await groupsViewModel.deleteGroup(groupID)
         }
@@ -1138,7 +1202,20 @@ final class AppRouteState: ObservableObject {
     }
 
     func sendGroupNudge(groupID: UUID, memberID: UUID, habitID: UUID) async -> GroupNudgeStatus {
-        await groupsViewModel.sendNudge(groupID: groupID, memberID: memberID, habitID: habitID)
+        let status = await groupsViewModel.sendNudge(groupID: groupID, memberID: memberID, habitID: habitID)
+        if status == .sent {
+            dependencies.interactionFeedback.groupNudgeSent(hapticsEnabled: feedbackPreferences.hapticsEnabled)
+        }
+        return status
+    }
+
+    func trackGroupMemberProgressViewed(memberScope: String, sharedHabitsCount: Int) {
+        dependencies.analytics.trackGroupInsight(
+            .memberProgressViewed(
+                memberScope: memberScope,
+                sharedHabitsCount: sharedHabitsCount
+            )
+        )
     }
 
     private func handleOAuthSignIn(
@@ -1385,10 +1462,29 @@ final class AppRouteState: ObservableObject {
         )
     }
 
+    private func loadFeedbackPreferences() -> UIFeedbackPreferences {
+        let hasStoredHaptics = userDefaults.object(forKey: LocalStateKeys.hapticsEnabled) != nil
+        let hasStoredSounds = userDefaults.object(forKey: LocalStateKeys.soundsEnabled) != nil
+
+        return UIFeedbackPreferences(
+            hapticsEnabled: hasStoredHaptics
+                ? userDefaults.bool(forKey: LocalStateKeys.hapticsEnabled)
+                : true,
+            soundsEnabled: hasStoredSounds
+                ? userDefaults.bool(forKey: LocalStateKeys.soundsEnabled)
+                : false
+        )
+    }
+
     private func persistNotificationPreferences() {
         userDefaults.set(notificationPreferences.habitReminders, forKey: LocalStateKeys.habitRemindersEnabled)
         userDefaults.set(notificationPreferences.quoteReminder, forKey: LocalStateKeys.quoteRemindersEnabled)
         userDefaults.set(notificationPreferences.groupReminders, forKey: LocalStateKeys.groupRemindersEnabled)
+    }
+
+    private func persistFeedbackPreferences() {
+        userDefaults.set(feedbackPreferences.hapticsEnabled, forKey: LocalStateKeys.hapticsEnabled)
+        userDefaults.set(feedbackPreferences.soundsEnabled, forKey: LocalStateKeys.soundsEnabled)
     }
 
     private func syncGroupReminderPreferenceIfNeeded() async {
@@ -1431,6 +1527,13 @@ final class AppRouteState: ObservableObject {
             }
             .store(in: &cancellables)
 
+        groupsViewModel.$groups
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateAnalyticsPersonPropertiesIfNeeded()
+            }
+            .store(in: &cancellables)
+
         profileViewModel.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -1465,9 +1568,21 @@ final class AppRouteState: ObservableObject {
             .store(in: &cancellables)
     }
 
+    private func scheduleTodayReload() {
+        todayReloadTask?.cancel()
+        todayReloadTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+            await self?.loadTodayData()
+        }
+    }
+
     private func loadTodayData() async {
         await reloadAllHabitsFromStorage()
         await todayViewModel.loadToday()
+        trackStreakTransitions(using: todayViewModel.habits)
         await profileViewModel.load()
         dependencies.syncHabitReminders(enabled: notificationPreferences.habitReminders)
         dependencies.syncQuoteReminders(enabled: notificationPreferences.quoteReminder, locale: language.localeIdentifier)
@@ -1476,6 +1591,7 @@ final class AppRouteState: ObservableObject {
             await dependencies.syncCoordinator.runSyncCycle(trigger: .foreground)
             await groupsViewModel.refresh()
         }
+        updateAnalyticsPersonPropertiesIfNeeded()
         await refreshDebugReminderCountIfNeeded()
     }
 
@@ -1739,6 +1855,7 @@ final class AppRouteState: ObservableObject {
         await dependencies.syncCoordinator.runSyncCycle(trigger: trigger)
         await reloadAllHabitsFromStorage()
         await todayViewModel.loadToday()
+        trackStreakTransitions(using: todayViewModel.habits)
         await profileViewModel.load()
         await groupsViewModel.refresh()
         Task {
@@ -1995,17 +2112,19 @@ final class AppRouteState: ObservableObject {
     private func identifySignedInUser(_ sessionUser: SessionUser) {
         let distinctId = sessionUser.id.uuidString
 
+        let firstSeenDate = analyticsFirstSeenDate(for: distinctId)
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let firstSeenString = formatter.string(from: firstSeenDate)
+
         let userProperties: [String: Any] = [
             "is_guest": false,
             "language": language.rawValue,
             "locale": language.localeIdentifier,
+            "is_test_account": resolvedIsTestAccount(),
         ]
-
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let nowString = formatter.string(from: Date())
         let setOnce: [String: Any] = [
-            "first_seen_at": nowString,
+            "first_seen_at": firstSeenString,
         ]
 
         dependencies.analytics.identify(
@@ -2013,6 +2132,105 @@ final class AppRouteState: ObservableObject {
             userProperties: userProperties,
             userPropertiesSetOnce: setOnce
         )
+
+        updateAnalyticsPersonPropertiesIfNeeded()
+    }
+
+    private func updateAnalyticsPersonPropertiesIfNeeded() {
+        guard let currentSessionUserID else { return }
+        let distinctID = currentSessionUserID.uuidString
+        let firstSeenDate = analyticsFirstSeenDate(for: distinctID)
+        let calendar = Calendar.current
+        let daysSinceSignup = max(0, calendar.dateComponents([.day], from: firstSeenDate, to: Date()).day ?? 0)
+        let notificationsEnabled = notificationPreferences.habitReminders
+            || notificationPreferences.quoteReminder
+            || notificationPreferences.groupReminders
+        let activeGroupCount = groupsViewModel.groups.filter { !$0.isPending }.count
+
+        dependencies.analytics.setPersonProperties(
+            [
+                "habit_count": habits.count,
+                "is_group_member": activeGroupCount > 0,
+                "notifications_enabled": notificationsEnabled,
+                "days_since_signup": daysSinceSignup,
+                "is_test_account": resolvedIsTestAccount(),
+            ],
+            setOnce: nil
+        )
+    }
+
+    private func analyticsFirstSeenDate(for distinctID: String) -> Date {
+        let key = LocalStateKeys.analyticsFirstSeenDate(distinctID: distinctID)
+        if let stored = userDefaults.object(forKey: key) as? Date {
+            return stored
+        }
+        let now = Date()
+        userDefaults.set(now, forKey: key)
+        return now
+    }
+
+    private func resolvedIsTestAccount() -> Bool {
+        #if DEBUG
+        if let override = ProcessInfo.processInfo.environment["SUNNAD_ANALYTICS_TEST_ACCOUNT"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+           !override.isEmpty {
+            return override == "1" || override == "true" || override == "yes"
+        }
+        #endif
+
+        return dependencies.environment == .development
+    }
+
+    private func trackStreakTransitions(using todayHabits: [UIHabit]) {
+        let milestones = [3, 7, 14, 30, 60, 100]
+        if streakByHabitID.isEmpty {
+            streakByHabitID = Dictionary(uniqueKeysWithValues: todayHabits.map { ($0.id, max(0, $0.streak)) })
+            return
+        }
+        var nextSnapshot: [UUID: Int] = [:]
+        nextSnapshot.reserveCapacity(todayHabits.count)
+
+        for habit in todayHabits {
+            let previous = streakByHabitID[habit.id] ?? 0
+            let current = max(0, habit.streak)
+            let habitType = habit.isDhikr ? "dhikr" : "binary"
+
+            if previous > 0, current == 0 {
+                dependencies.analytics.trackStreak(
+                    .broken(
+                        habitType: habitType,
+                        previousStreakLength: previous
+                    )
+                )
+            }
+
+            if current > previous {
+                for milestone in milestones where previous < milestone && current >= milestone {
+                    dependencies.analytics.trackStreak(
+                        .achieved(
+                            habitType: habitType,
+                            streakLength: current,
+                            milestone: milestone
+                        )
+                    )
+                }
+            }
+
+            nextSnapshot[habit.id] = current
+        }
+
+        streakByHabitID = nextSnapshot
+    }
+
+    private func startConnectivityMonitoring() {
+        connectivityMonitor.pathUpdateHandler = { [weak self] path in
+            let isOnline = path.status == .satisfied
+            DispatchQueue.main.async {
+                self?.sessionTracker.updateConnectivity(isOnline: isOnline)
+            }
+        }
+        connectivityMonitor.start(queue: connectivityMonitorQueue)
     }
 
     #if DEBUG

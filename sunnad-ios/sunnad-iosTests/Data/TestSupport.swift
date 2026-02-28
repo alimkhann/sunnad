@@ -14,6 +14,7 @@ final class TestAnalyticsClient: AnalyticsClient, @unchecked Sendable {
     private(set) var captures: [(event: String, properties: [String: Any]?)] = []
     private(set) var screens: [(name: String, properties: [String: Any]?)] = []
     private(set) var identifies: [(distinctId: String, userProperties: [String: Any]?, setOnce: [String: Any]?)] = []
+    private(set) var personPropertiesUpdates: [(properties: [String: Any], setOnce: [String: Any]?)] = []
     private(set) var didReset = false
     private(set) var lastEnabled: Bool?
 
@@ -27,6 +28,10 @@ final class TestAnalyticsClient: AnalyticsClient, @unchecked Sendable {
 
     func identify(_ distinctId: String, userProperties: [String: Any]?, userPropertiesSetOnce: [String: Any]?) {
         identifies.append((distinctId: distinctId, userProperties: userProperties, setOnce: userPropertiesSetOnce))
+    }
+
+    func setPersonProperties(_ properties: [String: Any], setOnce: [String: Any]?) {
+        personPropertiesUpdates.append((properties: properties, setOnce: setOnce))
     }
 
     func reset() {

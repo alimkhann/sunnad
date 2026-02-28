@@ -38,6 +38,7 @@ struct sunnad_iosApp: App {
                 .onAppear {
                     backgroundSyncScheduler.register()
                     backgroundSyncScheduler.schedule()
+                    dependencies.notificationInteractionTracker.register()
                 }
         }
         .modelContainer(dependencies.modelContainer)

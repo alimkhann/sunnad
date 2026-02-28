@@ -13,6 +13,7 @@ export interface WaitlistResult {
 }
 
 const WAITLIST_VARIANT = "14";
+type CtaLocation = "hero" | "bottom_cta";
 
 function detectPlatform(): string {
   if (typeof navigator === "undefined") return "unknown";
@@ -28,6 +29,7 @@ function detectPlatform(): string {
 function trackWaitlistSubmitted(
   status: Extract<WaitlistStatus, "subscribed" | "already_subscribed">,
   locale: string,
+  ctaLocation: CtaLocation,
 ) {
   captureLandingEvent("landing_waitlist_submit_succeeded", {
     status,
@@ -35,6 +37,7 @@ function trackWaitlistSubmitted(
     variant: WAITLIST_VARIANT,
     platform: detectPlatform(),
     referral_source: "landing",
+    cta_location: ctaLocation,
   });
 }
 
@@ -42,6 +45,7 @@ function trackWaitlistFailed(
   status: Extract<WaitlistStatus, "rate_limited" | "error">,
   locale: string,
   errorType: string,
+  ctaLocation: CtaLocation,
 ) {
   captureLandingEvent("landing_waitlist_submit_failed", {
     status,
@@ -49,6 +53,7 @@ function trackWaitlistFailed(
     variant: WAITLIST_VARIANT,
     platform: detectPlatform(),
     referral_source: "landing",
+    cta_location: ctaLocation,
     error_type: errorType,
   });
 }
@@ -57,8 +62,9 @@ export async function submitWaitlist(params: {
   email: string;
   turnstileToken: string;
   locale: string;
+  ctaLocation: CtaLocation;
 }): Promise<WaitlistResult> {
-  const { email, turnstileToken, locale } = params;
+  const { email, turnstileToken, locale, ctaLocation } = params;
   const platform = detectPlatform();
 
   captureLandingEvent("landing_waitlist_submit_started", {
@@ -66,6 +72,7 @@ export async function submitWaitlist(params: {
     variant: WAITLIST_VARIANT,
     platform,
     referral_source: "landing",
+    cta_location: ctaLocation,
   });
 
   try {
@@ -90,31 +97,31 @@ export async function submitWaitlist(params: {
     );
 
     if (res.status === 429) {
-      trackWaitlistFailed("rate_limited", locale, "rate_limited");
+      trackWaitlistFailed("rate_limited", locale, "rate_limited", ctaLocation);
       return { status: "rate_limited" };
     }
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      trackWaitlistFailed("error", locale, `http_${res.status.toString()}`);
+      trackWaitlistFailed("error", locale, `http_${res.status.toString()}`, ctaLocation);
       return { status: "error", message: text || `HTTP ${res.status}` };
     }
 
     const data = await res.json();
 
     if (data.status === "already_subscribed") {
-      trackWaitlistSubmitted("already_subscribed", locale);
+      trackWaitlistSubmitted("already_subscribed", locale, ctaLocation);
       return { status: "already_subscribed" };
     }
     if (data.status === "subscribed") {
-      trackWaitlistSubmitted("subscribed", locale);
+      trackWaitlistSubmitted("subscribed", locale, ctaLocation);
       return { status: "subscribed" };
     }
 
-    trackWaitlistFailed("error", locale, "unexpected_response");
+    trackWaitlistFailed("error", locale, "unexpected_response", ctaLocation);
     return { status: "error", message: "Unexpected response" };
   } catch (err) {
-    trackWaitlistFailed("error", locale, "network");
+    trackWaitlistFailed("error", locale, "network", ctaLocation);
     return {
       status: "error",
       message: err instanceof Error ? err.message : "Network error",

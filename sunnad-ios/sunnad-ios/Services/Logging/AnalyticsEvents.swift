@@ -35,7 +35,7 @@ enum AnalyticsAuthStatus: String {
 }
 
 enum AnalyticsHabitEvent {
-    case created(type: String, scheduleType: String, hasReminder: Bool)
+    case created(type: String, scheduleType: String, hasReminder: Bool, targetCount: Int)
     case edited(changedFields: [String])
     case deleted(type: String)
     case completionToggled(type: String, status: String, source: String)
@@ -70,6 +70,26 @@ enum AnalyticsSyncEvent {
     )
 }
 
+enum AnalyticsAppLifecycleEvent {
+    case opened(source: String)
+    case backgrounded(sessionDurationSeconds: Int)
+    case offlineSessionCompleted(sessionDurationSeconds: Int, offlineDurationSeconds: Int)
+}
+
+enum AnalyticsStreakEvent {
+    case achieved(habitType: String, streakLength: Int, milestone: Int)
+    case broken(habitType: String, previousStreakLength: Int)
+}
+
+enum AnalyticsGroupInsightEvent {
+    case memberProgressViewed(memberScope: String, sharedHabitsCount: Int)
+}
+
+enum AnalyticsNotificationEvent {
+    case received(notificationType: String, source: String)
+    case tapped(notificationType: String, source: String)
+}
+
 extension AnalyticsClient {
     func trackScreen(_ screenId: AnalyticsScreen) {
         capture("screen_viewed", properties: ["screen_name": screenId.rawValue])
@@ -99,13 +119,14 @@ extension AnalyticsClient {
 
     func trackHabit(_ event: AnalyticsHabitEvent) {
         switch event {
-        case let .created(type, scheduleType, hasReminder):
+        case let .created(type, scheduleType, hasReminder, targetCount):
             capture(
                 "habit_created",
                 properties: [
                     "type": type,
                     "schedule_type": scheduleType,
                     "has_reminder": hasReminder,
+                    "target_count": targetCount,
                 ]
             )
         case let .edited(changedFields):
@@ -188,6 +209,79 @@ extension AnalyticsClient {
                 properties["error_code"] = code
             }
             capture("sync_cycle_result", properties: properties)
+        }
+    }
+
+    func trackAppLifecycle(_ event: AnalyticsAppLifecycleEvent) {
+        switch event {
+        case let .opened(source):
+            capture("app_opened", properties: ["source": source])
+        case let .backgrounded(sessionDurationSeconds):
+            capture("app_backgrounded", properties: ["session_duration_seconds": sessionDurationSeconds])
+        case let .offlineSessionCompleted(sessionDurationSeconds, offlineDurationSeconds):
+            capture(
+                "offline_session_completed",
+                properties: [
+                    "session_duration_seconds": sessionDurationSeconds,
+                    "offline_duration_seconds": offlineDurationSeconds,
+                ]
+            )
+        }
+    }
+
+    func trackStreak(_ event: AnalyticsStreakEvent) {
+        switch event {
+        case let .achieved(habitType, streakLength, milestone):
+            capture(
+                "habit_streak_achieved",
+                properties: [
+                    "habit_type": habitType,
+                    "streak_length": streakLength,
+                    "milestone": milestone,
+                ]
+            )
+        case let .broken(habitType, previousStreakLength):
+            capture(
+                "habit_streak_broken",
+                properties: [
+                    "habit_type": habitType,
+                    "previous_streak_length": previousStreakLength,
+                ]
+            )
+        }
+    }
+
+    func trackGroupInsight(_ event: AnalyticsGroupInsightEvent) {
+        switch event {
+        case let .memberProgressViewed(memberScope, sharedHabitsCount):
+            capture(
+                "group_member_progress_viewed",
+                properties: [
+                    "member_scope": memberScope,
+                    "shared_habits_count": sharedHabitsCount,
+                ]
+            )
+        }
+    }
+
+    func trackNotification(_ event: AnalyticsNotificationEvent) {
+        switch event {
+        case let .received(notificationType, source):
+            capture(
+                "notification_received",
+                properties: [
+                    "notification_type": notificationType,
+                    "source": source,
+                ]
+            )
+        case let .tapped(notificationType, source):
+            capture(
+                "notification_tapped",
+                properties: [
+                    "notification_type": notificationType,
+                    "source": source,
+                ]
+            )
         }
     }
 }

@@ -3,6 +3,12 @@ import Foundation
 
 @MainActor
 final class GroupsViewModel: ObservableObject {
+    private struct SharingPipelineState {
+        var desiredHabitIDs: Set<UUID>
+        var committedHabitIDs: Set<UUID>
+        var isInFlight: Bool
+    }
+
     @Published private(set) var groups: [UIGroup] = []
     @Published private(set) var user: UIUserState = .guest
     @Published private(set) var habits: [UIHabit] = []
@@ -12,7 +18,7 @@ final class GroupsViewModel: ObservableObject {
     private let groupsRepository: GroupsRepository
     private let logger: AnalyticsLogging
     private let analytics: AnalyticsClient
-    private var sharingUpdateRevisions: [UUID: Int] = [:]
+    private var sharingPipelines: [UUID: SharingPipelineState] = [:]
 
     init(
         groupsRepository: GroupsRepository,
@@ -40,6 +46,7 @@ final class GroupsViewModel: ObservableObject {
     func refresh() async {
         guard !user.isGuest else {
             groups = []
+            sharingPipelines = [:]
             return
         }
 
@@ -49,6 +56,7 @@ final class GroupsViewModel: ObservableObject {
         do {
             let fetchedGroups = try await groupsRepository.fetchGroups().map { $0.asUIGroup() }
             groups = refreshGroupProgress(for: fetchedGroups)
+            syncSharingPipelines(with: groups)
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -62,8 +70,10 @@ final class GroupsViewModel: ObservableObject {
             if let group = try await groupsRepository.refreshGroup(groupID: groupID)?.asUIGroup() {
                 mergeOrAppend(group)
                 groups = refreshGroupProgress(for: groups)
+                syncSharingPipeline(for: groupID)
             } else {
                 groups.removeAll(where: { $0.id == groupID })
+                sharingPipelines.removeValue(forKey: groupID)
             }
             errorMessage = nil
         } catch {
@@ -80,16 +90,25 @@ final class GroupsViewModel: ObservableObject {
 
     func createGroup(name: String) async {
         guard !user.isGuest else { return }
+        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedName.isEmpty else { return }
+
+        let pendingGroup = makePendingGroup(name: normalizedName, code: "…")
+        groups.append(pendingGroup)
+        groups = refreshGroupProgress(for: groups)
+
         do {
             let group = try await groupsRepository
-                .createGroup(name: name.trimmingCharacters(in: .whitespacesAndNewlines))
+                .createGroup(name: normalizedName)
                 .asUIGroup()
-            mergeOrAppend(group)
+            replacePendingGroup(withID: pendingGroup.id, with: group)
             groups = refreshGroupProgress(for: groups)
-            await refresh()
+            syncSharingPipeline(for: group.id)
             errorMessage = nil
             analytics.trackGroup(.created)
         } catch {
+            groups.removeAll(where: { $0.id == pendingGroup.id })
+            groups = refreshGroupProgress(for: groups)
             errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_create", "error": error.localizedDescription])
         }
@@ -97,14 +116,26 @@ final class GroupsViewModel: ObservableObject {
 
     func joinGroup(code: String) async {
         guard !user.isGuest else { return }
+        let normalizedCode = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard !normalizedCode.isEmpty else { return }
+
+        let pendingGroup = makePendingGroup(
+            name: "\(L10n.t("groups.join")) \(normalizedCode)",
+            code: normalizedCode
+        )
+        groups.append(pendingGroup)
+        groups = refreshGroupProgress(for: groups)
+
         do {
-            let group = try await groupsRepository.joinGroup(code: code).asUIGroup()
-            mergeOrAppend(group)
+            let group = try await groupsRepository.joinGroup(code: normalizedCode).asUIGroup()
+            replacePendingGroup(withID: pendingGroup.id, with: group)
             groups = refreshGroupProgress(for: groups)
-            await refresh()
+            syncSharingPipeline(for: group.id)
             errorMessage = nil
             analytics.trackGroup(.joinResult(status: "success", reason: nil))
         } catch {
+            groups.removeAll(where: { $0.id == pendingGroup.id })
+            groups = refreshGroupProgress(for: groups)
             errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_join", "error": error.localizedDescription])
             analytics.trackGroup(.joinResult(status: "failure", reason: "error"))
@@ -142,36 +173,24 @@ final class GroupsViewModel: ObservableObject {
     }
 
     func updateGroupSharing(groupID: UUID, habitIDs: Set<UUID>) async {
-        let before = groups.first(where: { $0.id == groupID })?.sharedHabitIDs ?? []
-        let revision = (sharingUpdateRevisions[groupID] ?? 0) + 1
-        sharingUpdateRevisions[groupID] = revision
-
+        guard !user.isGuest else { return }
+        let currentSharedHabitIDs = groups.first(where: { $0.id == groupID })?.sharedHabitIDs ?? []
         applyOptimisticSharing(groupID: groupID, habitIDs: habitIDs)
+        var pipeline = sharingPipelines[groupID] ?? SharingPipelineState(
+            desiredHabitIDs: habitIDs,
+            committedHabitIDs: currentSharedHabitIDs,
+            isInFlight: false
+        )
+        pipeline.desiredHabitIDs = habitIDs
+        sharingPipelines[groupID] = pipeline
 
-        do {
-            try await groupsRepository.updateSharing(groupID: groupID, habitIDs: habitIDs)
-            guard sharingUpdateRevisions[groupID] == revision else {
-                return
-            }
-            await refreshGroup(groupID: groupID)
-            let delta = habitIDs.count - before.count
-            if delta != 0 {
-                analytics.trackGroup(.sharingUpdated(delta: delta, totalShared: habitIDs.count))
-            }
-        } catch {
-            guard sharingUpdateRevisions[groupID] == revision else {
-                return
-            }
-            errorMessage = error.localizedDescription
-            await refreshGroup(groupID: groupID)
-            logger.log(.storageFailure, metadata: ["scope": "groups_update_sharing", "error": error.localizedDescription])
-        }
+        await flushSharingPipeline(groupID: groupID)
     }
 
     func updateHabitSharing(habitID: UUID, sharedGroupIDs: Set<UUID>) async {
         guard !groups.isEmpty else { return }
         do {
-            for group in groups {
+            for group in groups where !group.isPending {
                 var habitIDs = group.sharedHabitIDs
                 if sharedGroupIDs.contains(group.id) {
                     habitIDs.insert(habitID)
@@ -188,23 +207,41 @@ final class GroupsViewModel: ObservableObject {
     }
 
     func leaveGroup(_ groupID: UUID) async {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else {
+            return
+        }
+        let removedGroup = groups.remove(at: index)
+        sharingPipelines.removeValue(forKey: groupID)
+        groups = refreshGroupProgress(for: groups)
+
         do {
             try await groupsRepository.leaveGroup(groupID: groupID)
-            groups.removeAll(where: { $0.id == groupID })
             errorMessage = nil
             analytics.trackGroup(.left)
         } catch {
+            groups.insert(removedGroup, at: min(index, groups.count))
+            groups = refreshGroupProgress(for: groups)
+            syncSharingPipeline(for: groupID)
             errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_leave", "error": error.localizedDescription])
         }
     }
 
     func deleteGroup(_ groupID: UUID) async {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else {
+            return
+        }
+        let removedGroup = groups.remove(at: index)
+        sharingPipelines.removeValue(forKey: groupID)
+        groups = refreshGroupProgress(for: groups)
+
         do {
             try await groupsRepository.deleteGroup(groupID: groupID)
-            groups.removeAll(where: { $0.id == groupID })
             errorMessage = nil
         } catch {
+            groups.insert(removedGroup, at: min(index, groups.count))
+            groups = refreshGroupProgress(for: groups)
+            syncSharingPipeline(for: groupID)
             errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: ["scope": "groups_delete", "error": error.localizedDescription])
         }
@@ -263,6 +300,11 @@ final class GroupsViewModel: ObservableObject {
         }
     }
 
+    private func replacePendingGroup(withID pendingID: UUID, with group: UIGroup) {
+        groups.removeAll(where: { $0.id == pendingID })
+        mergeOrAppend(group)
+    }
+
     private func refreshGroupProgress(for groups: [UIGroup]) -> [UIGroup] {
         let today = Date()
         return groups.map { group in
@@ -311,5 +353,105 @@ final class GroupsViewModel: ObservableObject {
         }
         groups[index].sharedHabitIDs = habitIDs
         groups = refreshGroupProgress(for: groups)
+    }
+
+    private func makePendingGroup(name: String, code: String) -> UIGroup {
+        let currentUserMember = UIGroupMember(
+            id: UUID(),
+            name: user.name ?? L10n.t("groups.you"),
+            avatarURL: user.avatarURL,
+            completedToday: 0,
+            totalSharedHabits: 0,
+            sharedHabits: []
+        )
+
+        return UIGroup(
+            id: UUID(),
+            name: name,
+            code: code,
+            joinLocked: false,
+            members: [currentUserMember],
+            sharedHabitIDs: [],
+            ownerMemberID: currentUserMember.id,
+            currentUserMemberID: currentUserMember.id,
+            isPending: true
+        )
+    }
+
+    private func syncSharingPipelines(with groups: [UIGroup]) {
+        let knownGroupIDs = Set(groups.map(\.id))
+        sharingPipelines = sharingPipelines.filter { knownGroupIDs.contains($0.key) }
+        for group in groups {
+            sharingPipelines[group.id] = SharingPipelineState(
+                desiredHabitIDs: group.sharedHabitIDs,
+                committedHabitIDs: group.sharedHabitIDs,
+                isInFlight: false
+            )
+        }
+    }
+
+    private func syncSharingPipeline(for groupID: UUID) {
+        guard let group = groups.first(where: { $0.id == groupID }) else {
+            sharingPipelines.removeValue(forKey: groupID)
+            return
+        }
+        let current = sharingPipelines[groupID]
+        if current?.isInFlight == true {
+            return
+        }
+        sharingPipelines[groupID] = SharingPipelineState(
+            desiredHabitIDs: group.sharedHabitIDs,
+            committedHabitIDs: group.sharedHabitIDs,
+            isInFlight: false
+        )
+    }
+
+    private func flushSharingPipeline(groupID: UUID) async {
+        guard var pipeline = sharingPipelines[groupID] else {
+            return
+        }
+        guard !pipeline.isInFlight else {
+            return
+        }
+        guard pipeline.desiredHabitIDs != pipeline.committedHabitIDs else {
+            return
+        }
+
+        let targetHabitIDs = pipeline.desiredHabitIDs
+        let previousCommitted = pipeline.committedHabitIDs
+        pipeline.isInFlight = true
+        sharingPipelines[groupID] = pipeline
+
+        do {
+            try await groupsRepository.updateSharing(groupID: groupID, habitIDs: targetHabitIDs)
+
+            var latest = sharingPipelines[groupID] ?? pipeline
+            latest.committedHabitIDs = targetHabitIDs
+            latest.isInFlight = false
+            sharingPipelines[groupID] = latest
+
+            let delta = targetHabitIDs.count - previousCommitted.count
+            if delta != 0 {
+                analytics.trackGroup(.sharingUpdated(delta: delta, totalShared: targetHabitIDs.count))
+            }
+
+            if latest.desiredHabitIDs != latest.committedHabitIDs {
+                await flushSharingPipeline(groupID: groupID)
+            }
+        } catch {
+            var latest = sharingPipelines[groupID] ?? pipeline
+            latest.isInFlight = false
+            let hasNewerDesiredState = latest.desiredHabitIDs != targetHabitIDs
+            sharingPipelines[groupID] = latest
+
+            if hasNewerDesiredState {
+                await flushSharingPipeline(groupID: groupID)
+                return
+            }
+
+            errorMessage = error.localizedDescription
+            applyOptimisticSharing(groupID: groupID, habitIDs: latest.committedHabitIDs)
+            logger.log(.storageFailure, metadata: ["scope": "groups_update_sharing", "error": error.localizedDescription])
+        }
     }
 }

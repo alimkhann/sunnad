@@ -198,6 +198,10 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                         guard let habit = try await resolveHabit(shared.habitID, cache: &habitsByID) else {
                             continue
                         }
+                        let domainHabit = makeDomainHabit(from: habit)
+                        guard domainHabit.isDue(on: Date(), calendar: .current, timeZone: .current) else {
+                            continue
+                        }
 
                         let completedToday = try await resolveCompletion(
                             for: habit,

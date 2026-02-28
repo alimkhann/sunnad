@@ -2,6 +2,7 @@ import Foundation
 
 struct QuoteReminderPlan: Sendable {
     let identifier: String
+    let title: String
     let body: String
     let dateComponents: DateComponents
 }

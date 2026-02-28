@@ -53,6 +53,7 @@ struct GroupDetailView: View {
     let onSetJoinLock: (Bool) -> Void
     let onRotateInviteCode: () -> Void
     let onRefresh: () async -> Void
+    let onMemberProgressViewed: (String, Int) -> Void
     let currentSharedHabitIDs: () -> Set<UUID>?
 
     @State private var expandedMemberIDs: Set<UUID> = []
@@ -63,6 +64,7 @@ struct GroupDetailView: View {
 
     @State private var reminderTarget: ReminderTarget?
     @State private var reminderToast: ReminderToast?
+    @State private var pendingReminderRequestIDs: Set<String> = []
     @State private var ownCompletionOverrides: [UUID: Bool] = [:]
     @State private var pendingKickMember: UIGroupMember?
     @State private var swipedMemberID: UUID?
@@ -85,6 +87,7 @@ struct GroupDetailView: View {
         onSetJoinLock: @escaping (Bool) -> Void,
         onRotateInviteCode: @escaping () -> Void,
         onRefresh: @escaping () async -> Void,
+        onMemberProgressViewed: @escaping (String, Int) -> Void,
         currentSharedHabitIDs: @escaping () -> Set<UUID>?
     ) {
         self.group = group
@@ -99,6 +102,7 @@ struct GroupDetailView: View {
         self.onSetJoinLock = onSetJoinLock
         self.onRotateInviteCode = onRotateInviteCode
         self.onRefresh = onRefresh
+        self.onMemberProgressViewed = onMemberProgressViewed
         self.currentSharedHabitIDs = currentSharedHabitIDs
         _sharedHabitIDs = State(initialValue: group.sharedHabitIDs)
     }
@@ -128,6 +132,8 @@ struct GroupDetailView: View {
         .onChange(of: group.sharedHabitIDs) { oldValue, newValue in
             _ = oldValue
             if let pending = pendingRemoteSharedHabitIDs, newValue != pending {
+                pendingRemoteSharedHabitIDs = nil
+                sharedHabitIDs = newValue
                 return
             }
             pendingRemoteSharedHabitIDs = nil
@@ -354,6 +360,12 @@ struct GroupDetailView: View {
                                     expandedMemberIDs.remove(member.id)
                                 } else {
                                     expandedMemberIDs.insert(member.id)
+                                    let memberScope = isCurrentUser ? "self" : "other"
+                                    let visibleSharedHabitsCount = displayedSharedHabits(
+                                        for: member,
+                                        isCurrentUser: isCurrentUser
+                                    ).count
+                                    onMemberProgressViewed(memberScope, visibleSharedHabitsCount)
                                 }
                             }
 
@@ -524,6 +536,8 @@ struct GroupDetailView: View {
                 .font(.title3)
                 .foregroundStyle(SunnadTheme.primary)
         } else {
+            let requestID = reminderRequestID(memberID: member.id, habitID: sharedHabit.habitID)
+            let isPendingReminder = pendingReminderRequestIDs.contains(requestID)
             Button {
                 reminderTarget = ReminderTarget(
                     memberID: member.id,
@@ -532,19 +546,28 @@ struct GroupDetailView: View {
                     habitTitle: sharedHabit.habitTitle
                 )
             } label: {
-                Image(systemName: "bell")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
+                if isPendingReminder {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(.secondary)
+                        .frame(width: 24, height: 24)
+                } else {
+                    Image(systemName: "bell")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
             }
             .buttonStyle(.plain)
+            .disabled(isPendingReminder)
             .accessibilityLabel(L10n.t("groups.reminder.send"))
         }
     }
 
     private func displayedSharedHabits(for member: UIGroupMember, isCurrentUser: Bool) -> [UISharedHabit] {
         if isCurrentUser {
+            let today = Date()
             return habits
-                .filter { sharedHabitIDs.contains($0.id) }
+                .filter { sharedHabitIDs.contains($0.id) && $0.isScheduled(on: today) }
                 .map {
                     UISharedHabit(
                         habitID: $0.id,
@@ -594,7 +617,16 @@ struct GroupDetailView: View {
     }
 
     private func sendReminder(to target: ReminderTarget) {
-        Task {
+        let requestID = reminderRequestID(memberID: target.memberID, habitID: target.habitID)
+        guard !pendingReminderRequestIDs.contains(requestID) else {
+            return
+        }
+        pendingReminderRequestIDs.insert(requestID)
+
+        Task { @MainActor in
+            defer {
+                pendingReminderRequestIDs.remove(requestID)
+            }
             let status = await onSendReminder(target.memberID, target.habitID)
             switch status {
             case .sent:
@@ -605,6 +637,10 @@ struct GroupDetailView: View {
                 showReminderToast(message: L10n.t("groups.reminder.error"), style: .error)
             }
         }
+    }
+
+    private func reminderRequestID(memberID: UUID, habitID: UUID) -> String {
+        "\(memberID.uuidString)-\(habitID.uuidString)"
     }
 
     private func showReminderToast(message: String, style: ReminderToast.Style) {
