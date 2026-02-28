@@ -25,6 +25,7 @@ final class DependencyContainer {
     let groupsRepository: GroupsRepository
     let syncCoordinator: SyncCoordinating
     let reminderScheduler: LocalReminderScheduling
+    let notificationInteractionTracker: NotificationInteractionTracking
     let interactionFeedback: InteractionFeedbackClient
     let authService: AuthService
     let deviceTokenSyncService: DeviceTokenSyncing
@@ -75,7 +76,8 @@ final class DependencyContainer {
         let diagnosticsStore: LocalDiagnosticsStore? = Self.isRunningUnitTests
             ? nil
             : LocalDiagnosticsStore(modelContext: modelContext)
-        let logger = OSLogAnalyticsLogger(diagnosticsStore: diagnosticsStore)
+        let baseLogger = OSLogAnalyticsLogger(diagnosticsStore: diagnosticsStore)
+        let logger = AnalyticsErrorBridgeLogger(baseLogger: baseLogger)
 
         analyticsLogger = logger
         if let analytics {
@@ -85,6 +87,14 @@ final class DependencyContainer {
         } else {
             self.analytics = NoopAnalyticsClient()
         }
+        logger.setAnalyticsClient(self.analytics)
+
+        if Self.isRunningUnitTests {
+            notificationInteractionTracker = NoopNotificationInteractionTracker()
+        } else {
+            notificationInteractionTracker = UserNotificationInteractionTracker(analytics: self.analytics)
+        }
+
         let localHabitsRepository = HabitsLocalRepository(
             modelContext: modelContext,
             logger: logger,

@@ -27,6 +27,34 @@ struct AppRouteStateAuthTests {
     }
 
     @Test
+    func identifyUpdatesPersonPropertiesForSignedInUser() async throws {
+        let sessionUser = SessionUser(id: UUID(), email: "person@example.com", username: "Person")
+        let analytics = TestAnalyticsClient()
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            analytics: analytics,
+            authService: FakeAuthService(currentUserValue: sessionUser),
+            deviceTokenSyncService: FakeDeviceTokenSyncService()
+        )
+
+        let state = AppRouteState(dependencies: dependencies)
+        _ = await waitUntil(timeoutNanoseconds: 5_000_000_000) {
+            !analytics.identifies.isEmpty && !analytics.personPropertiesUpdates.isEmpty
+        }
+
+        _ = state
+        let identify = try #require(analytics.identifies.last)
+        #expect(identify.distinctId == sessionUser.id.uuidString)
+
+        let person = try #require(analytics.personPropertiesUpdates.last)
+        #expect(person.properties["habit_count"] as? Int != nil)
+        #expect(person.properties["is_group_member"] as? Bool != nil)
+        #expect(person.properties["notifications_enabled"] as? Bool != nil)
+        #expect(person.properties["days_since_signup"] as? Int != nil)
+        #expect(person.properties["is_test_account"] as? Bool != nil)
+    }
+
+    @Test
     func signInAndSignOutTransitionsBetweenMemberAndGuest() async throws {
         let signInUser = SessionUser(id: UUID(), email: "signin@example.com", username: "SignInUser")
         let authService = FakeAuthService(currentUserValue: nil, signInValue: signInUser)

@@ -53,6 +53,7 @@ struct GroupDetailView: View {
     let onSetJoinLock: (Bool) -> Void
     let onRotateInviteCode: () -> Void
     let onRefresh: () async -> Void
+    let onMemberProgressViewed: (String, Int) -> Void
     let currentSharedHabitIDs: () -> Set<UUID>?
 
     @State private var expandedMemberIDs: Set<UUID> = []
@@ -86,6 +87,7 @@ struct GroupDetailView: View {
         onSetJoinLock: @escaping (Bool) -> Void,
         onRotateInviteCode: @escaping () -> Void,
         onRefresh: @escaping () async -> Void,
+        onMemberProgressViewed: @escaping (String, Int) -> Void,
         currentSharedHabitIDs: @escaping () -> Set<UUID>?
     ) {
         self.group = group
@@ -100,6 +102,7 @@ struct GroupDetailView: View {
         self.onSetJoinLock = onSetJoinLock
         self.onRotateInviteCode = onRotateInviteCode
         self.onRefresh = onRefresh
+        self.onMemberProgressViewed = onMemberProgressViewed
         self.currentSharedHabitIDs = currentSharedHabitIDs
         _sharedHabitIDs = State(initialValue: group.sharedHabitIDs)
     }
@@ -357,6 +360,12 @@ struct GroupDetailView: View {
                                     expandedMemberIDs.remove(member.id)
                                 } else {
                                     expandedMemberIDs.insert(member.id)
+                                    let memberScope = isCurrentUser ? "self" : "other"
+                                    let visibleSharedHabitsCount = displayedSharedHabits(
+                                        for: member,
+                                        isCurrentUser: isCurrentUser
+                                    ).count
+                                    onMemberProgressViewed(memberScope, visibleSharedHabitsCount)
                                 }
                             }
 

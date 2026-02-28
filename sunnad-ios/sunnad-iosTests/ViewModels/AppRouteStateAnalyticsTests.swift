@@ -29,6 +29,7 @@ struct AppRouteStateAnalyticsTests {
         #expect(captured.properties?["type"] as? String == "binary")
         #expect(captured.properties?["schedule_type"] as? String == "weekly")
         #expect(captured.properties?["has_reminder"] as? Bool == true)
+        #expect(captured.properties?["target_count"] as? Int == 0)
         _ = state
     }
 

@@ -84,4 +84,40 @@ struct AnalyticsEventsV2Tests {
         #expect(captured.properties?["stage"] as? String == "sync_cycle")
         #expect(captured.properties?["error_code"] as? String == "domain#1")
     }
+
+    @Test
+    func trackAppLifecycleCapturesOpenedSource() throws {
+        let analytics = TestAnalyticsClient()
+
+        analytics.trackAppLifecycle(.opened(source: "notification"))
+
+        let captured = try #require(analytics.captures.last)
+        #expect(captured.event == "app_opened")
+        #expect(captured.properties?["source"] as? String == "notification")
+    }
+
+    @Test
+    func trackStreakCapturesMilestoneAndBreakEvents() throws {
+        let analytics = TestAnalyticsClient()
+
+        analytics.trackStreak(.achieved(habitType: "binary", streakLength: 7, milestone: 7))
+        analytics.trackStreak(.broken(habitType: "binary", previousStreakLength: 4))
+
+        let achieved = analytics.captures.first(where: { $0.event == "habit_streak_achieved" })
+        #expect(achieved?.properties?["milestone"] as? Int == 7)
+
+        let broken = analytics.captures.first(where: { $0.event == "habit_streak_broken" })
+        #expect(broken?.properties?["previous_streak_length"] as? Int == 4)
+    }
+
+    @Test
+    func trackNotificationCapturesReceivedAndTapped() throws {
+        let analytics = TestAnalyticsClient()
+
+        analytics.trackNotification(.received(notificationType: "quote", source: "local"))
+        analytics.trackNotification(.tapped(notificationType: "quote", source: "local"))
+
+        #expect(analytics.captures.contains(where: { $0.event == "notification_received" }))
+        #expect(analytics.captures.contains(where: { $0.event == "notification_tapped" }))
+    }
 }

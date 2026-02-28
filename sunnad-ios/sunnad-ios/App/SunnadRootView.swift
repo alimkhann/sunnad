@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SunnadRootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var state: AppRouteState
 
     init(dependencies: DependencyContainer) {
@@ -44,6 +45,7 @@ struct SunnadRootView: View {
         }
         .onAppear {
             trackCurrentScreen()
+            state.appDidBecomeActive()
         }
         .onChange(of: state.activeTab) { _, _ in
             guard !state.showsOnboarding else { return }
@@ -51,6 +53,13 @@ struct SunnadRootView: View {
         }
         .onChange(of: state.showsOnboarding) { _, _ in
             trackCurrentScreen()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                state.appDidBecomeActive()
+            } else if phase == .background {
+                state.appDidEnterBackground()
+            }
         }
         .environment(\.locale, Locale(identifier: state.language.localeIdentifier))
         .preferredColorScheme(state.appearance.colorScheme)
@@ -99,6 +108,7 @@ struct SunnadRootView: View {
                     onSetJoinLock: state.setGroupJoinLock,
                     onRotateInviteCode: state.rotateGroupInviteCode,
                     onRefreshGroup: state.refreshGroup,
+                    onGroupMemberProgressViewed: state.trackGroupMemberProgressViewed,
                     currentGroupSharedHabitIDs: { groupID in
                         state.groupsViewModel.currentGroupSharedHabitIDs(for: groupID)
                     }

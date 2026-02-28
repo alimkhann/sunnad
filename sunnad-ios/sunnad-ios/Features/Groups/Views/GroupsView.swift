@@ -22,6 +22,7 @@ struct GroupsView: View {
     let onSetJoinLock: (UUID, Bool) -> Void
     let onRotateInviteCode: (UUID) -> Void
     let onRefreshGroup: (UUID) async -> Void
+    let onGroupMemberProgressViewed: (String, Int) -> Void
     let currentGroupSharedHabitIDs: (UUID) -> Set<UUID>?
 
     var body: some View {
@@ -108,6 +109,7 @@ struct GroupsView: View {
                                     onSetJoinLock: { onSetJoinLock(group.id, $0) },
                                     onRotateInviteCode: { onRotateInviteCode(group.id) },
                                     onRefresh: { await onRefreshGroup(group.id) },
+                                    onMemberProgressViewed: onGroupMemberProgressViewed,
                                     currentSharedHabitIDs: { currentGroupSharedHabitIDs(group.id) }
                                 )
                                 .id(groupDetailIdentity(for: group))

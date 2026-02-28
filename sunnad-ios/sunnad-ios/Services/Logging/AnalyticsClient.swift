@@ -5,6 +5,7 @@ protocol AnalyticsClient {
     func capture(_ event: String, properties: [String: Any]?)
     func screen(_ name: String, properties: [String: Any]?)
     func identify(_ distinctId: String, userProperties: [String: Any]?, userPropertiesSetOnce: [String: Any]?)
+    func setPersonProperties(_ properties: [String: Any], setOnce: [String: Any]?)
     func reset()
     func setEnabled(_ isEnabled: Bool)
 }
@@ -16,12 +17,18 @@ final class NoopAnalyticsClient: AnalyticsClient {
 
     func identify(_ distinctId: String, userProperties: [String: Any]?, userPropertiesSetOnce: [String: Any]?) {}
 
+    func setPersonProperties(_ properties: [String: Any], setOnce: [String: Any]?) {}
+
     func reset() {}
 
     func setEnabled(_ isEnabled: Bool) {}
 }
 
 final class PostHogAnalyticsClient: AnalyticsClient {
+    private enum LocalStateKeys {
+        static let replaySampled = "sunnad.analytics.replay.sampled"
+    }
+
     private let environment: AppEnvironment
     private var isEnabled: Bool
     private let baseEventProperties: [String: Any]
@@ -46,6 +53,11 @@ final class PostHogAnalyticsClient: AnalyticsClient {
         config.enableSwizzling = false
         config.reuseAnonymousId = true
         config.optOut = !enabledByEnv
+        #if os(iOS)
+        config.sessionReplay = PostHogAnalyticsClient.resolveReplayEnabled(environment: environment)
+        config.sessionReplayConfig.maskAllTextInputs = true
+        config.sessionReplayConfig.captureNetworkTelemetry = false
+        #endif
 
         let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
         let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
@@ -97,6 +109,15 @@ final class PostHogAnalyticsClient: AnalyticsClient {
             distinctId,
             userProperties: userProperties,
             userPropertiesSetOnce: userPropertiesSetOnce
+        )
+    }
+
+    func setPersonProperties(_ properties: [String: Any], setOnce: [String: Any]?) {
+        guard isEnabled else { return }
+        guard !properties.isEmpty || (setOnce?.isEmpty == false) else { return }
+        PostHogSDK.shared.setPersonProperties(
+            userPropertiesToSet: properties,
+            userPropertiesToSetOnce: setOnce
         )
     }
 
@@ -174,5 +195,20 @@ private extension PostHogAnalyticsClient {
         case .development:
             return false
         }
+    }
+
+    static func resolveReplayEnabled(environment: AppEnvironment) -> Bool {
+        if environment == .development {
+            return true
+        }
+
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: LocalStateKeys.replaySampled) != nil {
+            return defaults.bool(forKey: LocalStateKeys.replaySampled)
+        }
+
+        let sampled = Double.random(in: 0...1) < 0.2
+        defaults.set(sampled, forKey: LocalStateKeys.replaySampled)
+        return sampled
     }
 }
