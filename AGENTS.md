@@ -21,6 +21,12 @@ Sunnad is an offline-first habit tracker with:
 - Groups-lite accountability (requires login + internet)
 - i18n: English default + Russian + Kazakh (Cyrillic). All UI must be translatable.
 
+Implementation status (current):
+
+- iOS is the behavioral reference and has deeper feature maturity.
+- Android is being built as native Compose + Material 3 with parity scope.
+- Shared backend contracts are preferred over cross-language business-logic reuse.
+
 Non-goals for MVP:
 
 - No Quran/prayer-time reader features
@@ -69,6 +75,13 @@ After editing:
 - Unit tests: run the app’s unit tests target(s) in Xcode.
 - If SwiftLint is configured, run it; otherwise don’t add new tooling without asking.
 
+### Android (Gradle)
+
+- Build: `cd sunnad-android && ./gradlew assembleDebug`
+- Unit tests: `cd sunnad-android && ./gradlew testDebugUnitTest`
+- Instrumentation tests (if emulator available): `cd sunnad-android && ./gradlew connectedDebugAndroidTest`
+- Keep `sunnad-android` local-first (Room source of truth + WorkManager sync hooks).
+
 ### Supabase (local dev)
 
 Use Supabase CLI if present in the repo.
@@ -96,6 +109,26 @@ Goal: “offline-first + optional sync”, clean separation, predictable state.
 - Concurrency:
   - Use async/await; avoid callback pyramids.
   - UI updates on MainActor; networking/storage on background contexts as appropriate.
+
+## 5b) Android architecture rules (must follow)
+
+Goal: parity UX with native Android quality, while preserving offline-first behavior.
+
+- Jetpack Compose + Material 3:
+  - Adaptive nav shell with exactly 3 tabs (Today / Groups / Profile).
+  - Prefer Material 3 primitives over custom widgets.
+- ViewModel + StateFlow:
+  - Screens are presentation-first; state/actions in ViewModels.
+  - Domain rules live outside composables.
+- Local-first:
+  - Room is source of truth for habits/completions/quotes/saved quotes/local group snapshots.
+  - Remote sync is additive and optional to core tracking behavior.
+- Background/sync:
+  - WorkManager for retries/background sync orchestration.
+  - Sync must be disable-safe.
+- Contracts:
+  - Treat Supabase migrations/RLS/RPCs as canonical backend behavior.
+  - Keep checked contract artifacts in `docs/contracts` and generated DTOs under Android remote data layer.
 
 ### UX constraints that affect data model
 
