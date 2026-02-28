@@ -1,5 +1,6 @@
 *.react
 *.artifacts
+.DS_Store
 
 node_modules/
 **/node_modules/
@@ -22,6 +23,16 @@ sunnad-ios/**/*.xcuserdata/
 sunnad-ios/**/*.xcuserstate
 
 .playwright-mcp
+**/logcat*.txt
+sunnad-android/.kotlin/
+
+# Android parity capture artifacts
+docs/android/parity/**/*.png
+docs/android/parity/**/*.jpg
+docs/android/parity/**/*.jpeg
+docs/android/parity/**/*.webp
+docs/android/parity/**/*.mp4
+docs/android/parity/**/.DS_Store
 
 # Database backup artifacts
 backups/**
