@@ -7,11 +7,17 @@ data class StartupRouteDecision(
 )
 
 fun resolveStartupRoute(
+    hasSettingsHydrated: Boolean,
+    hasRestoredSession: Boolean,
     hasCompletedOnboarding: Boolean,
     hasAuthenticatedSession: Boolean,
     hasPendingAuthCallback: Boolean,
     hasConfiguredAuth: Boolean = true
 ): StartupRouteDecision {
+    if (!hasSettingsHydrated || !hasRestoredSession) {
+        return StartupRouteDecision(rootGraph = RootGraph.LOADING)
+    }
+
     if (!hasCompletedOnboarding) {
         return StartupRouteDecision(
             rootGraph = RootGraph.ONBOARDING,

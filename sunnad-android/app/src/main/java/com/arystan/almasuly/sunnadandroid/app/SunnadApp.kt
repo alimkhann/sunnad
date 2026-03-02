@@ -3,7 +3,9 @@ package com.arystan.almasuly.sunnadandroid.app
 import android.net.Uri
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -18,11 +20,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -35,13 +40,16 @@ import com.arystan.almasuly.sunnadandroid.features.auth.AuthViewModel
 import com.arystan.almasuly.sunnadandroid.features.groups.GroupsScreen
 import com.arystan.almasuly.sunnadandroid.features.groups.GroupsViewModel
 import com.arystan.almasuly.sunnadandroid.features.insights.InsightsScreen
+import com.arystan.almasuly.sunnadandroid.features.insights.InsightsViewModel
+import com.arystan.almasuly.sunnadandroid.features.habits.ScheduleScreen
 import com.arystan.almasuly.sunnadandroid.features.onboarding.OnboardingFlowScreen
+import com.arystan.almasuly.sunnadandroid.features.onboarding.OnboardingTemplateSeed
 import com.arystan.almasuly.sunnadandroid.features.profile.ProfileScreen
 import com.arystan.almasuly.sunnadandroid.features.profile.ProfileViewModel
+import com.arystan.almasuly.sunnadandroid.features.profile.SavedQuotesSheet
 import com.arystan.almasuly.sunnadandroid.features.today.TodayScreen
 import com.arystan.almasuly.sunnadandroid.features.today.TodayViewModel
 import com.arystan.almasuly.sunnadandroid.services.AppAppearance
-import com.arystan.almasuly.sunnadandroid.services.AppLanguage
 import com.arystan.almasuly.sunnadandroid.sync.SyncTrigger
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenPadding
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenSurface
@@ -52,7 +60,8 @@ import java.util.UUID
 @Composable
 fun SunnadApp(
     pendingAuthCallback: Uri? = null,
-    onAuthCallbackConsumed: () -> Unit = {}
+    onAuthCallbackConsumed: () -> Unit = {},
+    onRequestNotificationPermission: () -> Unit = {}
 ) {
     val app = LocalContext.current.applicationContext as SunnadApplication
     val container = app.container
@@ -65,7 +74,9 @@ fun SunnadApp(
             ProfileViewModel(
                 quotesRepository = container.quotesRepository,
                 settingsStore = container.settingsStore,
-                syncCoordinator = container.syncCoordinator
+                syncCoordinator = container.syncCoordinator,
+                localDataResetService = container.localDataResetService,
+                ownerScopeResolver = container.ownerScopeResolver
             )
         }
     )
@@ -84,6 +95,14 @@ fun SunnadApp(
             GroupsViewModel(container.groupsRepository, container.syncCoordinator)
         }
     )
+    val insightsViewModel: InsightsViewModel = viewModel(
+        factory = SunnadViewModelFactory {
+            InsightsViewModel(
+                habitsRepository = container.habitsRepository,
+                completionsRepository = container.completionsRepository
+            )
+        }
+    )
 
     val profileState by profileViewModel.state.collectAsStateWithLifecycle()
     val todayState by todayViewModel.state.collectAsStateWithLifecycle()
@@ -96,9 +115,12 @@ fun SunnadApp(
     var onboardingRoute by rememberSaveable { mutableStateOf(OnboardingRoute.WELCOME) }
     var authRoute by rememberSaveable { mutableStateOf(AuthRoute.SIGN_IN) }
     var selectedTab by rememberSaveable { mutableStateOf(MainTabRoute.TODAY) }
-    var profileOverlay by rememberSaveable { mutableStateOf(ProfileOverlay.NONE) }
+    var mainOverlay by rememberSaveable { mutableStateOf(MainOverlayRoute.NONE) }
     var promotedUserId by rememberSaveable { mutableStateOf<String?>(null) }
     var pushTokenUserId by rememberSaveable { mutableStateOf<String?>(null) }
+    var onboardingTemplatesSeeded by rememberSaveable { mutableStateOf(false) }
+    var selectedOnboardingTemplateIds by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var pendingOnboardingTemplates by remember { mutableStateOf<List<OnboardingTemplateSeed>>(emptyList()) }
 
     val darkThemeMode = when (profileState.appearance) {
         AppAppearance.SYSTEM -> null
@@ -117,7 +139,8 @@ fun SunnadApp(
         }
     }
 
-    LaunchedEffect(profileState.settings.language) {
+    LaunchedEffect(profileState.settingsLoaded, profileState.settings.language) {
+        if (!profileState.settingsLoaded) return@LaunchedEffect
         todayViewModel.updateLocale(profileState.settings.language)
         AppCompatDelegate.setApplicationLocales(
             LocaleListCompat.forLanguageTags(profileState.settings.language)
@@ -125,12 +148,14 @@ fun SunnadApp(
     }
 
     LaunchedEffect(
+        profileState.settingsLoaded,
         profileState.settings.habitRemindersEnabled,
         profileState.settings.quoteReminderEnabled,
         profileState.settings.language,
         todayState.allHabits,
         todayState.dueHabits
     ) {
+        if (!profileState.settingsLoaded) return@LaunchedEffect
         val completedTodayIds = todayState.dueHabits
             .filter { it.completedToday }
             .map { it.id }
@@ -164,7 +189,19 @@ fun SunnadApp(
         }
     }
 
-    LaunchedEffect(onboardingCompleted, authState.user, rootGraph, onboardingRoute) {
+    LaunchedEffect(mainOverlay, todayState.dueHabits, todayState.allHabits) {
+        if (mainOverlay == MainOverlayRoute.INSIGHTS) {
+            insightsViewModel.load()
+        }
+    }
+
+    LaunchedEffect(
+        onboardingCompleted,
+        authState.user,
+        authState.hasRestoredSession,
+        profileState.settingsLoaded,
+        rootGraph
+    ) {
         container.ownerScopeResolver.setSignedInUserId(authState.user?.id)
         container.syncCoordinator.setSignedInUserId(authState.user?.id)
         val userId = authState.user?.id
@@ -177,6 +214,8 @@ fun SunnadApp(
         when {
             rootGraph == RootGraph.LOADING -> {
                 val startup = resolveStartupRoute(
+                    hasSettingsHydrated = profileState.settingsLoaded,
+                    hasRestoredSession = authState.hasRestoredSession,
                     hasCompletedOnboarding = onboardingCompleted,
                     hasAuthenticatedSession = authState.user != null,
                     hasPendingAuthCallback = pendingAuthCallback != null,
@@ -187,8 +226,20 @@ fun SunnadApp(
                 startup.authRoute?.let { authRoute = it }
             }
 
-            !onboardingCompleted -> {
-                rootGraph = RootGraph.ONBOARDING
+            !profileState.settingsLoaded || !authState.hasRestoredSession -> {
+                rootGraph = RootGraph.LOADING
+            }
+
+            rootGraph == RootGraph.ONBOARDING && authState.user != null -> {
+                if (!onboardingTemplatesSeeded && pendingOnboardingTemplates.isNotEmpty()) {
+                    todayViewModel.seedHabitsFromTemplates(pendingOnboardingTemplates)
+                    onboardingTemplatesSeeded = true
+                }
+                pendingOnboardingTemplates = emptyList()
+                selectedOnboardingTemplateIds = emptySet()
+                profileViewModel.setOnboardingCompleted(true)
+                rootGraph = RootGraph.MAIN
+                selectedTab = MainTabRoute.TODAY
             }
 
             rootGraph == RootGraph.AUTH && authState.user != null -> {
@@ -201,11 +252,16 @@ fun SunnadApp(
                 selectedTab = MainTabRoute.TODAY
             }
 
-            rootGraph == RootGraph.ONBOARDING && authState.user != null -> {
-                profileViewModel.setOnboardingCompleted(true)
-                rootGraph = RootGraph.MAIN
-                selectedTab = MainTabRoute.TODAY
+            !onboardingCompleted -> {
+                rootGraph = RootGraph.ONBOARDING
             }
+        }
+    }
+
+    LaunchedEffect(authState.user, mainOverlay) {
+        if (mainOverlay == MainOverlayRoute.AUTH && authState.user != null) {
+            mainOverlay = MainOverlayRoute.NONE
+            selectedTab = MainTabRoute.TODAY
         }
     }
 
@@ -214,7 +270,7 @@ fun SunnadApp(
             RootGraph.LOADING -> {
                 SunnadScreenSurface {
                     Row(
-                        modifier = androidx.compose.ui.Modifier
+                        modifier = Modifier
                             .fillMaxWidth()
                             .padding(SunnadScreenPadding),
                         horizontalArrangement = Arrangement.Center,
@@ -238,6 +294,9 @@ fun SunnadApp(
                                 if (selectedTemplates.isNotEmpty()) {
                                     todayViewModel.seedHabitsFromTemplates(selectedTemplates)
                                 }
+                                onboardingTemplatesSeeded = true
+                                pendingOnboardingTemplates = emptyList()
+                                selectedOnboardingTemplateIds = emptySet()
                                 profileViewModel.setOnboardingCompleted(true)
                                 rootGraph = RootGraph.MAIN
                                 selectedTab = MainTabRoute.TODAY
@@ -251,19 +310,29 @@ fun SunnadApp(
                                 authViewModel.openStep(AuthStep.SIGN_UP)
                             },
                             onSetLanguage = profileViewModel::setLanguage,
-                            onEnableNotifications = {},
+                            onEnableNotifications = onRequestNotificationPermission,
                             onSkipNotifications = {},
-                            selectedLanguage = profileState.language
+                            selectedLanguage = profileState.language,
+                            selectedTemplateIds = selectedOnboardingTemplateIds,
+                            onSelectedTemplateIdsChange = {
+                                selectedOnboardingTemplateIds = it
+                            },
+                            onSelectedTemplatesChange = {
+                                pendingOnboardingTemplates = it
+                                onboardingTemplatesSeeded = false
+                            }
                         )
                     }
 
                     OnboardingRoute.SIGN_IN,
                     OnboardingRoute.SIGN_UP,
-                    OnboardingRoute.OTP -> {
+                    OnboardingRoute.OTP,
+                    OnboardingRoute.FORGOT_PASSWORD -> {
                         val targetStep = when (onboardingRoute) {
                             OnboardingRoute.SIGN_IN -> AuthStep.SIGN_IN
                             OnboardingRoute.SIGN_UP -> AuthStep.SIGN_UP
                             OnboardingRoute.OTP -> AuthStep.OTP
+                            OnboardingRoute.FORGOT_PASSWORD -> AuthStep.FORGOT_PASSWORD
                             else -> AuthStep.SIGN_IN
                         }
                         LaunchedEffect(targetStep) {
@@ -276,8 +345,13 @@ fun SunnadApp(
                                 onboardingRoute = when (authState.step) {
                                     AuthStep.SIGN_IN,
                                     AuthStep.SIGN_UP -> OnboardingRoute.JOIN_GROUPS
-                                    AuthStep.OTP -> OnboardingRoute.SIGN_UP
+                                    AuthStep.OTP -> if (authState.otpFlowMode == com.arystan.almasuly.sunnadandroid.features.auth.OtpFlowMode.RECOVERY) {
+                                        OnboardingRoute.FORGOT_PASSWORD
+                                    } else {
+                                        OnboardingRoute.SIGN_UP
+                                    }
                                     AuthStep.FORGOT_PASSWORD -> OnboardingRoute.SIGN_IN
+                                    AuthStep.CHANGE_PASSWORD -> OnboardingRoute.OTP
                                 }
                             },
                             onClose = null,
@@ -285,8 +359,9 @@ fun SunnadApp(
                                 onboardingRoute = when (it) {
                                     AuthStep.SIGN_IN -> OnboardingRoute.SIGN_IN
                                     AuthStep.SIGN_UP -> OnboardingRoute.SIGN_UP
-                                    AuthStep.OTP -> OnboardingRoute.OTP
-                                    AuthStep.FORGOT_PASSWORD -> OnboardingRoute.SIGN_IN
+                                    AuthStep.OTP,
+                                    AuthStep.CHANGE_PASSWORD -> OnboardingRoute.OTP
+                                    AuthStep.FORGOT_PASSWORD -> OnboardingRoute.FORGOT_PASSWORD
                                 }
                                 authViewModel.openStep(it)
                             },
@@ -297,6 +372,7 @@ fun SunnadApp(
                             onResendOtp = authViewModel::resendOtp,
                             onGoogleSignIn = authViewModel::signInWithGoogle,
                             onAppleSignIn = authViewModel::signInWithApplePrewired,
+                            onUpdatePassword = authViewModel::updatePassword,
                             onContinueAsGuest = {
                                 onboardingRoute = OnboardingRoute.JOIN_GROUPS
                             }
@@ -311,16 +387,24 @@ fun SunnadApp(
                     AuthRoute.SIGN_UP -> AuthStep.SIGN_UP
                     AuthRoute.OTP -> AuthStep.OTP
                     AuthRoute.FORGOT_PASSWORD -> AuthStep.FORGOT_PASSWORD
+                    AuthRoute.CHANGE_PASSWORD -> AuthStep.CHANGE_PASSWORD
                 }
                 LaunchedEffect(forcedStep) {
                     authViewModel.openStep(forcedStep)
                 }
                 AuthFlowScreen(
                     state = authState,
-                    onBack = if (authState.step == AuthStep.OTP || authState.step == AuthStep.FORGOT_PASSWORD) {
-                        { authViewModel.openStep(AuthStep.SIGN_IN) }
-                    } else {
-                        null
+                    onBack = when (authState.step) {
+                        AuthStep.SIGN_IN, AuthStep.SIGN_UP -> null
+                        AuthStep.FORGOT_PASSWORD -> ({ authViewModel.openStep(AuthStep.SIGN_IN) })
+                        AuthStep.CHANGE_PASSWORD -> ({ authViewModel.openStep(AuthStep.OTP) })
+                        AuthStep.OTP -> {
+                            if (authState.otpFlowMode == com.arystan.almasuly.sunnadandroid.features.auth.OtpFlowMode.RECOVERY) {
+                                ({ authViewModel.openStep(AuthStep.FORGOT_PASSWORD) })
+                            } else {
+                                ({ authViewModel.openStep(AuthStep.SIGN_UP) })
+                            }
+                        }
                     },
                     onClose = { rootGraph = RootGraph.MAIN },
                     onOpenStep = { step ->
@@ -329,6 +413,7 @@ fun SunnadApp(
                             AuthStep.SIGN_UP -> AuthRoute.SIGN_UP
                             AuthStep.OTP -> AuthRoute.OTP
                             AuthStep.FORGOT_PASSWORD -> AuthRoute.FORGOT_PASSWORD
+                            AuthStep.CHANGE_PASSWORD -> AuthRoute.CHANGE_PASSWORD
                         }
                         authViewModel.openStep(step)
                     },
@@ -339,117 +424,179 @@ fun SunnadApp(
                     onResendOtp = authViewModel::resendOtp,
                     onGoogleSignIn = authViewModel::signInWithGoogle,
                     onAppleSignIn = authViewModel::signInWithApplePrewired,
+                    onUpdatePassword = authViewModel::updatePassword,
                     onContinueAsGuest = { rootGraph = RootGraph.MAIN }
                 )
             }
 
             RootGraph.MAIN -> {
-                NavigationSuiteScaffold(
-                    navigationSuiteItems = {
-                        item(
-                            icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = stringResource(R.string.tab_today)) },
-                            label = { Text(stringResource(R.string.tab_today)) },
-                            selected = selectedTab == MainTabRoute.TODAY,
-                            onClick = { selectedTab = MainTabRoute.TODAY }
-                        )
-                        item(
-                            icon = { Icon(Icons.Rounded.Groups, contentDescription = stringResource(R.string.tab_groups)) },
-                            label = { Text(stringResource(R.string.tab_groups)) },
-                            selected = selectedTab == MainTabRoute.GROUPS,
-                            onClick = { selectedTab = MainTabRoute.GROUPS }
-                        )
-                        item(
-                            icon = { Icon(Icons.Rounded.Person, contentDescription = stringResource(R.string.tab_profile)) },
-                            label = { Text(stringResource(R.string.tab_profile)) },
-                            selected = selectedTab == MainTabRoute.PROFILE,
-                            onClick = { selectedTab = MainTabRoute.PROFILE }
-                        )
-                    }
-                ) {
-                    when (selectedTab) {
-                        MainTabRoute.TODAY -> TodayScreen(
-                            state = todayState,
-                            onRefresh = todayViewModel::loadToday,
-                            onToggleHabit = todayViewModel::toggleHabit,
-                            onSaveQuote = {
-                                todayViewModel.saveQuoteOfDay()
-                                profileViewModel.refresh()
-                            },
-                            onAddHabit = todayViewModel::addHabit,
-                            onSelectHabit = todayViewModel::chooseHabit,
-                            onSetDhikrCount = todayViewModel::setDhikrCount,
-                            onArchiveHabit = todayViewModel::archiveHabit,
-                            onOpenManageHabits = {}
-                        )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    NavigationSuiteScaffold(
+                        navigationSuiteItems = {
+                            item(
+                                icon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = stringResource(R.string.tab_today)) },
+                                label = { Text(stringResource(R.string.tab_today)) },
+                                selected = selectedTab == MainTabRoute.TODAY,
+                                onClick = { selectedTab = MainTabRoute.TODAY }
+                            )
+                            item(
+                                icon = { Icon(Icons.Rounded.Groups, contentDescription = stringResource(R.string.tab_groups)) },
+                                label = { Text(stringResource(R.string.tab_groups)) },
+                                selected = selectedTab == MainTabRoute.GROUPS,
+                                onClick = { selectedTab = MainTabRoute.GROUPS }
+                            )
+                            item(
+                                icon = { Icon(Icons.Rounded.Person, contentDescription = stringResource(R.string.tab_profile)) },
+                                label = { Text(stringResource(R.string.tab_profile)) },
+                                selected = selectedTab == MainTabRoute.PROFILE,
+                                onClick = { selectedTab = MainTabRoute.PROFILE }
+                            )
+                        }
+                    ) {
+                        when (selectedTab) {
+                            MainTabRoute.TODAY -> TodayScreen(
+                                state = todayState,
+                                onRefresh = todayViewModel::loadToday,
+                                onToggleHabit = todayViewModel::toggleHabit,
+                                onSaveQuote = {
+                                    todayViewModel.saveQuoteOfDay()
+                                    profileViewModel.refresh()
+                                },
+                                onAddHabit = todayViewModel::addHabit,
+                                onAddTemplates = todayViewModel::seedHabitsFromTemplates,
+                                onSelectHabit = todayViewModel::chooseHabit,
+                                onSetDhikrCount = todayViewModel::setDhikrCount,
+                                onSaveHabit = todayViewModel::updateHabit,
+                                onDeleteHabit = todayViewModel::deleteHabit,
+                                onOpenManageHabits = {
+                                    mainOverlay = MainOverlayRoute.SCHEDULE
+                                }
+                            )
 
-                        MainTabRoute.GROUPS -> GroupsScreen(
-                            state = groupsState,
-                            isGuest = authState.user == null,
-                            onLoad = groupsViewModel::loadGroups,
-                            onCreateGroup = groupsViewModel::createGroup,
-                            onJoinGroup = groupsViewModel::joinGroup,
-                            onToggleJoinLock = groupsViewModel::toggleJoinLock,
-                            onRotateCode = groupsViewModel::rotateCode,
-                            onRenameGroup = groupsViewModel::renameGroup,
-                            onLeaveGroup = groupsViewModel::leaveGroup,
-                            onSignIn = {
-                                authRoute = AuthRoute.SIGN_IN
-                                authViewModel.openStep(AuthStep.SIGN_IN)
-                                rootGraph = RootGraph.AUTH
-                            }
-                        )
+                            MainTabRoute.GROUPS -> GroupsScreen(
+                                state = groupsState,
+                                isGuest = authState.user == null,
+                                onLoad = groupsViewModel::loadGroups,
+                                onCreateGroup = groupsViewModel::createGroup,
+                                onJoinGroup = groupsViewModel::joinGroup,
+                                onToggleJoinLock = groupsViewModel::toggleJoinLock,
+                                onRotateCode = groupsViewModel::rotateCode,
+                                onRenameGroup = groupsViewModel::renameGroup,
+                                onLeaveGroup = groupsViewModel::leaveGroup,
+                                onSendNudge = groupsViewModel::sendNudge,
+                                onSignIn = {
+                                    authViewModel.openStep(AuthStep.SIGN_IN)
+                                    mainOverlay = MainOverlayRoute.AUTH
+                                }
+                            )
 
-                        MainTabRoute.PROFILE -> ProfileScreen(
-                            state = profileState,
-                            user = authState.user,
-                            onRefresh = profileViewModel::refresh,
-                            onSetLanguage = {
-                                profileViewModel.setLanguage(it)
-                                todayViewModel.updateLocale(it.localeTag)
-                            },
-                            onSetAppearance = profileViewModel::setAppearance,
-                            onSetHabitReminder = profileViewModel::setHabitReminders,
-                            onSetQuoteReminder = profileViewModel::setQuoteReminder,
-                            onSetGroupReminder = profileViewModel::setGroupReminders,
-                            onSetHaptics = profileViewModel::setHaptics,
-                            onSetSounds = profileViewModel::setSounds,
-                            onClearSavedQuotes = profileViewModel::clearSavedQuotes,
-                            onRequestSignIn = {
-                                authRoute = AuthRoute.SIGN_IN
-                                authViewModel.openStep(AuthStep.SIGN_IN)
-                                rootGraph = RootGraph.AUTH
-                            },
-                            onSignOut = authViewModel::signOut,
-                            onOpenSavedQuotes = { profileOverlay = ProfileOverlay.SAVED_QUOTES },
-                            onOpenInsights = { profileOverlay = ProfileOverlay.INSIGHTS },
-                            debugAuthStatus = if (BuildConfig.DEBUG) container.authRuntimeStatus else null
-                        )
+                            MainTabRoute.PROFILE -> ProfileScreen(
+                                state = profileState,
+                                user = authState.user,
+                                onRefresh = profileViewModel::refresh,
+                                onSetLanguage = {
+                                    profileViewModel.setLanguage(it)
+                                    todayViewModel.updateLocale(it.localeTag)
+                                },
+                                onSetAppearance = profileViewModel::setAppearance,
+                                onSetHabitReminder = profileViewModel::setHabitReminders,
+                                onSetQuoteReminder = profileViewModel::setQuoteReminder,
+                                onSetGroupReminder = profileViewModel::setGroupReminders,
+                                onSetHaptics = profileViewModel::setHaptics,
+                                onSetSounds = profileViewModel::setSounds,
+                                onDeleteData = {
+                                    profileViewModel.clearAllLocalData()
+                                    todayViewModel.loadToday()
+                                    groupsViewModel.loadGroups()
+                                },
+                                onDeleteAccount = {
+                                    authViewModel.deleteAccount()
+                                    profileViewModel.clearAllLocalData()
+                                    todayViewModel.loadToday()
+                                    groupsViewModel.loadGroups()
+                                },
+                                onEditProfile = { username, avatarUrl ->
+                                    authViewModel.updateProfile(username, avatarUrl)
+                                    groupsViewModel.loadGroups()
+                                },
+                                onRequestSignIn = {
+                                    authViewModel.openStep(AuthStep.SIGN_IN)
+                                    mainOverlay = MainOverlayRoute.AUTH
+                                },
+                                onSignOut = authViewModel::signOut,
+                                onChangePassword = {
+                                    authViewModel.openStep(AuthStep.CHANGE_PASSWORD)
+                                    mainOverlay = MainOverlayRoute.AUTH
+                                },
+                                onOpenSavedQuotes = { mainOverlay = MainOverlayRoute.SAVED_QUOTES },
+                                onOpenInsights = { mainOverlay = MainOverlayRoute.INSIGHTS },
+                                onOpenManageHabits = { mainOverlay = MainOverlayRoute.SCHEDULE },
+                                debugAuthStatus = if (BuildConfig.DEBUG) container.authRuntimeStatus else null
+                            )
+                        }
                     }
-                }
 
-                when (profileOverlay) {
-                    ProfileOverlay.NONE -> Unit
-                    ProfileOverlay.SAVED_QUOTES -> {
-                        com.arystan.almasuly.sunnadandroid.features.profile.SavedQuotesSheet(
-                            state = profileState,
-                            onDismiss = { profileOverlay = ProfileOverlay.NONE }
-                        )
-                    }
-                    ProfileOverlay.INSIGHTS -> {
-                        InsightsScreen(
-                            habits = todayState.allHabits,
-                            dueHabits = todayState.dueHabits,
-                            onClose = { profileOverlay = ProfileOverlay.NONE }
-                        )
+                    when (mainOverlay) {
+                        MainOverlayRoute.NONE -> Unit
+                        MainOverlayRoute.SAVED_QUOTES -> {
+                            SavedQuotesSheet(
+                                state = profileState,
+                                onDismiss = { mainOverlay = MainOverlayRoute.NONE }
+                            )
+                        }
+
+                        MainOverlayRoute.INSIGHTS -> {
+                            InsightsScreen(
+                                viewModel = insightsViewModel,
+                                onClose = { mainOverlay = MainOverlayRoute.NONE }
+                            )
+                        }
+
+                        MainOverlayRoute.AUTH -> {
+                            AuthFlowScreen(
+                                state = authState,
+                                onBack = when (authState.step) {
+                                    AuthStep.SIGN_IN, AuthStep.SIGN_UP -> null
+                                    AuthStep.FORGOT_PASSWORD -> ({ authViewModel.openStep(AuthStep.SIGN_IN) })
+                                    AuthStep.CHANGE_PASSWORD -> ({ authViewModel.openStep(AuthStep.OTP) })
+                                    AuthStep.OTP -> {
+                                        if (authState.otpFlowMode == com.arystan.almasuly.sunnadandroid.features.auth.OtpFlowMode.RECOVERY) {
+                                            ({ authViewModel.openStep(AuthStep.FORGOT_PASSWORD) })
+                                        } else {
+                                            ({ authViewModel.openStep(AuthStep.SIGN_UP) })
+                                        }
+                                    }
+                                },
+                                onClose = { mainOverlay = MainOverlayRoute.NONE },
+                                onOpenStep = authViewModel::openStep,
+                                onSignIn = authViewModel::signIn,
+                                onSignUp = authViewModel::signUp,
+                                onRequestPasswordReset = authViewModel::requestPasswordReset,
+                                onVerifyOtp = authViewModel::verifyOtp,
+                                onResendOtp = authViewModel::resendOtp,
+                                onGoogleSignIn = authViewModel::signInWithGoogle,
+                                onAppleSignIn = authViewModel::signInWithApplePrewired,
+                                onUpdatePassword = authViewModel::updatePassword,
+                                onContinueAsGuest = { mainOverlay = MainOverlayRoute.NONE },
+                                closeOnLeft = true
+                            )
+                        }
+
+                        MainOverlayRoute.SCHEDULE -> {
+                            ScheduleScreen(
+                                habits = todayState.allHabits,
+                                onClose = { mainOverlay = MainOverlayRoute.NONE },
+                                onSelectHabit = { habitId ->
+                                    selectedTab = MainTabRoute.TODAY
+                                    mainOverlay = MainOverlayRoute.NONE
+                                    todayViewModel.chooseHabit(habitId)
+                                },
+                                onReorderHabits = todayViewModel::reorderHabits
+                            )
+                        }
                     }
                 }
             }
         }
     }
-}
-
-private enum class ProfileOverlay {
-    NONE,
-    SAVED_QUOTES,
-    INSIGHTS
 }

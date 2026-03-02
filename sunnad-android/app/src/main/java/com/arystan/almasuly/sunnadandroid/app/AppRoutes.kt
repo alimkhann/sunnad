@@ -14,18 +14,28 @@ enum class OnboardingRoute {
     JOIN_GROUPS,
     SIGN_IN,
     SIGN_UP,
-    OTP
+    OTP,
+    FORGOT_PASSWORD
 }
 
 enum class AuthRoute {
     SIGN_IN,
     SIGN_UP,
     OTP,
-    FORGOT_PASSWORD
+    FORGOT_PASSWORD,
+    CHANGE_PASSWORD
 }
 
 enum class MainTabRoute {
     TODAY,
     GROUPS,
     PROFILE
+}
+
+enum class MainOverlayRoute {
+    NONE,
+    AUTH,
+    INSIGHTS,
+    SAVED_QUOTES,
+    SCHEDULE
 }

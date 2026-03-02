@@ -7,6 +7,8 @@ class AppRouteResolverTest {
     @Test
     fun freshInstallOpensOnboardingWelcome() {
         val decision = resolveStartupRoute(
+            hasSettingsHydrated = true,
+            hasRestoredSession = true,
             hasCompletedOnboarding = false,
             hasAuthenticatedSession = false,
             hasPendingAuthCallback = false
@@ -19,6 +21,8 @@ class AppRouteResolverTest {
     @Test
     fun completedOnboardingGuestOpensMainTabs() {
         val decision = resolveStartupRoute(
+            hasSettingsHydrated = true,
+            hasRestoredSession = true,
             hasCompletedOnboarding = true,
             hasAuthenticatedSession = false,
             hasPendingAuthCallback = false
@@ -30,6 +34,8 @@ class AppRouteResolverTest {
     @Test
     fun authenticatedSessionOpensMainTabs() {
         val decision = resolveStartupRoute(
+            hasSettingsHydrated = true,
+            hasRestoredSession = true,
             hasCompletedOnboarding = true,
             hasAuthenticatedSession = true,
             hasPendingAuthCallback = false
@@ -41,6 +47,8 @@ class AppRouteResolverTest {
     @Test
     fun pendingAuthCallbackOpensAuthGraph() {
         val decision = resolveStartupRoute(
+            hasSettingsHydrated = true,
+            hasRestoredSession = true,
             hasCompletedOnboarding = true,
             hasAuthenticatedSession = false,
             hasPendingAuthCallback = true,
@@ -54,6 +62,8 @@ class AppRouteResolverTest {
     @Test
     fun pendingAuthCallbackWithoutConfiguredAuthOpensMain() {
         val decision = resolveStartupRoute(
+            hasSettingsHydrated = true,
+            hasRestoredSession = true,
             hasCompletedOnboarding = true,
             hasAuthenticatedSession = false,
             hasPendingAuthCallback = true,
@@ -61,5 +71,18 @@ class AppRouteResolverTest {
         )
 
         assertEquals(RootGraph.MAIN, decision.rootGraph)
+    }
+
+    @Test
+    fun unresolvedSettingsKeepsLoadingGraph() {
+        val decision = resolveStartupRoute(
+            hasSettingsHydrated = false,
+            hasRestoredSession = true,
+            hasCompletedOnboarding = false,
+            hasAuthenticatedSession = false,
+            hasPendingAuthCallback = false
+        )
+
+        assertEquals(RootGraph.LOADING, decision.rootGraph)
     }
 }
