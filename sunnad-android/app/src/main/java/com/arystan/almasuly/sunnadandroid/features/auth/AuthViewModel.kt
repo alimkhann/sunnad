@@ -237,11 +237,47 @@ class AuthViewModel(
         }
     }
 
-    fun updateProfile(username: String, avatarUrl: String?) {
+    fun updateProfile(username: String, avatarUrl: String? = null) {
         viewModelScope.launch {
             runCatching {
                 _state.update { it.copy(isLoading = true, errorMessageResId = null, successMessageResId = null) }
                 authService.updateProfile(username = username, avatarUrl = avatarUrl)
+            }.onSuccess { user ->
+                _state.update { it.copy(user = user, isLoading = false, hasRestoredSession = true) }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessageResId = errorMessageResId(error, R.string.auth_error_sign_up_failed)
+                    )
+                }
+            }
+        }
+    }
+
+    fun uploadAvatar(data: ByteArray, mimeType: String) {
+        viewModelScope.launch {
+            runCatching {
+                _state.update { it.copy(isLoading = true, errorMessageResId = null, successMessageResId = null) }
+                authService.uploadAvatar(data, mimeType)
+            }.onSuccess { user ->
+                _state.update { it.copy(user = user, isLoading = false, hasRestoredSession = true) }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessageResId = errorMessageResId(error, R.string.auth_error_sign_up_failed)
+                    )
+                }
+            }
+        }
+    }
+
+    fun removeAvatar() {
+        viewModelScope.launch {
+            runCatching {
+                _state.update { it.copy(isLoading = true, errorMessageResId = null, successMessageResId = null) }
+                authService.removeAvatar()
             }.onSuccess { user ->
                 _state.update { it.copy(user = user, isLoading = false, hasRestoredSession = true) }
             }.onFailure { error ->

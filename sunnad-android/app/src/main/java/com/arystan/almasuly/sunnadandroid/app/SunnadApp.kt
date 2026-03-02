@@ -476,6 +476,8 @@ fun SunnadApp(
                             MainTabRoute.GROUPS -> GroupsScreen(
                                 state = groupsState,
                                 isGuest = authState.user == null,
+                                dueHabits = todayState.dueHabits,
+                                allHabits = todayState.allHabits,
                                 onLoad = groupsViewModel::loadGroups,
                                 onCreateGroup = groupsViewModel::createGroup,
                                 onJoinGroup = groupsViewModel::joinGroup,
@@ -483,6 +485,10 @@ fun SunnadApp(
                                 onRotateCode = groupsViewModel::rotateCode,
                                 onRenameGroup = groupsViewModel::renameGroup,
                                 onLeaveGroup = groupsViewModel::leaveGroup,
+                                onDeleteGroup = groupsViewModel::deleteGroup,
+                                onKickMember = groupsViewModel::kickMember,
+                                onUpdateSharing = groupsViewModel::updateSharing,
+                                onToggleOwnHabit = todayViewModel::toggleHabit,
                                 onSendNudge = groupsViewModel::sendNudge,
                                 onSignIn = {
                                     authViewModel.openStep(AuthStep.SIGN_IN)
@@ -515,8 +521,16 @@ fun SunnadApp(
                                     todayViewModel.loadToday()
                                     groupsViewModel.loadGroups()
                                 },
-                                onEditProfile = { username, avatarUrl ->
-                                    authViewModel.updateProfile(username, avatarUrl)
+                                onEditProfile = { username ->
+                                    authViewModel.updateProfile(username)
+                                    groupsViewModel.loadGroups()
+                                },
+                                onUploadAvatar = { data, mimeType ->
+                                    authViewModel.uploadAvatar(data, mimeType)
+                                    groupsViewModel.loadGroups()
+                                },
+                                onRemoveAvatar = {
+                                    authViewModel.removeAvatar()
                                     groupsViewModel.loadGroups()
                                 },
                                 onRequestSignIn = {

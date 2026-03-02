@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Sunnad</string>
+    <string name="app_name">Adat</string>
 
     <string name="tab_today">Сегодня</string>
     <string name="tab_groups">Группы</string>
@@ -11,6 +11,7 @@
     <string name="common_back">Назад</string>
     <string name="common_close">Закрыть</string>
     <string name="common_done">Готово</string>
+    <string name="common_edit">Изменить</string>
     <string name="common_select">Выбрать</string>
     <string name="common_selected">Выбрано</string>
     <string name="common_loading">Загрузка…</string>
@@ -18,13 +19,14 @@
     <string name="common_retry">Повторить</string>
     <string name="common_search">Поиск</string>
     <string name="common_and">и</string>
+    <string name="common_copied">Скопировано</string>
 
     <string name="quote_card_title">ЦИТАТА ДНЯ</string>
 
     <string name="today_add_habit">Добавить привычку</string>
     <string name="today_manage_habits">Управлять привычками</string>
     <string name="today_quote_empty">Цитата пока недоступна.</string>
-    <string name="today_quote_source_fallback">Sunnad</string>
+    <string name="today_quote_source_fallback">Adat</string>
     <string name="today_quote_save">Сохранить</string>
     <string name="today_quote_share">Поделиться</string>
     <string name="today_quote_actions">Действия с цитатой</string>
@@ -74,6 +76,14 @@
     <string name="groups_sign_in_required_subtitle">Группы и синхронизация доступны после входа.</string>
     <string name="groups_empty_title">Групп пока нет</string>
     <string name="groups_empty_subtitle">Создайте группу или присоединитесь по коду.</string>
+    <string name="groups_sharing_title">Доступ</string>
+    <string name="groups_nudge_sent">Напоминание отправлено.</string>
+    <string name="groups_nudge_duplicate">Напоминание уже недавно отправлялось.</string>
+    <string name="groups_nudge_forbidden">Нельзя отправить напоминание.</string>
+    <string name="groups_nudge_error">Не удалось отправить напоминание.</string>
+    <string name="groups_kick_member">Удалить участника</string>
+    <string name="groups_leave_confirm">Выйти из этой группы?</string>
+    <string name="groups_delete_confirm">Удалить эту группу для всех участников?</string>
 
     <string name="profile_account_section">АККАУНТ</string>
     <string name="profile_saved_section">СОХРАНЕННОЕ</string>
@@ -84,6 +94,8 @@
     <string name="profile_tap_sign_in_short">Нажмите, чтобы войти</string>
     <string name="profile_edit_profile">Редактировать профиль</string>
     <string name="profile_avatar_url">URL аватара</string>
+    <string name="profile_change_photo">Изменить фото</string>
+    <string name="profile_remove_photo">Удалить фото</string>
     <string name="profile_manage_habits">Управлять привычками</string>
     <string name="profile_insights">Инсайты</string>
     <string name="profile_language">Язык</string>
@@ -179,6 +191,7 @@
     <string name="onboarding_welcome_title">Баланс жизни</string>
     <string name="onboarding_welcome_subtitle">Выстраивайте устойчивые привычки в духовной, физической, социальной и личной сферах.</string>
     <string name="onboarding_welcome_body">Sunnad помогает сохранять фокус на Сегодня, работать офлайн и оставаться спокойным. Начните с шаблонов.</string>
+    <string name="onboarding_welcome_quote">Призовите себя к отчёту, прежде чем вас призовут к отчёту. Взвешивайте свои деяния, прежде чем их взвесят.\n- Омар ибн аль-Хаттаб, да будет доволен им Аллах.</string>
     <string name="onboarding_get_started">Начать</string>
     <string name="onboarding_continue">Продолжить</string>
     <string name="onboarding_templates_title">Выберите привычки</string>
@@ -251,6 +264,8 @@
     <string name="habit_icon">Иконка</string>
     <string name="habit_schedule">Расписание</string>
     <string name="habit_counter">Счетчик</string>
+    <string name="habit_delete">Удалить привычку</string>
+    <string name="habit_delete_confirm">Удалить эту привычку и историю прогресса?</string>
     <string name="habit_reminder">Напоминание</string>
     <string name="habit_save_changes">Сохранить изменения</string>
     <string name="habit_dhikr_of_target">из %1$d</string>

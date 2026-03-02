@@ -555,8 +555,8 @@ fun WeekdaySelectorRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         mondayFirstWeekdays.forEach { day ->
             val isSelected = selectedWeekdays.contains(day)
@@ -564,18 +564,18 @@ fun WeekdaySelectorRow(
                 modifier = Modifier
                     .weight(1f)
                     .background(
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(999.dp)
                     )
                     .clickable { onToggle(day) }
-                    .padding(vertical = 9.dp),
+                    .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = weekdayShortLabel(day),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                 )
             }
         }

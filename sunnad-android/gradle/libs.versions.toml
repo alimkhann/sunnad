@@ -21,6 +21,7 @@ supabaseKt = "3.3.0"
 ktor = "3.3.3"
 datastore = "1.1.7"
 appcompat = "1.7.1"
+coil = "2.7.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -55,8 +56,10 @@ supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgre
 supabase-auth = { group = "io.github.jan-tennert.supabase", name = "auth-kt" }
 supabase-functions = { group = "io.github.jan-tennert.supabase", name = "functions-kt" }
 supabase-realtime = { group = "io.github.jan-tennert.supabase", name = "realtime-kt" }
+supabase-storage = { group = "io.github.jan-tennert.supabase", name = "storage-kt" }
 ktor-client-android = { group = "io.ktor", name = "ktor-client-android", version.ref = "ktor" }
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

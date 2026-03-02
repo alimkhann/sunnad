@@ -14,6 +14,7 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.storage.storage
 import io.ktor.client.call.body
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
@@ -99,7 +100,7 @@ class SupabaseGroupsRepository(
                 GroupMember(
                     id = UUID.fromString(member.userId),
                     name = profile?.username ?: "Member",
-                    avatarUrl = profile?.avatarPath,
+                    avatarUrl = avatarUrlFromPath(profile?.avatarPath),
                     completedToday = memberShared.count { it.completedToday },
                     totalSharedHabits = memberShared.size,
                     sharedHabits = memberShared
@@ -280,6 +281,15 @@ class SupabaseGroupsRepository(
     private suspend fun currentUserId(): UUID? {
         val raw = client.auth.currentUserOrNull()?.id ?: return null
         return runCatching { UUID.fromString(raw) }.getOrNull()
+    }
+
+    private fun avatarUrlFromPath(path: String?): String? {
+        val trimmed = path?.trim().orEmpty()
+        if (trimmed.isEmpty()) return null
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed
+        return runCatching {
+            client.storage.from("avatars").publicUrl(trimmed)
+        }.getOrDefault(trimmed)
     }
 
     companion object {

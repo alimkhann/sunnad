@@ -1,6 +1,7 @@
 package com.arystan.almasuly.sunnadandroid.features.profile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Person
@@ -36,20 +40,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.arystan.almasuly.sunnadandroid.BuildConfig
 import com.arystan.almasuly.sunnadandroid.R
 import com.arystan.almasuly.sunnadandroid.core.model.SessionUser
 import com.arystan.almasuly.sunnadandroid.services.AppAppearance
 import com.arystan.almasuly.sunnadandroid.services.AppLanguage
 import com.arystan.almasuly.sunnadandroid.ui.components.PrimaryPillButton
+import com.arystan.almasuly.sunnadandroid.ui.components.SecondaryPillButton
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadCard
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadListRow
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenPadding
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenSurface
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadSectionHeader
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,7 +74,9 @@ fun ProfileScreen(
     onSetSounds: (Boolean) -> Unit,
     onDeleteData: () -> Unit,
     onDeleteAccount: () -> Unit,
-    onEditProfile: (String, String?) -> Unit,
+    onEditProfile: (String) -> Unit,
+    onUploadAvatar: (ByteArray, String) -> Unit,
+    onRemoveAvatar: () -> Unit,
     onRequestSignIn: () -> Unit,
     onSignOut: () -> Unit,
     onChangePassword: () -> Unit,
@@ -85,7 +95,20 @@ fun ProfileScreen(
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var editUsername by remember { mutableStateOf("") }
-    var editAvatarUrl by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val pickAvatarLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val data = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            if (data != null && data.isNotEmpty()) {
+                val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+                onUploadAvatar(data, mimeType)
+            }
+        }
+    }
 
     LaunchedEffect(Unit) { onRefresh() }
 
@@ -101,7 +124,7 @@ fun ProfileScreen(
                     text = stringResource(R.string.tab_profile),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 12.dp)
+                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
 
@@ -132,22 +155,14 @@ fun ProfileScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clickable {
+                                    editUsername = user.username.orEmpty()
+                                    showEditProfileDialog = true
+                                }
                                 .padding(horizontal = 14.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = user.displayName.trim().take(1).uppercase(),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            AvatarBadge(user = user, size = 42.dp)
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
@@ -179,21 +194,6 @@ fun ProfileScreen(
                                     .padding(start = 2.dp)
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(1.dp)
-                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                        )
-                        SunnadListRow(
-                            title = stringResource(R.string.profile_edit_profile),
-                            horizontalPadding = 14.dp,
-                            onClick = {
-                                editUsername = user.username.orEmpty()
-                                editAvatarUrl = user.avatarUrl.orEmpty()
-                                showEditProfileDialog = true
-                            }
-                        )
                     }
                 }
             }
@@ -550,28 +550,31 @@ fun ProfileScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
-                SunnadCard(contentPadding = 0.dp) {
-                    TextField(
-                        value = editAvatarUrl,
-                        onValueChange = { editAvatarUrl = it },
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.profile_avatar_url)) },
+                SunnadCard {
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            disabledIndicatorColor = Color.Transparent
-                        )
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        AvatarBadge(user = user, size = 72.dp)
+                    }
+                    PrimaryPillButton(
+                        title = stringResource(R.string.profile_change_photo),
+                        onClick = {
+                            pickAvatarLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
+                    )
+                    SecondaryPillButton(
+                        title = stringResource(R.string.profile_remove_photo),
+                        onClick = onRemoveAvatar
                     )
                 }
                 PrimaryPillButton(
                     title = stringResource(R.string.common_save),
                     onClick = {
                         showEditProfileDialog = false
-                        onEditProfile(editUsername.trim(), editAvatarUrl.trim().ifBlank { null })
+                        onEditProfile(editUsername.trim())
                     }
                 )
                 Box(modifier = Modifier.height(8.dp))
@@ -640,6 +643,37 @@ fun ProfileScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun AvatarBadge(
+    user: SessionUser?,
+    size: androidx.compose.ui.unit.Dp
+) {
+    if (!user?.avatarUrl.isNullOrBlank()) {
+        AsyncImage(
+            model = user?.avatarUrl,
+            contentDescription = null,
+            modifier = Modifier
+                .size(size)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape)
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = user?.displayName?.trim()?.take(1)?.uppercase()
+                    ?: stringResource(R.string.profile_guest_mode).take(1),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 

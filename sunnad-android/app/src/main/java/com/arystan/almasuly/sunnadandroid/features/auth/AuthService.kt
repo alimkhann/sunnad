@@ -15,6 +15,8 @@ import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.auth.user.UserInfo
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.storage.storage
+import io.ktor.http.ContentType
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.Json
@@ -62,6 +64,8 @@ interface AuthService {
     suspend fun resendOtp(email: String, flowMode: OtpFlowMode)
     suspend fun updatePassword(newPassword: String): SessionUser
     suspend fun updateProfile(username: String?, avatarUrl: String?): SessionUser
+    suspend fun uploadAvatar(data: ByteArray, mimeType: String): SessionUser
+    suspend fun removeAvatar(): SessionUser
     suspend fun signInWithGoogle()
     suspend fun signInWithApple()
     suspend fun handleAuthCallback(uri: Uri): SessionUser?
@@ -103,6 +107,14 @@ class UnconfiguredAuthService(
     }
 
     override suspend fun updateProfile(username: String?, avatarUrl: String?): SessionUser {
+        throw AuthServiceError.Unavailable
+    }
+
+    override suspend fun uploadAvatar(data: ByteArray, mimeType: String): SessionUser {
+        throw AuthServiceError.Unavailable
+    }
+
+    override suspend fun removeAvatar(): SessionUser {
         throw AuthServiceError.Unavailable
     }
 
@@ -226,10 +238,12 @@ class SupabaseAuthService(
                 } else {
                     put("username", trimmedUsername)
                 }
-                if (avatarUrl.isNullOrBlank()) {
-                    put("avatar_path", JsonNull)
-                } else {
-                    put("avatar_path", avatarUrl.trim())
+                if (avatarUrl != null) {
+                    if (avatarUrl.isBlank()) {
+                        put("avatar_path", JsonNull)
+                    } else {
+                        put("avatar_path", avatarUrl.trim())
+                    }
                 }
             }
             client.from("profiles").update(payload) {
@@ -242,6 +256,45 @@ class SupabaseAuthService(
                     data = buildJsonObject { put("username", trimmedUsername) }
                 }
             }
+        }.getOrElse { throw mapAuthError(it) }
+
+        return toSessionUser(client.auth.retrieveUserForCurrentSession(updateSession = true))
+    }
+
+    override suspend fun uploadAvatar(data: ByteArray, mimeType: String): SessionUser {
+        val user = client.auth.currentUserOrNull() ?: throw AuthServiceError.InvalidCredentials
+        if (data.isEmpty()) {
+            throw AuthServiceError.Unknown("Invalid avatar image.")
+        }
+
+        val extension = when (mimeType.lowercase()) {
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            else -> "jpg"
+        }
+        val avatarPath = "profiles/${user.id.lowercase()}/avatar.$extension"
+
+        runCatching {
+            client.storage.from("avatars").upload(avatarPath, data) {
+                upsert = true
+                contentType = ContentType.parse(mimeType)
+            }
+            persistProfileAvatarPath(user.id, avatarPath)
+        }.getOrElse { throw mapAuthError(it) }
+
+        return toSessionUser(client.auth.retrieveUserForCurrentSession(updateSession = true))
+    }
+
+    override suspend fun removeAvatar(): SessionUser {
+        val user = client.auth.currentUserOrNull() ?: throw AuthServiceError.InvalidCredentials
+        val profile = fetchProfile(user.id)
+        val avatarPath = profile?.avatarPath?.trim().orEmpty()
+
+        runCatching {
+            if (avatarPath.isNotEmpty() && !avatarPath.startsWith("http://") && !avatarPath.startsWith("https://")) {
+                client.storage.from("avatars").delete(avatarPath)
+            }
+            persistProfileAvatarPath(user.id, null)
         }.getOrElse { throw mapAuthError(it) }
 
         return toSessionUser(client.auth.retrieveUserForCurrentSession(updateSession = true))
@@ -298,7 +351,7 @@ class SupabaseAuthService(
             id = id,
             email = user.email,
             username = profile?.username ?: metadataUsername,
-            avatarUrl = profile?.avatarPath,
+            avatarUrl = avatarUrlFromPath(profile?.avatarPath),
             provider = provider
         )
     }
@@ -312,6 +365,24 @@ class SupabaseAuthService(
                 .decodeList<ProfileProjection>()
                 .firstOrNull()
         }.getOrNull()
+    }
+
+    private suspend fun persistProfileAvatarPath(userId: String, avatarPath: String?) {
+        val payload = buildJsonObject {
+            put("avatar_path", avatarPath?.let { kotlinx.serialization.json.JsonPrimitive(it) } ?: JsonNull)
+        }
+        client.from("profiles").update(payload) {
+            filter { eq("id", userId) }
+        }
+    }
+
+    private fun avatarUrlFromPath(path: String?): String? {
+        val trimmed = path?.trim().orEmpty()
+        if (trimmed.isEmpty()) return null
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed
+        return runCatching {
+            client.storage.from("avatars").publicUrl(trimmed)
+        }.getOrDefault(trimmed)
     }
 
     private fun mapAuthError(error: Throwable): AuthServiceError {

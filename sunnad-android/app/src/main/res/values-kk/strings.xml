@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Sunnad</string>
+    <string name="app_name">Adat</string>
 
     <string name="tab_today">Бүгін</string>
     <string name="tab_groups">Топтар</string>
@@ -11,6 +11,7 @@
     <string name="common_back">Артқа</string>
     <string name="common_close">Жабу</string>
     <string name="common_done">Дайын</string>
+    <string name="common_edit">Өзгерту</string>
     <string name="common_select">Таңдау</string>
     <string name="common_selected">Таңдалды</string>
     <string name="common_loading">Жүктелуде…</string>
@@ -18,13 +19,14 @@
     <string name="common_retry">Қайталау</string>
     <string name="common_search">Іздеу</string>
     <string name="common_and">және</string>
+    <string name="common_copied">Көшірілді</string>
 
     <string name="quote_card_title">КҮН ДӘЙЕКСӨЗІ</string>
 
     <string name="today_add_habit">Әдет қосу</string>
     <string name="today_manage_habits">Әдеттерді басқару</string>
     <string name="today_quote_empty">Дәйексөз әлі қолжетімсіз.</string>
-    <string name="today_quote_source_fallback">Sunnad</string>
+    <string name="today_quote_source_fallback">Adat</string>
     <string name="today_quote_save">Сақтау</string>
     <string name="today_quote_share">Бөлісу</string>
     <string name="today_quote_actions">Дәйексөз әрекеттері</string>
@@ -74,6 +76,14 @@
     <string name="groups_sign_in_required_subtitle">Топтар мен синхрондау кіруден кейін қолжетімді.</string>
     <string name="groups_empty_title">Топтар әлі жоқ</string>
     <string name="groups_empty_subtitle">Топ құрыңыз немесе шақыру коды арқылы қосылыңыз.</string>
+    <string name="groups_sharing_title">Бөлісу</string>
+    <string name="groups_nudge_sent">Еске салу жіберілді.</string>
+    <string name="groups_nudge_duplicate">Еске салу жақында жіберілген.</string>
+    <string name="groups_nudge_forbidden">Еске салу жіберуге рұқсат жоқ.</string>
+    <string name="groups_nudge_error">Еске салу жіберілмеді.</string>
+    <string name="groups_kick_member">Қатысушыны шығару</string>
+    <string name="groups_leave_confirm">Осы топтан шығасыз ба?</string>
+    <string name="groups_delete_confirm">Осы топты барлық қатысушы үшін жоясыз ба?</string>
 
     <string name="profile_account_section">АККАУНТ</string>
     <string name="profile_saved_section">САҚТАЛҒАНДАР</string>
@@ -84,6 +94,8 @@
     <string name="profile_tap_sign_in_short">Кіру үшін басыңыз</string>
     <string name="profile_edit_profile">Профильді өңдеу</string>
     <string name="profile_avatar_url">Аватар URL</string>
+    <string name="profile_change_photo">Фотосуретті өзгерту</string>
+    <string name="profile_remove_photo">Фотосуретті өшіру</string>
     <string name="profile_manage_habits">Әдеттерді басқару</string>
     <string name="profile_insights">Талдау</string>
     <string name="profile_language">Тіл</string>
@@ -179,6 +191,7 @@
     <string name="onboarding_welcome_title">Өмір теңгерімі</string>
     <string name="onboarding_welcome_subtitle">Рухани, дене, әлеуметтік және жеке даму салаларында тұрақты әдеттер құрыңыз.</string>
     <string name="onboarding_welcome_body">Sunnad Today экранын жинақы ұстайды, офлайн жұмыс істейді және тыныш тәжірибе береді.</string>
+    <string name="onboarding_welcome_quote">Есепке тартылмай тұрып өздеріңді есепке тартыңдар.\nАмалдарың таразыланбай тұрып, өз амалдарыңды таразылаңдар\n- Омар ибн әл-Хаттаб р.а.</string>
     <string name="onboarding_get_started">Бастау</string>
     <string name="onboarding_continue">Жалғастыру</string>
     <string name="onboarding_templates_title">Әдеттерді таңдаңыз</string>
@@ -251,6 +264,8 @@
     <string name="habit_icon">Белгіше</string>
     <string name="habit_schedule">Кесте</string>
     <string name="habit_counter">Санауыш</string>
+    <string name="habit_delete">Әдетті жою</string>
+    <string name="habit_delete_confirm">Осы әдет пен прогресс тарихын жоясыз ба?</string>
     <string name="habit_reminder">Еске салғыш</string>
     <string name="habit_save_changes">Өзгерістерді сақтау</string>
     <string name="habit_dhikr_of_target">%1$d ішінен</string>

@@ -402,7 +402,7 @@ private fun HabitRow(
                 )
                 Box(
                     modifier = Modifier
-                        .size(24.dp)
+                        .size(22.dp)
                         .background(
                             color = if (habit.completedToday) completedFill else incompleteFill,
                             shape = CircleShape
@@ -420,7 +420,7 @@ private fun HabitRow(
                             imageVector = Icons.Rounded.Check,
                             contentDescription = stringResource(R.string.today_toggle_completion),
                             tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(13.dp)
                         )
                     }
                 }
@@ -431,7 +431,7 @@ private fun HabitRow(
         },
         titleColor = if (isDimmed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
         verticalPadding = 4.dp,
-        horizontalPadding = 14.dp,
+        horizontalPadding = 16.dp,
         minHeight = 42.dp,
         rowAlpha = if (isDimmed) 0.64f else 1f
     )

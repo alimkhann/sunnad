@@ -28,11 +28,13 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -94,6 +96,7 @@ fun HabitDetailSheet(
     var reminderMinute by rememberSaveable(habit.id) { mutableStateOf((habit.reminder?.normalizedMinute ?: 0).toString().padStart(2, '0')) }
 
     var categoryMenuExpanded by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by rememberSaveable(habit.id) { mutableStateOf(false) }
 
     var selectedDhikrKey by rememberSaveable(habit.id) { mutableStateOf(habit.selectedDhikrKey) }
     var dhikrCounts by rememberSaveable(habit.id) { mutableStateOf(habit.dhikrCountsByKey) }
@@ -163,8 +166,7 @@ fun HabitDetailSheet(
                             .size(38.dp)
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
                             .clickable {
-                                onDeleteHabit(habit.id)
-                                onDismiss()
+                                showDeleteConfirmation = true
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -190,7 +192,11 @@ fun HabitDetailSheet(
 
             if (habit.isDhikr) {
                 item {
-                    TabRow(selectedTabIndex = if (selectedTab == HabitDetailTab.DETAILS) 0 else 1) {
+                    TabRow(
+                        selectedTabIndex = if (selectedTab == HabitDetailTab.DETAILS) 0 else 1,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ) {
                         Tab(
                             selected = selectedTab == HabitDetailTab.DETAILS,
                             onClick = { selectedTab = HabitDetailTab.DETAILS },
@@ -548,6 +554,33 @@ fun HabitDetailSheet(
                 )
             }
         }
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text(text = stringResource(R.string.habit_delete)) },
+            text = { Text(text = stringResource(R.string.habit_delete_confirm)) },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text(text = stringResource(R.string.common_cancel))
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDeleteHabit(habit.id)
+                        onDismiss()
+                    }
+                ) {
+                    Text(
+                        text = stringResource(R.string.common_delete),
+                        color = Color(0xFFFF4D5A)
+                    )
+                }
+            }
+        )
     }
 }
 

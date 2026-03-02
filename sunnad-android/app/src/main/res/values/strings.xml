@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Sunnad</string>
+    <string name="app_name">Adat</string>
 
     <string name="tab_today">Today</string>
     <string name="tab_groups">Groups</string>
@@ -11,6 +11,7 @@
     <string name="common_back">Back</string>
     <string name="common_close">Close</string>
     <string name="common_done">Done</string>
+    <string name="common_edit">Edit</string>
     <string name="common_select">Select</string>
     <string name="common_selected">Selected</string>
     <string name="common_loading">Loading…</string>
@@ -21,13 +22,14 @@
     <string name="common_add">Add</string>
     <string name="common_reorder">Reorder</string>
     <string name="common_delete">Delete</string>
+    <string name="common_copied">Copied</string>
 
     <string name="quote_card_title">QUOTE OF THE DAY</string>
 
     <string name="today_add_habit">Add habit</string>
     <string name="today_manage_habits">Manage habits</string>
     <string name="today_quote_empty">No quote available yet.</string>
-    <string name="today_quote_source_fallback">Sunnad</string>
+    <string name="today_quote_source_fallback">Adat</string>
     <string name="today_quote_save">Save</string>
     <string name="today_quote_share">Share</string>
     <string name="today_quote_actions">Quote actions</string>
@@ -57,6 +59,8 @@
     <string name="habit_icon">Icon</string>
     <string name="habit_schedule">Schedule</string>
     <string name="habit_counter">Counter</string>
+    <string name="habit_delete">Delete habit</string>
+    <string name="habit_delete_confirm">Delete this habit and its progress history?</string>
     <string name="habit_reminder">Reminder</string>
     <string name="habit_save_changes">Save Changes</string>
     <string name="habit_icon_hint">Icon name (Material symbol)</string>
@@ -91,6 +95,14 @@
     <string name="groups_sign_in_required_subtitle">Groups sync and accountability are available after sign in.</string>
     <string name="groups_empty_title">No groups yet</string>
     <string name="groups_empty_subtitle">Create a group or join with an invite code.</string>
+    <string name="groups_sharing_title">Sharing</string>
+    <string name="groups_nudge_sent">Nudge sent.</string>
+    <string name="groups_nudge_duplicate">Already nudged recently.</string>
+    <string name="groups_nudge_forbidden">Nudge not allowed.</string>
+    <string name="groups_nudge_error">Could not send nudge.</string>
+    <string name="groups_kick_member">Remove member</string>
+    <string name="groups_leave_confirm">Leave this group?</string>
+    <string name="groups_delete_confirm">Delete this group for all members?</string>
 
     <string name="profile_account_section">ACCOUNT</string>
     <string name="profile_saved_section">SAVED</string>
@@ -101,6 +113,8 @@
     <string name="profile_tap_sign_in_short">Tap to sign in</string>
     <string name="profile_edit_profile">Edit Profile</string>
     <string name="profile_avatar_url">Avatar URL</string>
+    <string name="profile_change_photo">Change photo</string>
+    <string name="profile_remove_photo">Remove photo</string>
     <string name="profile_manage_habits">Manage Habits</string>
     <string name="profile_insights">Insights</string>
     <string name="profile_language">Language</string>
@@ -196,6 +210,7 @@
     <string name="onboarding_welcome_title">Balance Your Life</string>
     <string name="onboarding_welcome_subtitle">Build consistent habits across spiritual, physical, social, and personal growth.</string>
     <string name="onboarding_welcome_body">Sunnad keeps Today focused, offline-first, and calm. Start with templates and continue as guest or member.</string>
+    <string name="onboarding_welcome_quote">Call yourselves to account before you are called to account. Weigh your deeds before your deeds are weighed.\n- Omar ibn al-Khattab, may Allah be pleased with him.</string>
     <string name="onboarding_get_started">Get Started</string>
     <string name="onboarding_continue">Continue</string>
     <string name="onboarding_templates_title">Pick Your Habits</string>

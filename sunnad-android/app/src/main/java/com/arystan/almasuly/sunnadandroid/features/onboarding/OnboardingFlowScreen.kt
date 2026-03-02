@@ -116,9 +116,9 @@ fun OnboardingFlowScreen(
     when (route) {
         OnboardingRoute.WELCOME -> HeroStep(
             modifier = modifier,
-            title = stringResource(R.string.onboarding_welcome_title),
-            subtitle = stringResource(R.string.onboarding_welcome_subtitle),
-            icon = Icons.Rounded.WbSunny,
+            title = stringResource(R.string.app_name),
+            subtitle = stringResource(R.string.onboarding_welcome_quote),
+            icon = null,
             primaryTitle = stringResource(R.string.onboarding_get_started),
             onPrimary = { onRouteChange(OnboardingRoute.TEMPLATES) },
             trailingTopAction = {
@@ -360,7 +360,7 @@ fun OnboardingFlowScreen(
 private fun HeroStep(
     title: String,
     subtitle: String,
-    icon: ImageVector,
+    icon: ImageVector?,
     modifier: Modifier = Modifier,
     primaryTitle: String? = null,
     onPrimary: (() -> Unit)? = null,
@@ -401,22 +401,24 @@ private fun HeroStep(
         }
 
         Spacer(modifier = Modifier.weight(1f))
-        Box(
-            modifier = Modifier
-                .size(102.dp)
-                .align(Alignment.CenterHorizontally)
-                .background(
-                    color = MaterialTheme.colorScheme.primary,
-                    shape = RoundedCornerShape(28.dp)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(44.dp)
-            )
+        if (icon != null) {
+            Box(
+                modifier = Modifier
+                    .size(102.dp)
+                    .align(Alignment.CenterHorizontally)
+                    .background(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(28.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(44.dp)
+                )
+            }
         }
         Spacer(modifier = Modifier.height(24.dp))
         Text(
