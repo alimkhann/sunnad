@@ -11,12 +11,21 @@ import io.github.jan.supabase.auth.exception.AuthRestException
 import io.github.jan.supabase.auth.exception.AuthWeakPasswordException
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.auth.user.UserInfo
+import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import java.util.UUID
 
 enum class OtpFlowMode {
@@ -51,9 +60,12 @@ interface AuthService {
     suspend fun requestPasswordReset(email: String)
     suspend fun verifyOtp(email: String, otp: String, flowMode: OtpFlowMode): SessionUser
     suspend fun resendOtp(email: String, flowMode: OtpFlowMode)
+    suspend fun updatePassword(newPassword: String): SessionUser
+    suspend fun updateProfile(username: String?, avatarUrl: String?): SessionUser
     suspend fun signInWithGoogle()
     suspend fun signInWithApple()
     suspend fun handleAuthCallback(uri: Uri): SessionUser?
+    suspend fun deleteAccount()
     suspend fun signOut()
 }
 
@@ -86,6 +98,14 @@ class UnconfiguredAuthService(
         throw AuthServiceError.Unavailable
     }
 
+    override suspend fun updatePassword(newPassword: String): SessionUser {
+        throw AuthServiceError.Unavailable
+    }
+
+    override suspend fun updateProfile(username: String?, avatarUrl: String?): SessionUser {
+        throw AuthServiceError.Unavailable
+    }
+
     override suspend fun signInWithGoogle() {
         throw AuthServiceError.Unavailable
     }
@@ -95,6 +115,10 @@ class UnconfiguredAuthService(
     }
 
     override suspend fun handleAuthCallback(uri: Uri): SessionUser? {
+        throw AuthServiceError.Unavailable
+    }
+
+    override suspend fun deleteAccount() {
         throw AuthServiceError.Unavailable
     }
 
@@ -114,7 +138,7 @@ class SupabaseAuthService(
         return runCatching {
             client.auth.loadFromStorage(autoRefresh = true)
             client.auth.awaitInitialization()
-            client.auth.currentUserOrNull()?.toSessionUser()
+            client.auth.currentUserOrNull()?.let { toSessionUser(it) }
         }.getOrNull()
     }
 
@@ -125,7 +149,11 @@ class SupabaseAuthService(
                 email = normalized
                 this.password = password
             }
-            client.auth.retrieveUserForCurrentSession(updateSession = true).toSessionUser()
+            val user = runCatching {
+                client.auth.retrieveUserForCurrentSession(updateSession = true)
+            }.getOrNull() ?: client.auth.currentUserOrNull()
+            if (user == null) throw AuthServiceError.InvalidCredentials
+            toSessionUser(user)
         }.getOrElse { throw mapAuthError(it) }
     }
 
@@ -143,7 +171,7 @@ class SupabaseAuthService(
                 data = buildJsonObject { put("username", normalizedUsername) }
             }
 
-            val sessionUser = client.auth.currentUserOrNull()?.toSessionUser()
+            val sessionUser = client.auth.currentUserOrNull()?.let { toSessionUser(it) }
             sessionUser ?: throw AuthServiceError.EmailNotConfirmed
         }.getOrElse { throw mapAuthError(it) }
     }
@@ -162,7 +190,7 @@ class SupabaseAuthService(
 
         return runCatching {
             client.auth.verifyEmailOtp(otpType, email.trim(), otp.trim())
-            client.auth.retrieveUserForCurrentSession(updateSession = true).toSessionUser()
+            toSessionUser(client.auth.retrieveUserForCurrentSession(updateSession = true))
         }.getOrElse { throw mapAuthError(it) }
     }
 
@@ -173,6 +201,50 @@ class SupabaseAuthService(
                 OtpFlowMode.RECOVERY -> client.auth.resetPasswordForEmail(email.trim(), redirectUrl)
             }
         }.getOrElse { throw mapAuthError(it) }
+    }
+
+    override suspend fun updatePassword(newPassword: String): SessionUser {
+        return runCatching {
+            client.auth.updateUser {
+                password = newPassword
+            }
+            toSessionUser(client.auth.retrieveUserForCurrentSession(updateSession = true))
+        }.getOrElse { throw mapAuthError(it) }
+    }
+
+    override suspend fun updateProfile(username: String?, avatarUrl: String?): SessionUser {
+        val user = client.auth.currentUserOrNull() ?: throw AuthServiceError.InvalidCredentials
+        val trimmedUsername = username?.trim().orEmpty().lowercase()
+        if (trimmedUsername.isNotEmpty() && !trimmedUsername.matches(Regex("^[a-z0-9_]{3,20}$"))) {
+            throw AuthServiceError.InvalidUsername
+        }
+
+        runCatching {
+            val payload = buildJsonObject {
+                if (trimmedUsername.isBlank()) {
+                    put("username", JsonNull)
+                } else {
+                    put("username", trimmedUsername)
+                }
+                if (avatarUrl.isNullOrBlank()) {
+                    put("avatar_path", JsonNull)
+                } else {
+                    put("avatar_path", avatarUrl.trim())
+                }
+            }
+            client.from("profiles").update(payload) {
+                filter { eq("id", user.id) }
+            }
+            client.auth.updateUser {
+                if (trimmedUsername.isBlank()) {
+                    data = buildJsonObject { put("username", JsonNull) }
+                } else {
+                    data = buildJsonObject { put("username", trimmedUsername) }
+                }
+            }
+        }.getOrElse { throw mapAuthError(it) }
+
+        return toSessionUser(client.auth.retrieveUserForCurrentSession(updateSession = true))
     }
 
     override suspend fun signInWithGoogle() {
@@ -192,7 +264,17 @@ class SupabaseAuthService(
     override suspend fun handleAuthCallback(uri: Uri): SessionUser? {
         return runCatching {
             client.auth.exchangeCodeForSession(uri.toString())
-            client.auth.retrieveUserForCurrentSession(updateSession = true).toSessionUser()
+            val user = runCatching {
+                client.auth.retrieveUserForCurrentSession(updateSession = true)
+            }.getOrNull() ?: client.auth.currentUserOrNull()
+            user?.let { toSessionUser(it) }
+        }.getOrElse { throw mapAuthError(it) }
+    }
+
+    override suspend fun deleteAccount() {
+        runCatching {
+            client.functions.invoke("delete-account")
+            client.auth.signOut()
         }.getOrElse { throw mapAuthError(it) }
     }
 
@@ -202,10 +284,11 @@ class SupabaseAuthService(
         }.getOrElse { throw mapAuthError(it) }
     }
 
-    private fun UserInfo.toSessionUser(): SessionUser {
-        val id = runCatching { UUID.fromString(this.id) }.getOrElse { UUID.randomUUID() }
-        val metadataUsername = userMetadata?.get("username")?.jsonPrimitive?.contentOrNull
-        val provider = when (appMetadata?.get("provider")?.jsonPrimitive?.contentOrNull?.lowercase()) {
+    private suspend fun toSessionUser(user: UserInfo): SessionUser {
+        val profile = fetchProfile(user.id)
+        val id = runCatching { UUID.fromString(user.id) }.getOrElse { UUID.randomUUID() }
+        val metadataUsername = user.userMetadata?.get("username")?.jsonPrimitive?.contentOrNull
+        val provider = when (user.appMetadata?.get("provider")?.jsonPrimitive?.contentOrNull?.lowercase()) {
             "google" -> AuthProvider.GOOGLE
             "apple" -> AuthProvider.APPLE
             "email" -> AuthProvider.EMAIL
@@ -213,10 +296,22 @@ class SupabaseAuthService(
         }
         return SessionUser(
             id = id,
-            email = email,
-            username = metadataUsername,
+            email = user.email,
+            username = profile?.username ?: metadataUsername,
+            avatarUrl = profile?.avatarPath,
             provider = provider
         )
+    }
+
+    private suspend fun fetchProfile(userId: String): ProfileProjection? {
+        return runCatching {
+            client.from("profiles")
+                .select {
+                    filter { eq("id", userId) }
+                }
+                .decodeList<ProfileProjection>()
+                .firstOrNull()
+        }.getOrNull()
     }
 
     private fun mapAuthError(error: Throwable): AuthServiceError {
@@ -253,7 +348,38 @@ class SupabaseAuthService(
                 function = "resolve_sign_in_email",
                 parameters = buildJsonObject { put("identifier", trimmed) }
             )
-            result.decodeSingle<String>().ifBlank { trimmed }
+            parseRpcString(result.data).ifBlank { trimmed }
         }.getOrDefault(trimmed)
     }
+
+    private fun parseRpcString(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank() || trimmed == "null") return ""
+
+        val element = runCatching { Json.parseToJsonElement(trimmed) }.getOrNull()
+        if (element != null) {
+            parseJsonValue(element)?.let { return it }
+        }
+
+        if (trimmed.startsWith("\"") && trimmed.endsWith("\"") && trimmed.length >= 2) {
+            return trimmed.substring(1, trimmed.lastIndex)
+        }
+        return trimmed
+    }
+
+    private fun parseJsonValue(element: JsonElement): String? {
+        return when (element) {
+            is JsonObject -> element["email"]?.let(::parseJsonValue)
+                ?: element["value"]?.let(::parseJsonValue)
+                ?: element.values.firstNotNullOfOrNull(::parseJsonValue)
+            is JsonArray -> element.firstNotNullOfOrNull(::parseJsonValue)
+            else -> element.jsonPrimitive.contentOrNull
+        }
+    }
 }
+
+@Serializable
+private data class ProfileProjection(
+    val username: String? = null,
+    @SerialName("avatar_path") val avatarPath: String? = null
+)
