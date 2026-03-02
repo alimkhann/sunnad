@@ -265,6 +265,31 @@ fun SunnadApp(
         }
     }
 
+    LaunchedEffect(authState.user?.id, profileState.settingsLoaded) {
+        if (!profileState.settingsLoaded) return@LaunchedEffect
+        val signedIn = authState.user ?: return@LaunchedEffect
+
+        if (rootGraph == RootGraph.ONBOARDING) {
+            if (!onboardingTemplatesSeeded && pendingOnboardingTemplates.isNotEmpty()) {
+                todayViewModel.seedHabitsFromTemplates(pendingOnboardingTemplates)
+                onboardingTemplatesSeeded = true
+            }
+            pendingOnboardingTemplates = emptyList()
+            selectedOnboardingTemplateIds = emptySet()
+            if (!profileState.settings.onboardingCompleted) {
+                profileViewModel.setOnboardingCompleted(true)
+            }
+        }
+
+        if (rootGraph != RootGraph.MAIN) {
+            rootGraph = RootGraph.MAIN
+            selectedTab = MainTabRoute.TODAY
+        }
+
+        container.ownerScopeResolver.setSignedInUserId(signedIn.id)
+        container.syncCoordinator.setSignedInUserId(signedIn.id)
+    }
+
     SunnadTheme(forcedDarkTheme = darkThemeMode) {
         when (rootGraph) {
             RootGraph.LOADING -> {
