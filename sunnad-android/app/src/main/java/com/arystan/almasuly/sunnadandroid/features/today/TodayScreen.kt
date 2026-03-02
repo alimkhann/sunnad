@@ -1,5 +1,8 @@
 package com.arystan.almasuly.sunnadandroid.features.today
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,21 +10,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Done
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.MenuBook
-import androidx.compose.material.icons.rounded.RadioButtonUnchecked
-import androidx.compose.material.icons.rounded.SelfImprovement
-import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
@@ -40,7 +38,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -48,9 +45,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ShareCompat
 import com.arystan.almasuly.sunnadandroid.R
 import com.arystan.almasuly.sunnadandroid.core.model.Habit
-import com.arystan.almasuly.sunnadandroid.core.model.HabitSchedule
-import com.arystan.almasuly.sunnadandroid.features.habits.DhikrCounterDialog
-import com.arystan.almasuly.sunnadandroid.features.habits.HabitEditorDialog
+import com.arystan.almasuly.sunnadandroid.features.habits.AddHabitSheet
+import com.arystan.almasuly.sunnadandroid.features.habits.HabitDetailSheet
+import com.arystan.almasuly.sunnadandroid.features.habits.iconForHabitName
+import com.arystan.almasuly.sunnadandroid.features.onboarding.OnboardingTemplateSeed
 import com.arystan.almasuly.sunnadandroid.ui.components.PrimaryPillButton
 import com.arystan.almasuly.sunnadandroid.ui.components.SecondaryPillButton
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadActionCapsule
@@ -77,16 +75,18 @@ fun TodayScreen(
         reminderHour: Int?,
         reminderMinute: Int?
     ) -> Unit,
+    onAddTemplates: (List<OnboardingTemplateSeed>) -> Unit,
     onSelectHabit: (java.util.UUID?) -> Unit,
     onSetDhikrCount: (java.util.UUID, Int) -> Unit,
-    onArchiveHabit: (java.util.UUID) -> Unit,
+    onSaveHabit: (Habit) -> Unit,
+    onDeleteHabit: (java.util.UUID) -> Unit,
     onOpenManageHabits: () -> Unit
 ) {
     val context = LocalContext.current
-    var showEditor by remember { mutableStateOf(false) }
+    val quoteSourceFallback = stringResource(R.string.today_quote_source_fallback)
+    var showAddHabitSheet by remember { mutableStateOf(false) }
     var showCompleted by remember { mutableStateOf(true) }
     var showQuoteSheet by remember { mutableStateOf(false) }
-    var showManageSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { onRefresh() }
 
@@ -126,23 +126,22 @@ fun TodayScreen(
                         SunnadActionCapsule(
                             leftIcon = Icons.Rounded.CalendarMonth,
                             leftContentDescription = stringResource(R.string.today_manage_habits),
-                            onLeftClick = {
-                                onOpenManageHabits()
-                                showManageSheet = true
-                            },
+                            onLeftClick = onOpenManageHabits,
                             rightIcon = Icons.Rounded.Add,
                             rightContentDescription = stringResource(R.string.today_add_habit),
-                            onRightClick = { showEditor = true }
+                            onRightClick = { showAddHabitSheet = true }
                         )
                     }
                 }
 
                 item {
-                    SunnadCard {
+                    SunnadCard(
+                        modifier = Modifier.clickable(onClick = { showQuoteSheet = true })
+                    ) {
                         Text(
                             text = stringResource(R.string.quote_card_title),
                             style = MaterialTheme.typography.labelLarge,
-                            color = Color(0xFFF6D84A),
+                            color = androidx.compose.ui.graphics.Color(0xFFF6D84A),
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
@@ -153,14 +152,6 @@ fun TodayScreen(
                             text = "- ${state.quote?.source ?: stringResource(R.string.today_quote_source_fallback)}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        SecondaryPillButton(
-                            title = if (state.isQuoteSaved) {
-                                stringResource(R.string.today_quote_saved)
-                            } else {
-                                stringResource(R.string.today_quote_actions)
-                            },
-                            onClick = { showQuoteSheet = true }
                         )
                     }
                 }
@@ -213,7 +204,7 @@ fun TodayScreen(
                     }
                 } else {
                     item {
-                        SunnadCard(contentPadding = 10.dp) {
+                        SunnadCard(contentPadding = 0.dp) {
                             pendingHabits.forEachIndexed { index, habit ->
                                 HabitRow(
                                     habit = habit,
@@ -251,7 +242,7 @@ fun TodayScreen(
 
                     if (showCompleted) {
                         item {
-                            SunnadCard(contentPadding = 10.dp) {
+                            SunnadCard(contentPadding = 0.dp) {
                                 completedHabits.forEachIndexed { index, habit ->
                                     HabitRow(
                                         habit = habit,
@@ -267,6 +258,7 @@ fun TodayScreen(
                         }
                     }
                 }
+
                 item {
                     Box(modifier = Modifier.height(96.dp))
                 }
@@ -274,61 +266,28 @@ fun TodayScreen(
         }
     }
 
-    if (showEditor) {
-        HabitEditorDialog(
-            onDismiss = { showEditor = false },
-            onCreateHabit = { name, icon, category, schedule, isDhikr, target, hour, minute ->
-                onAddHabit(name, icon, category, schedule, isDhikr, target, hour, minute)
-                showEditor = false
+    if (showAddHabitSheet) {
+        AddHabitSheet(
+            existingHabits = state.allHabits,
+            onDismiss = { showAddHabitSheet = false },
+            onAddTemplates = { templates ->
+                onAddTemplates(templates)
+                showAddHabitSheet = false
+            },
+            onAddCustomHabit = { name, icon, category, schedule, isDhikr, targetCount, reminderHour, reminderMinute ->
+                onAddHabit(
+                    name,
+                    icon,
+                    category,
+                    schedule,
+                    isDhikr,
+                    targetCount,
+                    reminderHour,
+                    reminderMinute
+                )
+                showAddHabitSheet = false
             }
         )
-    }
-
-    if (showManageSheet) {
-        ModalBottomSheet(onDismissRequest = { showManageSheet = false }) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = SunnadScreenPadding, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.today_manage_habits),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                if (state.allHabits.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.today_empty_subtitle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    state.allHabits.forEach { habit ->
-                        SunnadCard(contentPadding = 10.dp) {
-                            Text(
-                                text = habit.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = scheduleLabel(habit),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-                PrimaryPillButton(
-                    title = stringResource(R.string.today_add_habit),
-                    onClick = {
-                        showManageSheet = false
-                        showEditor = true
-                    }
-                )
-                Box(modifier = Modifier.height(8.dp))
-            }
-        }
     }
 
     if (showQuoteSheet) {
@@ -344,6 +303,17 @@ fun TodayScreen(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
+                SunnadCard {
+                    Text(
+                        text = state.quote?.text ?: stringResource(R.string.today_quote_empty),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = "- ${state.quote?.source ?: quoteSourceFallback}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 PrimaryPillButton(
                     title = if (state.isQuoteSaved) stringResource(R.string.today_quote_saved) else stringResource(R.string.today_quote_save),
                     enabled = !state.isQuoteSaved,
@@ -359,7 +329,7 @@ fun TodayScreen(
                         if (quote != null) {
                             ShareCompat.IntentBuilder(context)
                                 .setType("text/plain")
-                                .setText("${quote.text}\n\n- ${quote.source ?: "Sunnad"}")
+                                .setText("${quote.text}\n\n- ${quote.source ?: quoteSourceFallback}")
                                 .startChooser()
                         }
                         showQuoteSheet = false
@@ -370,18 +340,22 @@ fun TodayScreen(
         }
     }
 
-    val selected = state.selectedHabitId?.let { id -> state.dueHabits.firstOrNull { it.id == id } }
-    if (selected != null && selected.isDhikr) {
-        DhikrCounterDialog(
-            habit = selected,
+    val selectedHabit = state.selectedHabitId?.let { id -> state.allHabits.firstOrNull { it.id == id } }
+    val selectedTodayModel = state.selectedHabitId?.let { id -> state.dueHabits.firstOrNull { it.id == id } }
+    if (selectedHabit != null) {
+        HabitDetailSheet(
+            habit = selectedHabit,
+            streak = selectedTodayModel?.streak ?: 0,
+            completedToday = selectedTodayModel?.completedToday ?: false,
+            initialCompletionValue = selectedTodayModel?.dhikrCount ?: 0,
             onDismiss = { onSelectHabit(null) },
-            onSave = {
-                onSetDhikrCount(selected.id, it)
+            onSaveHabit = onSaveHabit,
+            onDeleteHabit = {
+                onDeleteHabit(it)
                 onSelectHabit(null)
             },
-            onArchive = {
-                onArchiveHabit(selected.id)
-                onSelectHabit(null)
+            onSetCompletionValue = { id, value ->
+                onSetDhikrCount(id, value)
             }
         )
     }
@@ -407,19 +381,14 @@ private fun HabitRow(
     onSelectHabit: (java.util.UUID?) -> Unit,
     isDimmed: Boolean = false
 ) {
-    val subtitle = if (habit.isDhikr) {
-        stringResource(R.string.habit_dhikr_progress, habit.dhikrCount, habit.dhikrTarget)
-    } else {
-        stringResource(R.string.today_streak, habit.streak)
-    }
-    val rowSubtitle = if (!habit.isDhikr && habit.streak <= 0) null else subtitle
-
+    val completedFill = MaterialTheme.colorScheme.primary
+    val incompleteFill = MaterialTheme.colorScheme.surfaceContainerHighest
     SunnadListRow(
         title = habit.title,
-        subtitle = rowSubtitle,
+        subtitle = null,
         leading = {
             Icon(
-                imageVector = iconForHabit(habit.icon, habit.title),
+                imageVector = iconForHabitName(habit.icon, habit.title),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -431,50 +400,39 @@ private fun HabitRow(
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                IconButton(onClick = { onToggleHabit(habit.id) }) {
-                    Icon(
-                        imageVector = if (habit.completedToday) Icons.Rounded.Done else Icons.Rounded.RadioButtonUnchecked,
-                        contentDescription = stringResource(R.string.today_toggle_completion),
-                        tint = if (habit.completedToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                    )
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .background(
+                            color = if (habit.completedToday) completedFill else incompleteFill,
+                            shape = CircleShape
+                        )
+                        .border(
+                            width = if (habit.completedToday) 0.dp else 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
+                            shape = CircleShape
+                        )
+                        .clickable { onToggleHabit(habit.id) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (habit.completedToday) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = stringResource(R.string.today_toggle_completion),
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                 }
             }
         },
         onClick = {
-            if (habit.isDhikr) {
-                onSelectHabit(habit.id)
-            } else {
-                onToggleHabit(habit.id)
-            }
+            onSelectHabit(habit.id)
         },
         titleColor = if (isDimmed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-        subtitleColor = if (isDimmed) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurfaceVariant
+        verticalPadding = 4.dp,
+        horizontalPadding = 14.dp,
+        minHeight = 42.dp,
+        rowAlpha = if (isDimmed) 0.64f else 1f
     )
-}
-
-private fun iconForHabit(iconName: String, title: String) = when {
-    iconName.contains("menu_book", ignoreCase = true) -> Icons.Rounded.MenuBook
-    iconName.contains("group", ignoreCase = true) -> Icons.Rounded.Groups
-    iconName.contains("fitness", ignoreCase = true) -> Icons.Rounded.SelfImprovement
-    iconName.contains("sun", ignoreCase = true) -> Icons.Rounded.WbSunny
-    iconName.contains("bed", ignoreCase = true) -> Icons.Rounded.Bedtime
-    iconName.contains("self", ignoreCase = true) -> Icons.Rounded.SelfImprovement
-    title.contains("quran", ignoreCase = true) -> Icons.Rounded.MenuBook
-    title.contains("parent", ignoreCase = true) -> Icons.Rounded.Groups
-    title.contains("exercise", ignoreCase = true) -> Icons.Rounded.SelfImprovement
-    title.contains("morning", ignoreCase = true) -> Icons.Rounded.WbSunny
-    title.contains("evening", ignoreCase = true) -> Icons.Rounded.Bedtime
-    title.contains("dhikr", ignoreCase = true) -> Icons.Rounded.SelfImprovement
-    else -> Icons.Rounded.SelfImprovement
-}
-
-@Composable
-private fun scheduleLabel(habit: Habit): String {
-    return when (val schedule = habit.schedule) {
-        HabitSchedule.Daily -> stringResource(R.string.habit_schedule_daily)
-        is HabitSchedule.Weekly -> {
-            val days = schedule.weekdays.sortedBy { it.ordinal }.joinToString(", ") { it.name.take(3) }
-            stringResource(R.string.habit_schedule_weekly_label, days)
-        }
-    }
 }

@@ -13,6 +13,7 @@ import com.arystan.almasuly.sunnadandroid.core.rules.StreakCalculator
 import com.arystan.almasuly.sunnadandroid.domain.repository.CompletionsRepository
 import com.arystan.almasuly.sunnadandroid.domain.repository.HabitsRepository
 import com.arystan.almasuly.sunnadandroid.domain.repository.QuotesRepository
+import com.arystan.almasuly.sunnadandroid.features.habits.canonicalHabitIconKey
 import com.arystan.almasuly.sunnadandroid.features.onboarding.OnboardingTemplateSeed
 import com.arystan.almasuly.sunnadandroid.sync.SyncCoordinator
 import com.arystan.almasuly.sunnadandroid.sync.SyncTrigger
@@ -159,7 +160,7 @@ class TodayViewModel(
                 if (existingNames.contains(template.title.trim().lowercase())) return@forEach
                 val habit = Habit(
                     name = template.title,
-                    icon = template.iconName,
+                    icon = canonicalHabitIconKey(template.iconName, template.title),
                     category = template.categoryValue,
                     type = if (template.isDhikr) HabitType.DHIKR else HabitType.BINARY,
                     targetCount = if (template.isDhikr) template.targetCount.coerceAtLeast(1) else null,
@@ -194,7 +195,7 @@ class TodayViewModel(
             }
             val habit = Habit(
                 name = name,
-                icon = icon,
+                icon = canonicalHabitIconKey(icon, name),
                 category = category,
                 type = if (isDhikr) HabitType.DHIKR else HabitType.BINARY,
                 targetCount = if (isDhikr) targetCount.coerceAtLeast(1) else null,
@@ -235,6 +236,29 @@ class TodayViewModel(
             val habit = _state.value.allHabits.firstOrNull { it.id == habitId } ?: return@launch
             habitsRepository.saveHabit(habit.copy(archived = true, updatedAt = LocalDateTime.now()))
             syncCoordinator.enqueueHabitUpsert(habitId)
+            syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            loadToday()
+        }
+    }
+
+    fun updateHabit(habit: Habit) {
+        viewModelScope.launch {
+            habitsRepository.saveHabit(
+                habit.copy(
+                    icon = canonicalHabitIconKey(habit.icon, habit.name),
+                    updatedAt = LocalDateTime.now()
+                )
+            )
+            syncCoordinator.enqueueHabitUpsert(habit.id)
+            syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            loadToday()
+        }
+    }
+
+    fun deleteHabit(habitId: UUID) {
+        viewModelScope.launch {
+            habitsRepository.deleteHabit(habitId)
+            syncCoordinator.enqueueHabitDelete(habitId)
             syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
             loadToday()
         }
