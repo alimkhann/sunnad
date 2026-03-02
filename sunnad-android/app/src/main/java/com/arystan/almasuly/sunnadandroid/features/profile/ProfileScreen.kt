@@ -1,13 +1,16 @@
 package com.arystan.almasuly.sunnadandroid.features.profile
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Person
@@ -17,9 +20,13 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,12 +44,14 @@ import com.arystan.almasuly.sunnadandroid.R
 import com.arystan.almasuly.sunnadandroid.core.model.SessionUser
 import com.arystan.almasuly.sunnadandroid.services.AppAppearance
 import com.arystan.almasuly.sunnadandroid.services.AppLanguage
+import com.arystan.almasuly.sunnadandroid.ui.components.PrimaryPillButton
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadCard
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadListRow
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenPadding
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenSurface
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadSectionHeader
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     state: ProfileUiState,
@@ -55,17 +64,28 @@ fun ProfileScreen(
     onSetGroupReminder: (Boolean) -> Unit,
     onSetHaptics: (Boolean) -> Unit,
     onSetSounds: (Boolean) -> Unit,
-    onClearSavedQuotes: () -> Unit,
+    onDeleteData: () -> Unit,
+    onDeleteAccount: () -> Unit,
+    onEditProfile: (String, String?) -> Unit,
     onRequestSignIn: () -> Unit,
     onSignOut: () -> Unit,
+    onChangePassword: () -> Unit,
     onOpenSavedQuotes: () -> Unit,
     onOpenInsights: () -> Unit,
+    onOpenManageHabits: () -> Unit,
     debugAuthStatus: String? = null
 ) {
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showAppearanceDialog by remember { mutableStateOf(false) }
     var showNotificationDialog by remember { mutableStateOf(false) }
     var showSoundDialog by remember { mutableStateOf(false) }
+    var showFeedbackSheet by remember { mutableStateOf(false) }
+    var showSignOutDialog by remember { mutableStateOf(false) }
+    var showDeleteDataDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
+    var showEditProfileDialog by remember { mutableStateOf(false) }
+    var editUsername by remember { mutableStateOf("") }
+    var editAvatarUrl by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) { onRefresh() }
 
@@ -81,7 +101,7 @@ fun ProfileScreen(
                     text = stringResource(R.string.tab_profile),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 12.dp)
                 )
             }
 
@@ -109,28 +129,70 @@ fun ProfileScreen(
                             onClick = onRequestSignIn
                         )
                     } else {
-                        SunnadListRow(
-                            title = user.displayName,
-                            subtitle = user.email,
-                            leading = {
-                                Icon(
-                                    imageVector = Icons.Rounded.Person,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = user.displayName.trim().take(1).uppercase(),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                        )
-                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
-                        SunnadListRow(
-                            title = stringResource(R.string.auth_sign_out),
-                            trailing = {
-                                Icon(
-                                    imageVector = Icons.Rounded.ChevronRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 12.dp)
+                            ) {
+                                Text(
+                                    text = user.displayName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
                                 )
-                            },
-                            onClick = onSignOut
+                                Text(
+                                    text = user.email ?: "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = stringResource(R.string.profile_edit_profile),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Rounded.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .padding(start = 2.dp)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        )
+                        SunnadListRow(
+                            title = stringResource(R.string.profile_edit_profile),
+                            horizontalPadding = 14.dp,
+                            onClick = {
+                                editUsername = user.username.orEmpty()
+                                editAvatarUrl = user.avatarUrl.orEmpty()
+                                showEditProfileDialog = true
+                            }
                         )
                     }
                 }
@@ -165,7 +227,8 @@ fun ProfileScreen(
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        }
+                        },
+                        onClick = onOpenManageHabits
                     )
                     Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
                     SunnadListRow(
@@ -218,6 +281,16 @@ fun ProfileScreen(
                         },
                         onClick = { showSoundDialog = true }
                     )
+                    if (user != null) {
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                        SunnadListRow(
+                            title = stringResource(R.string.profile_change_password),
+                            trailing = {
+                                Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            },
+                            onClick = onChangePassword
+                        )
+                    }
                     Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
                     SunnadListRow(
                         title = stringResource(R.string.profile_privacy),
@@ -238,7 +311,8 @@ fun ProfileScreen(
                     Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
                     SunnadListRow(
                         title = stringResource(R.string.profile_send_feedback),
-                        trailing = { Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        trailing = { Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        onClick = { showFeedbackSheet = true }
                     )
                 }
             }
@@ -246,25 +320,67 @@ fun ProfileScreen(
             item { SunnadSectionHeader(stringResource(R.string.profile_danger_section)) }
             item {
                 SunnadCard(contentPadding = 10.dp) {
-                    SunnadListRow(
-                        title = stringResource(R.string.profile_delete_data),
-                        leading = {
-                            Icon(
-                                imageVector = Icons.Rounded.Warning,
-                                contentDescription = null,
-                                tint = Color(0xFFFF4D5A)
-                            )
-                        },
-                        titleColor = Color(0xFFFF4D5A),
-                        trailing = {
-                            Icon(
-                                imageVector = Icons.Rounded.ChevronRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
-                        onClick = onClearSavedQuotes
-                    )
+                    if (user != null) {
+                        SunnadListRow(
+                            title = stringResource(R.string.auth_sign_out),
+                            leading = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Warning,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF4D5A)
+                                )
+                            },
+                            titleColor = Color(0xFFFF4D5A),
+                            trailing = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = { showSignOutDialog = true }
+                        )
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                        SunnadListRow(
+                            title = stringResource(R.string.profile_delete_account),
+                            leading = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Warning,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF4D5A)
+                                )
+                            },
+                            titleColor = Color(0xFFFF4D5A),
+                            trailing = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = { showDeleteAccountDialog = true }
+                        )
+                    } else {
+                        SunnadListRow(
+                            title = stringResource(R.string.profile_delete_data),
+                            leading = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Warning,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF4D5A)
+                                )
+                            },
+                            titleColor = Color(0xFFFF4D5A),
+                            trailing = {
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            onClick = { showDeleteDataDialog = true }
+                        )
+                    }
                 }
             }
 
@@ -389,6 +505,138 @@ fun ProfileScreen(
             confirmButton = {
                 TextButton(onClick = { showSoundDialog = false }) {
                     Text(stringResource(R.string.common_done))
+                }
+            }
+        )
+    }
+
+    if (showFeedbackSheet) {
+        FeedbackSheet(onDismiss = { showFeedbackSheet = false })
+    }
+
+    if (showEditProfileDialog) {
+        ModalBottomSheet(onDismissRequest = { showEditProfileDialog = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = SunnadScreenPadding, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.profile_edit_profile),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                SunnadCard(contentPadding = 0.dp) {
+                    TextField(
+                        value = editUsername,
+                        onValueChange = { editUsername = it.lowercase() },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.auth_username)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent
+                        )
+                    )
+                    Text(
+                        text = stringResource(R.string.auth_username_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+                SunnadCard(contentPadding = 0.dp) {
+                    TextField(
+                        value = editAvatarUrl,
+                        onValueChange = { editAvatarUrl = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.profile_avatar_url)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent
+                        )
+                    )
+                }
+                PrimaryPillButton(
+                    title = stringResource(R.string.common_save),
+                    onClick = {
+                        showEditProfileDialog = false
+                        onEditProfile(editUsername.trim(), editAvatarUrl.trim().ifBlank { null })
+                    }
+                )
+                Box(modifier = Modifier.height(8.dp))
+            }
+        }
+    }
+
+    if (showSignOutDialog) {
+        AlertDialog(
+            onDismissRequest = { showSignOutDialog = false },
+            title = { Text(stringResource(R.string.auth_sign_out)) },
+            text = { Text(stringResource(R.string.profile_sign_out_confirm)) },
+            dismissButton = {
+                TextButton(onClick = { showSignOutDialog = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSignOutDialog = false
+                    onSignOut()
+                }) {
+                    Text(stringResource(R.string.auth_sign_out), color = Color(0xFFFF4D5A))
+                }
+            }
+        )
+    }
+
+    if (showDeleteDataDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDataDialog = false },
+            title = { Text(stringResource(R.string.profile_delete_data)) },
+            text = { Text(stringResource(R.string.profile_delete_data_confirm)) },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDataDialog = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteDataDialog = false
+                    onDeleteData()
+                }) {
+                    Text(stringResource(R.string.common_delete), color = Color(0xFFFF4D5A))
+                }
+            }
+        )
+    }
+
+    if (showDeleteAccountDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountDialog = false },
+            title = { Text(stringResource(R.string.profile_delete_account)) },
+            text = { Text(stringResource(R.string.profile_delete_account_confirm)) },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAccountDialog = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteAccountDialog = false
+                    onDeleteAccount()
+                }) {
+                    Text(stringResource(R.string.common_delete), color = Color(0xFFFF4D5A))
                 }
             }
         )

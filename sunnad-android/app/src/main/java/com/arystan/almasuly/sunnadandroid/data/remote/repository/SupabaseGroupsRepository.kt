@@ -19,8 +19,15 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.util.UUID
 
@@ -119,20 +126,24 @@ class SupabaseGroupsRepository(
     }
 
     override suspend fun createGroup(name: String): Group {
-        val groupId = client.postgrest.rpc(
+        val response = client.postgrest.rpc(
             function = "create_group_with_owner",
             parameters = buildJsonObject { put("group_name", name.trim()) }
-        ).decodeSingle<String>()
-        return refreshGroup(UUID.fromString(groupId))
+        )
+        val groupId = parseUuidFromRpcResponse(response.data)
+            ?: throw IllegalStateException("Group id missing from create_group_with_owner response.")
+        return refreshGroup(groupId)
             ?: throw IllegalStateException("Created group could not be fetched.")
     }
 
     override suspend fun joinGroup(code: String): Group {
-        val groupId = client.postgrest.rpc(
+        val response = client.postgrest.rpc(
             function = "join_group_by_code",
             parameters = buildJsonObject { put("invite_code", code.trim().uppercase()) }
-        ).decodeSingle<String>()
-        return refreshGroup(UUID.fromString(groupId))
+        )
+        val groupId = parseUuidFromRpcResponse(response.data)
+            ?: throw IllegalStateException("Group id missing from join_group_by_code response.")
+        return refreshGroup(groupId)
             ?: throw IllegalStateException("Joined group could not be fetched.")
     }
 
@@ -157,10 +168,12 @@ class SupabaseGroupsRepository(
     }
 
     override suspend fun rotateInviteCode(groupId: UUID): String {
-        return client.postgrest.rpc(
+        val response = client.postgrest.rpc(
             function = "rotate_group_invite_code",
             parameters = buildJsonObject { put("p_group_id", groupId.toString()) }
-        ).decodeSingle<String>()
+        )
+        return parseStringFromRpcResponse(response.data)
+            ?: throw IllegalStateException("Invite code missing from rotate_group_invite_code response.")
     }
 
     override suspend fun updateSharing(groupId: UUID, habitIds: Set<UUID>) {
@@ -270,6 +283,50 @@ class SupabaseGroupsRepository(
     }
 
     companion object {
+        private val uuidRegex = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+
+        internal fun parseUuidFromRpcResponse(raw: String): UUID? {
+            val normalized = parseStringFromRpcResponse(raw) ?: return null
+            return runCatching { UUID.fromString(normalized) }.getOrNull()
+                ?: uuidRegex.find(raw)?.value?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+        }
+
+        internal fun parseStringFromRpcResponse(raw: String): String? {
+            val trimmed = raw.trim()
+            if (trimmed.isBlank() || trimmed == "null") return null
+
+            val parsed = runCatching { Json.parseToJsonElement(trimmed) }.getOrNull()
+            if (parsed != null) {
+                return parseStringFromJsonElement(parsed)
+            }
+
+            if (trimmed.startsWith("\"") && trimmed.endsWith("\"") && trimmed.length >= 2) {
+                return trimmed.substring(1, trimmed.lastIndex)
+            }
+            return trimmed
+        }
+
+        private fun parseStringFromJsonElement(element: JsonElement): String? {
+            return when (element) {
+                is JsonPrimitive -> element.contentOrNull
+                is JsonArray -> element.firstNotNullOfOrNull(::parseStringFromJsonElement)
+                is JsonObject -> {
+                    val preferredKeys = listOf(
+                        "id",
+                        "group_id",
+                        "invite_code",
+                        "code",
+                        "value",
+                        "result"
+                    )
+                    preferredKeys.firstNotNullOfOrNull { key ->
+                        element[key]?.let(::parseStringFromJsonElement)
+                    } ?: element.values.firstNotNullOfOrNull(::parseStringFromJsonElement)
+                }
+                else -> null
+            }
+        }
+
         internal fun mapNudgeStatus(status: String): GroupNudgeStatus {
             return when (status.lowercase()) {
                 "sent" -> GroupNudgeStatus.SENT

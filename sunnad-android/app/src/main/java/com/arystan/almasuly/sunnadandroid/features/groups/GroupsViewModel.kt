@@ -40,54 +40,127 @@ class GroupsViewModel(
         }
     }
 
+    fun clearError() {
+        _state.update { it.copy(errorMessage = null) }
+    }
+
     fun createGroup(name: String) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            groupsRepository.createGroup(name.trim())
-            syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
-            loadGroups()
+            runCatching {
+                groupsRepository.createGroup(name.trim())
+                syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            }.onSuccess {
+                loadGroups()
+            }.onFailure { error ->
+                _state.update { it.copy(errorMessage = friendlyGroupError(error, "Failed to create group")) }
+            }
         }
     }
 
     fun joinGroup(code: String) {
         if (code.isBlank()) return
         viewModelScope.launch {
-            groupsRepository.joinGroup(code.trim())
-            syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
-            loadGroups()
+            runCatching {
+                groupsRepository.joinGroup(code.trim())
+                syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            }.onSuccess {
+                loadGroups()
+            }.onFailure { error ->
+                _state.update { it.copy(errorMessage = friendlyGroupError(error, "Failed to join group")) }
+            }
         }
     }
 
     fun toggleJoinLock(group: Group) {
         viewModelScope.launch {
-            groupsRepository.setJoinLock(group.id, !group.joinLocked)
-            syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
-            loadGroups()
+            runCatching {
+                groupsRepository.setJoinLock(group.id, !group.joinLocked)
+                syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            }.onSuccess {
+                loadGroups()
+            }.onFailure { error ->
+                _state.update { it.copy(errorMessage = friendlyGroupError(error, "Failed to update group settings")) }
+            }
         }
     }
 
     fun rotateCode(group: Group) {
         viewModelScope.launch {
-            groupsRepository.rotateInviteCode(group.id)
-            syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
-            loadGroups()
+            runCatching {
+                groupsRepository.rotateInviteCode(group.id)
+                syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            }.onSuccess {
+                loadGroups()
+            }.onFailure { error ->
+                _state.update { it.copy(errorMessage = friendlyGroupError(error, "Failed to rotate invite code")) }
+            }
         }
     }
 
     fun renameGroup(group: Group, name: String) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            groupsRepository.renameGroup(group.id, name)
-            syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
-            loadGroups()
+            runCatching {
+                groupsRepository.renameGroup(group.id, name)
+                syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            }.onSuccess {
+                loadGroups()
+            }.onFailure { error ->
+                _state.update { it.copy(errorMessage = friendlyGroupError(error, "Failed to rename group")) }
+            }
         }
     }
 
     fun leaveGroup(group: Group) {
         viewModelScope.launch {
-            groupsRepository.leaveGroup(group.id)
-            syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
-            loadGroups()
+            runCatching {
+                groupsRepository.leaveGroup(group.id)
+                syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            }.onSuccess {
+                loadGroups()
+            }.onFailure { error ->
+                _state.update { it.copy(errorMessage = friendlyGroupError(error, "Failed to leave group")) }
+            }
+        }
+    }
+
+    fun updateSharing(group: Group, habitIds: Set<UUID>) {
+        viewModelScope.launch {
+            runCatching {
+                groupsRepository.updateSharing(group.id, habitIds)
+                syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            }.onSuccess {
+                loadGroups()
+            }.onFailure { error ->
+                _state.update { it.copy(errorMessage = friendlyGroupError(error, "Failed to update sharing")) }
+            }
+        }
+    }
+
+    fun kickMember(group: Group, memberUserId: UUID) {
+        viewModelScope.launch {
+            runCatching {
+                groupsRepository.kickMember(group.id, memberUserId)
+                syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            }.onSuccess {
+                loadGroups()
+            }.onFailure { error ->
+                _state.update { it.copy(errorMessage = friendlyGroupError(error, "Failed to remove member")) }
+            }
+        }
+    }
+
+    fun deleteGroup(group: Group) {
+        viewModelScope.launch {
+            runCatching {
+                groupsRepository.deleteGroup(group.id)
+                syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            }.onSuccess {
+                loadGroups()
+            }.onFailure { error ->
+                _state.update { it.copy(errorMessage = friendlyGroupError(error, "Failed to delete group")) }
+            }
         }
     }
 
@@ -95,6 +168,19 @@ class GroupsViewModel(
         viewModelScope.launch {
             val status = groupsRepository.sendNudge(groupId, toUserId, habitId)
             onResult(status)
+        }
+    }
+
+    private fun friendlyGroupError(error: Throwable, fallback: String): String {
+        val message = error.localizedMessage?.trim().orEmpty()
+        if (message.isBlank()) return fallback
+        val lower = message.lowercase()
+        return when {
+            "invalid" in lower && "code" in lower -> "Invalid invite code."
+            "locked" in lower || "closed" in lower -> "This group is closed to new members."
+            "already" in lower && "member" in lower -> "You are already in this group."
+            "permission" in lower || "forbidden" in lower -> "You do not have permission for this action."
+            else -> message
         }
     }
 }

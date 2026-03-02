@@ -1,6 +1,10 @@
 package com.arystan.almasuly.sunnadandroid.features.insights
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,152 +12,513 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.arystan.almasuly.sunnadandroid.R
-import com.arystan.almasuly.sunnadandroid.core.model.Habit
-import com.arystan.almasuly.sunnadandroid.features.today.TodayHabitUiModel
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadCard
+import com.arystan.almasuly.sunnadandroid.ui.components.SunnadCompactBackButton
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenPadding
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenSurface
-import androidx.compose.ui.res.stringResource
+import com.arystan.almasuly.sunnadandroid.ui.components.SunnadSectionHeader
+import java.time.format.DateTimeFormatter
+import java.time.LocalDate
 import java.util.Locale
+import java.util.UUID
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 @Composable
 fun InsightsScreen(
-    habits: List<Habit>,
-    dueHabits: List<TodayHabitUiModel>,
+    viewModel: InsightsViewModel,
     onClose: () -> Unit
 ) {
-    val total = habits.size
-    val due = dueHabits.size
-    val completed = dueHabits.count { it.completedToday }
-    val completionRate = if (due == 0) 0 else (completed * 100) / due
-    val dhikrCount = habits.count { it.isDhikr }
-    val longestStreak = dueHabits.maxOfOrNull { it.streak } ?: 0
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    var expandedHabitIds by remember { mutableStateOf(setOf<UUID>()) }
+    var selectedPointDate by remember { mutableStateOf<LocalDate?>(null) }
+
+    LaunchedEffect(Unit) {
+        viewModel.load()
+    }
 
     SunnadScreenSurface {
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = SunnadScreenPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(R.string.profile_insights),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    IconButton(onClick = onClose) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = stringResource(R.string.common_close)
-                        )
-                    }
-                }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                SunnadCompactBackButton(onClick = onClose)
+                Text(
+                    text = stringResource(R.string.profile_insights),
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
-            item {
+            if (state.isLoading && state.points.isEmpty()) {
+                SunnadCard {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+            } else {
+                SunnadSectionHeader(title = stringResource(R.string.insights_completion_trend))
                 SunnadCard {
                     Text(
-                        text = stringResource(R.string.insights_today_performance),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = String.format(Locale.US, stringResource(R.string.insights_percent_complete), completionRate),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = stringResource(R.string.insights_due_done, completed, due),
+                        text = stringResource(R.string.insights_window_hint),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-            }
-
-            item {
-                SunnadCard {
-                    Text(
-                        text = stringResource(R.string.insights_habit_breakdown),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                    CompletionTrendChart(
+                        points = state.points,
+                        selectedDate = selectedPointDate,
+                        onSelectDate = { selectedPointDate = it }
                     )
-                    MetricRow(stringResource(R.string.insights_total_habits), total.toString())
-                    MetricRow(stringResource(R.string.insights_dhikr_habits), dhikrCount.toString())
-                    MetricRow(stringResource(R.string.insights_longest_streak), stringResource(R.string.insights_days_short, longestStreak))
-                }
-            }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LegendItem(color = Color(0xFFF4C430), title = stringResource(R.string.insights_due_label))
+                        LegendItem(color = MaterialTheme.colorScheme.primary, title = stringResource(R.string.insights_completed_label))
+                    }
 
-            item {
-                SunnadCard {
-                    Text(
-                        text = stringResource(id = R.string.today_progress, completed, due),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Box(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    val selectedPoint = selectedPointDate?.let { selected ->
+                        state.points.minByOrNull { point ->
+                            kotlin.math.abs(point.date.toEpochDay() - selected.toEpochDay())
+                        }
+                    }
+                    if (selectedPoint != null) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(8.dp)
-                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
-                                .align(Alignment.CenterStart)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                .height(1.dp)
+                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                         )
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth((completionRate / 100f).coerceIn(0f, 1f))
-                                .height(8.dp)
-                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(999.dp))
-                                .align(Alignment.CenterStart)
-                                .background(MaterialTheme.colorScheme.primary)
+                        Text(
+                            text = selectedPoint.date.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
                         )
+                        Text(
+                            text = stringResource(R.string.insights_missed_habits),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        val missedTitles = viewModel.missedHabitTitles(selectedPoint)
+                        if (missedTitles.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.insights_none_missed),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                missedTitles.forEach { title ->
+                                    Text(
+                                        text = "• $title",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                SunnadSectionHeader(title = stringResource(R.string.insights_habit_performance))
+                SunnadCard(contentPadding = 0.dp) {
+                    Column {
+                        state.habitPerformance.forEachIndexed { index, habit ->
+                            Column {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            expandedHabitIds = if (expandedHabitIds.contains(habit.id)) {
+                                                expandedHabitIds - habit.id
+                                            } else {
+                                                expandedHabitIds + habit.id
+                                            }
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = habit.title,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = "${habit.percentage}%",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Icon(
+                                        imageVector = if (expandedHabitIds.contains(habit.id)) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 6.dp)
+                                    )
+                                }
+
+                                if (expandedHabitIds.contains(habit.id)) {
+                                    Habit40DayGrid(days = habit.days)
+                                }
+                            }
+
+                            if (index < state.habitPerformance.lastIndex) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                                )
+                            }
+                        }
                     }
                 }
             }
 
-            item { Box(modifier = Modifier.height(72.dp)) }
+            state.errorMessage?.let { message ->
+                SunnadCard {
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun MetricRow(label: String, value: String) {
+private fun CompletionTrendChart(
+    points: List<InsightsPointUi>,
+    selectedDate: LocalDate?,
+    onSelectDate: (LocalDate?) -> Unit
+) {
+    val scroll = rememberScrollState()
+    val maxDue = remember(points) { max(1, points.maxOfOrNull { it.due } ?: 1) }
+    val chartWidth = maxOf(340.dp, (points.size * 42).dp)
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+    val completedColor = MaterialTheme.colorScheme.primary
+    val dueColor = Color(0xFFF4C430)
+    val selectedLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+    val selectedIndex = selectedDate?.let { selected ->
+        points.indexOfFirst { it.date == selected }.takeIf { it != -1 }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(220.dp)
+                .horizontalScroll(scroll)
+        ) {
+            Canvas(
+                modifier = Modifier
+                    .height(190.dp)
+                    .size(width = chartWidth, height = 190.dp)
+                    .pointerInput(points, scroll.value) {
+                        detectTapGestures { tapOffset ->
+                            if (points.isEmpty()) return@detectTapGestures
+                            val horizontalInset = 12.dp.toPx()
+                            val chartWidth = size.width.toFloat() - horizontalInset * 2f
+                            val stepX = if (points.size <= 1) 1f else chartWidth / (points.size - 1).toFloat()
+                            val absoluteX = tapOffset.x + scroll.value.toFloat()
+                            val normalized = (absoluteX - horizontalInset).coerceIn(0f, chartWidth)
+                            val index = (normalized / stepX).roundToInt().coerceIn(0, points.lastIndex)
+                            onSelectDate(points[index].date)
+                        }
+                    }
+            ) {
+                if (points.isEmpty()) return@Canvas
+
+                val verticalPadding = 18.dp.toPx()
+                val horizontalInset = 12.dp.toPx()
+                val chartHeight = size.height - verticalPadding * 2f
+                val chartWidthPx = size.width - horizontalInset * 2f
+                val stepX = if (points.size <= 1) 0f else chartWidthPx / (points.size - 1)
+                val baselineY = size.height - verticalPadding
+
+                repeat(5) { index ->
+                    val y = verticalPadding + chartHeight * (index / 4f)
+                    drawLine(
+                        color = gridColor,
+                        start = Offset(horizontalInset, y),
+                        end = Offset(size.width - horizontalInset, y),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                }
+
+                val duePoints = points.mapIndexed { index, point ->
+                    val normalized = point.due.toFloat() / maxDue.toFloat()
+                    Offset(
+                        x = horizontalInset + stepX * index,
+                        y = verticalPadding + chartHeight * (1f - normalized)
+                    )
+                }
+                val completedPoints = points.mapIndexed { index, point ->
+                    val normalized = point.completed.toFloat() / maxDue.toFloat()
+                    Offset(
+                        x = horizontalInset + stepX * index,
+                        y = verticalPadding + chartHeight * (1f - normalized)
+                    )
+                }
+
+                val dueLinePath = smoothPath(duePoints)
+                val completedLinePath = smoothPath(completedPoints)
+                val completedAreaPath = areaToBaselinePath(completedPoints, baselineY)
+                val dueMinusCompletedAreaPath = areaBetweenPathsPath(duePoints, completedPoints)
+
+                drawPath(
+                    path = completedAreaPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(completedColor.copy(alpha = 0.28f), completedColor.copy(alpha = 0.02f)),
+                        startY = verticalPadding,
+                        endY = baselineY
+                    )
+                )
+
+                drawPath(
+                    path = dueMinusCompletedAreaPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(dueColor.copy(alpha = 0.24f), dueColor.copy(alpha = 0.04f)),
+                        startY = verticalPadding,
+                        endY = baselineY
+                    )
+                )
+
+                drawPath(
+                    path = dueLinePath,
+                    color = dueColor,
+                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                )
+                drawPath(
+                    path = completedLinePath,
+                    color = completedColor,
+                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                )
+
+                completedPoints.forEach {
+                    drawCircle(
+                        color = completedColor,
+                        radius = 2.dp.toPx(),
+                        center = it
+                    )
+                }
+
+                selectedIndex?.let { index ->
+                    val x = horizontalInset + stepX * index
+                    drawLine(
+                        color = selectedLineColor,
+                        start = Offset(x, verticalPadding),
+                        end = Offset(x, baselineY),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                    drawCircle(
+                        color = completedColor,
+                        radius = 4.dp.toPx(),
+                        center = completedPoints[index]
+                    )
+                    drawCircle(
+                        color = dueColor,
+                        radius = 4.dp.toPx(),
+                        center = duePoints[index]
+                    )
+                }
+            }
+        }
+
+        val formatter = remember { DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(scroll),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            points.forEachIndexed { index, point ->
+                if (index % 2 == 0 || index == points.lastIndex) {
+                    Text(
+                        text = point.date.format(formatter),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegendItem(color: Color, title: String) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(color, RoundedCornerShape(999.dp))
+        )
         Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold
+    }
+}
+
+private fun DrawScope.smoothPath(points: List<Offset>): Path {
+    val path = Path()
+    if (points.isEmpty()) return path
+    path.moveTo(points.first().x, points.first().y)
+    if (points.size == 1) return path
+
+    for (index in 1 until points.size) {
+        val prev = points[index - 1]
+        val current = points[index]
+        val control = Offset(
+            x = (prev.x + current.x) / 2f,
+            y = (prev.y + current.y) / 2f
         )
+        path.quadraticTo(prev.x, prev.y, control.x, control.y)
+    }
+    val last = points.last()
+    path.lineTo(last.x, last.y)
+    return path
+}
+
+private fun areaToBaselinePath(points: List<Offset>, baselineY: Float): Path {
+    val path = Path()
+    if (points.isEmpty()) return path
+    path.moveTo(points.first().x, baselineY)
+    path.lineTo(points.first().x, points.first().y)
+    if (points.size > 1) {
+        for (index in 1 until points.size) {
+            val prev = points[index - 1]
+            val current = points[index]
+            val control = Offset(
+                x = (prev.x + current.x) / 2f,
+                y = (prev.y + current.y) / 2f
+            )
+            path.quadraticTo(prev.x, prev.y, control.x, control.y)
+        }
+    }
+    path.lineTo(points.last().x, points.last().y)
+    path.lineTo(points.last().x, baselineY)
+    path.close()
+    return path
+}
+
+private fun areaBetweenPathsPath(top: List<Offset>, bottom: List<Offset>): Path {
+    val path = Path()
+    if (top.isEmpty() || bottom.isEmpty()) return path
+    path.moveTo(top.first().x, top.first().y)
+    if (top.size > 1) {
+        for (index in 1 until top.size) {
+            val prev = top[index - 1]
+            val current = top[index]
+            val control = Offset(
+                x = (prev.x + current.x) / 2f,
+                y = (prev.y + current.y) / 2f
+            )
+            path.quadraticTo(prev.x, prev.y, control.x, control.y)
+        }
+    }
+    path.lineTo(top.last().x, top.last().y)
+    path.lineTo(bottom.last().x, bottom.last().y)
+    if (bottom.size > 1) {
+        for (index in bottom.lastIndex downTo 1) {
+            val current = bottom[index]
+            val prev = bottom[index - 1]
+            val control = Offset(
+                x = (current.x + prev.x) / 2f,
+                y = (current.y + prev.y) / 2f
+            )
+            path.quadraticTo(current.x, current.y, control.x, control.y)
+        }
+    }
+    path.lineTo(bottom.first().x, bottom.first().y)
+    path.close()
+    return path
+}
+
+@Composable
+private fun Habit40DayGrid(days: List<HabitDayUi>) {
+    Text(
+        text = stringResource(R.string.insights_last_40_days),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, top = 2.dp, bottom = 8.dp)
+    )
+
+    val columns = 7
+    val rows = (days.size + columns - 1) / columns
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        repeat(rows) { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repeat(columns) { column ->
+                    val index = row * columns + column
+                    val cell = days.getOrNull(index)
+                    val color = when {
+                        cell == null -> Color.Transparent
+                        !cell.scheduled -> MaterialTheme.colorScheme.surfaceContainer
+                        cell.completed -> MaterialTheme.colorScheme.primary
+                        else -> Color(0xFFF4C430)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(10.dp)
+                            .background(color, RoundedCornerShape(3.dp))
+                    )
+                }
+            }
+        }
     }
 }
