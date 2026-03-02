@@ -17,6 +17,10 @@
     <string name="common_error">Error</string>
     <string name="common_retry">Retry</string>
     <string name="common_search">Search</string>
+    <string name="common_and">and</string>
+    <string name="common_add">Add</string>
+    <string name="common_reorder">Reorder</string>
+    <string name="common_delete">Delete</string>
 
     <string name="quote_card_title">QUOTE OF THE DAY</string>
 
@@ -39,9 +43,22 @@
     <string name="today_completed_section">COMPLETED</string>
     <string name="today_completed_toggle">Toggle completed section</string>
     <string name="today_toggle_completion">Toggle completion</string>
+    <string name="today_mark_complete">Mark complete</string>
+    <string name="today_mark_incomplete">Mark incomplete</string>
 
     <string name="habit_add_title">New habit</string>
+    <string name="habit_add_templates">Choose from Templates</string>
+    <string name="habit_add_custom">Create Custom Habit</string>
+    <string name="habit_custom_name_placeholder">Habit name</string>
     <string name="habit_name">Habit name</string>
+    <string name="habit_details">Details</string>
+    <string name="habit_last_7_days">Last 7 days</string>
+    <string name="habit_category">Category</string>
+    <string name="habit_icon">Icon</string>
+    <string name="habit_schedule">Schedule</string>
+    <string name="habit_counter">Counter</string>
+    <string name="habit_reminder">Reminder</string>
+    <string name="habit_save_changes">Save Changes</string>
     <string name="habit_icon_hint">Icon name (Material symbol)</string>
     <string name="habit_is_dhikr">Dhikr counter</string>
     <string name="habit_target_count">Target count</string>
@@ -53,6 +70,7 @@
     <string name="habit_reminder_minute">Minute</string>
     <string name="habit_dhikr_counter">Dhikr counter</string>
     <string name="habit_dhikr_progress">%1$d / %2$d</string>
+    <string name="habit_dhikr_of_target">of %1$d</string>
     <string name="habit_archive">Archive</string>
 
     <string name="groups_create_name">Group name</string>
@@ -66,6 +84,7 @@
     <string name="groups_unlock">Unlock joins</string>
     <string name="groups_lock">Lock joins</string>
     <string name="groups_rotate_code">Rotate code</string>
+    <string name="groups_nudge">Nudge</string>
     <string name="groups_leave">Leave</string>
     <string name="groups_rename">Rename group</string>
     <string name="groups_sign_in_required_title">Sign in required</string>
@@ -80,6 +99,8 @@
     <string name="profile_guest_mode">Guest mode</string>
     <string name="profile_tap_sign_in">Tap to sign in and enable sync</string>
     <string name="profile_tap_sign_in_short">Tap to sign in</string>
+    <string name="profile_edit_profile">Edit Profile</string>
+    <string name="profile_avatar_url">Avatar URL</string>
     <string name="profile_manage_habits">Manage Habits</string>
     <string name="profile_insights">Insights</string>
     <string name="profile_language">Language</string>
@@ -101,8 +122,13 @@
     <string name="profile_send_feedback">Send Feedback</string>
     <string name="profile_terms">Terms of Service</string>
     <string name="profile_privacy">Privacy Policy</string>
+    <string name="profile_change_password">Change Password</string>
     <string name="profile_danger_section">DANGER ZONE</string>
     <string name="profile_delete_data">Delete Data</string>
+    <string name="profile_delete_account">Delete Account</string>
+    <string name="profile_sign_out_confirm">Are you sure you want to sign out?</string>
+    <string name="profile_delete_data_confirm">This will remove your local guest data from this device.</string>
+    <string name="profile_delete_account_confirm">This permanently deletes your account and synced data.</string>
     <string name="profile_version">Version %1$s</string>
 
     <string name="auth_email">Email</string>
@@ -133,13 +159,45 @@
     <string name="auth_resend_code">Resend code</string>
     <string name="auth_resend_in_seconds">Resend in %1$d s</string>
     <string name="auth_send_recovery_code">Send recovery code</string>
+    <string name="auth_send_reset_link">Send reset link</string>
     <string name="auth_back_to_sign_in">Back to sign in</string>
+    <string name="auth_new_password">New password</string>
+    <string name="auth_change_password">Change password</string>
+    <string name="auth_terms_prefix">By continuing, you agree to</string>
     <string name="auth_continue_with">Or continue with</string>
+    <string name="auth_success_verification_sent">Verification code sent.</string>
+    <string name="auth_success_recovery_code_sent">Recovery code sent.</string>
+    <string name="auth_success_code_verified">Code verified. Set a new password.</string>
+    <string name="auth_success_password_changed">Password changed successfully.</string>
+    <string name="auth_success_continue_browser">Continue in browser to complete Google sign-in.</string>
+    <string name="auth_error_enter_email">Please enter your email.</string>
+    <string name="auth_error_sign_in_failed">Sign-in failed.</string>
+    <string name="auth_error_sign_up_failed">Sign-up failed.</string>
+    <string name="auth_error_send_recovery_failed">Failed to send recovery code.</string>
+    <string name="auth_error_otp_failed">OTP verification failed.</string>
+    <string name="auth_error_resend_failed">Failed to resend code.</string>
+    <string name="auth_error_password_short">Password must be at least 8 characters.</string>
+    <string name="auth_error_update_password_failed">Failed to update password.</string>
+    <string name="auth_error_google_failed">Google sign-in failed.</string>
+    <string name="auth_error_apple_unavailable">Apple sign-in is not available.</string>
+    <string name="auth_error_callback_failed">Authentication callback failed.</string>
+    <string name="auth_error_unavailable">Authentication is not configured.</string>
+    <string name="auth_error_invalid_credentials">Invalid email/username or password.</string>
+    <string name="auth_error_invalid_otp">Verification code is invalid or expired.</string>
+    <string name="auth_error_invalid_recovery_link">Recovery link is invalid or expired.</string>
+    <string name="auth_error_invalid_username">Username must be 3-20 lowercase letters, numbers, or underscore.</string>
+    <string name="auth_error_email_in_use">An account with this email already exists.</string>
+    <string name="auth_error_username_in_use">This username is already taken.</string>
+    <string name="auth_error_weak_password">Password is too weak.</string>
+    <string name="auth_error_email_not_confirmed">Please verify your email before signing in.</string>
+    <string name="auth_error_rate_limited">Too many attempts. Please wait and try again.</string>
+    <string name="auth_error_provider_unavailable">This sign-in provider is not available yet.</string>
 
     <string name="onboarding_welcome_title">Balance Your Life</string>
     <string name="onboarding_welcome_subtitle">Build consistent habits across spiritual, physical, social, and personal growth.</string>
     <string name="onboarding_welcome_body">Sunnad keeps Today focused, offline-first, and calm. Start with templates and continue as guest or member.</string>
-    <string name="onboarding_continue">Get Started</string>
+    <string name="onboarding_get_started">Get Started</string>
+    <string name="onboarding_continue">Continue</string>
     <string name="onboarding_templates_title">Pick Your Habits</string>
     <string name="onboarding_templates_subtitle">Pick what you want to track first. You can always edit later.</string>
     <string name="onboarding_template_morning_dhikr">Morning dhikr</string>
@@ -198,4 +256,36 @@
     <string name="insights_dhikr_habits">Dhikr habits</string>
     <string name="insights_longest_streak">Longest current streak</string>
     <string name="insights_days_short">%1$d d</string>
+    <string name="insights_completion_trend">Completion Trend</string>
+    <string name="insights_window_hint">Shows a 7-day window. Scroll horizontally for all 40 days.</string>
+    <string name="insights_due_label">Due</string>
+    <string name="insights_completed_label">Completed</string>
+    <string name="insights_habit_performance">Habit Performance</string>
+    <string name="insights_last_40_days">Last 40 days</string>
+    <string name="insights_missed_habits">Missed habits</string>
+    <string name="insights_none_missed">No missed habits</string>
+
+    <string name="schedule_title">Schedule</string>
+    <string name="schedule_mode_all">All</string>
+    <string name="schedule_mode_upcoming">Upcoming</string>
+    <string name="schedule_mode_week">Week</string>
+    <string name="schedule_mode_month">Month</string>
+    <string name="schedule_empty">No habits yet.</string>
+    <string name="schedule_today">Today</string>
+    <string name="schedule_tomorrow">Tomorrow</string>
+    <string name="schedule_none_for_day">No habits for this day.</string>
+    <string name="schedule_drag_hint">Drag</string>
+
+    <string name="feedback_placeholder">Share your thoughts…</string>
+    <string name="feedback_send">Send</string>
+    <string name="feedback_sending">Sending…</string>
+    <string name="feedback_sent">Feedback sent</string>
+    <string name="feedback_failed">Couldn’t send feedback</string>
+
+    <string name="dhikr_choice_subhanallah">SubhanAllah</string>
+    <string name="dhikr_choice_alhamdulillah">Alhamdulillah</string>
+    <string name="dhikr_choice_allahu_akbar">Allahu Akbar</string>
+    <string name="dhikr_tap_to_count">Tap to count</string>
+    <string name="dhikr_reset">Reset</string>
+    <string name="dhikr_target">Target</string>
 </resources>
