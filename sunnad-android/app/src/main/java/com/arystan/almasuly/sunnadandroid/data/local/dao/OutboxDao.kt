@@ -19,4 +19,7 @@ interface OutboxDao {
 
     @Query("UPDATE outbox_events SET attempts = attempts + 1 WHERE id = :id")
     suspend fun incrementAttempts(id: Long)
+
+    @Query("DELETE FROM outbox_events WHERE ownerScope = :ownerScope")
+    suspend fun deleteAllByScope(ownerScope: String)
 }

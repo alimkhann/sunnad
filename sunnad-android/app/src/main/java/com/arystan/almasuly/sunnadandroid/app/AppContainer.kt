@@ -87,6 +87,15 @@ class AppContainer(context: Context) {
         "sunnad.db"
     ).fallbackToDestructiveMigration().build()
 
+    val localDataResetService = LocalDataResetService(
+        habitDao = database.habitDao(),
+        completionDao = database.completionDao(),
+        groupDao = database.groupDao(),
+        savedQuoteDao = database.savedQuoteDao(),
+        outboxDao = database.outboxDao(),
+        syncCursorDao = database.syncCursorDao()
+    )
+
     val habitsRepository: HabitsRepository = HabitsLocalRepository(database.habitDao(), ownerScopeResolver)
     val completionsRepository: CompletionsRepository = CompletionsLocalRepository(database.completionDao(), ownerScopeResolver)
     val quotesRepository: QuotesRepository = QuotesLocalRepository(

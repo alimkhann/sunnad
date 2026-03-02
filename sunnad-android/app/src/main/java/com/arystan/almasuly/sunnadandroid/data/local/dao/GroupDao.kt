@@ -41,6 +41,15 @@ interface GroupDao {
     @Query("DELETE FROM group_shared_habits WHERE groupId = :groupId")
     suspend fun deleteSharedHabits(groupId: String)
 
+    @Query("DELETE FROM group_members WHERE groupId IN (SELECT id FROM groups WHERE ownerScope = :ownerScope)")
+    suspend fun deleteAllMembersByScope(ownerScope: String)
+
+    @Query("DELETE FROM group_shared_habits WHERE groupId IN (SELECT id FROM groups WHERE ownerScope = :ownerScope)")
+    suspend fun deleteAllSharedHabitsByScope(ownerScope: String)
+
+    @Query("DELETE FROM groups WHERE ownerScope = :ownerScope")
+    suspend fun deleteAllGroupsByScope(ownerScope: String)
+
     @Transaction
     suspend fun replaceGroupSnapshot(
         group: GroupEntity,

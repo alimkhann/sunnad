@@ -25,4 +25,7 @@ interface CompletionDao {
 
     @Query("DELETE FROM habit_completions WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM habit_completions WHERE ownerScope = :ownerScope")
+    suspend fun deleteAllByScope(ownerScope: String)
 }

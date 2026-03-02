@@ -22,4 +22,7 @@ interface HabitDao {
 
     @Query("DELETE FROM habits WHERE ownerScope = :ownerScope AND id = :id")
     suspend fun delete(ownerScope: String, id: String)
+
+    @Query("DELETE FROM habits WHERE ownerScope = :ownerScope")
+    suspend fun deleteAllByScope(ownerScope: String)
 }

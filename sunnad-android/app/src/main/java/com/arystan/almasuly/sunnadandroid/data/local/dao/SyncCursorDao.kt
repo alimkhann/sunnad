@@ -13,4 +13,7 @@ interface SyncCursorDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(cursor: SyncCursorEntity)
+
+    @Query("DELETE FROM sync_cursors")
+    suspend fun deleteAll()
 }

@@ -2,6 +2,8 @@ package com.arystan.almasuly.sunnadandroid.features.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.arystan.almasuly.sunnadandroid.app.LocalDataResetService
+import com.arystan.almasuly.sunnadandroid.core.local.OwnerScopeResolver
 import com.arystan.almasuly.sunnadandroid.core.model.SavedQuote
 import com.arystan.almasuly.sunnadandroid.domain.repository.QuotesRepository
 import com.arystan.almasuly.sunnadandroid.services.AppAppearance
@@ -18,6 +20,7 @@ import kotlinx.coroutines.launch
 
 data class ProfileUiState(
     val settings: AppSettings = AppSettings(),
+    val settingsLoaded: Boolean = false,
     val savedQuotes: List<SavedQuote> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null
@@ -32,7 +35,9 @@ data class ProfileUiState(
 class ProfileViewModel(
     private val quotesRepository: QuotesRepository,
     private val settingsStore: AppSettingsStore,
-    private val syncCoordinator: SyncCoordinator
+    private val syncCoordinator: SyncCoordinator,
+    private val localDataResetService: LocalDataResetService,
+    private val ownerScopeResolver: OwnerScopeResolver
 ) : ViewModel() {
     private val _state = MutableStateFlow(ProfileUiState())
     val state: StateFlow<ProfileUiState> = _state.asStateFlow()
@@ -40,7 +45,7 @@ class ProfileViewModel(
     init {
         viewModelScope.launch {
             settingsStore.settings.collect { settings ->
-                _state.update { it.copy(settings = settings) }
+                _state.update { it.copy(settings = settings, settingsLoaded = true) }
             }
         }
         refresh()
@@ -117,6 +122,26 @@ class ProfileViewModel(
             quoteIds.forEach { syncCoordinator.enqueueSavedQuoteDelete(it) }
             syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
             refresh()
+        }
+    }
+
+    fun clearAllLocalData() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, errorMessage = null) }
+            val ownerScope = ownerScopeResolver.currentOwnerScopeRaw
+            runCatching {
+                localDataResetService.clearOwnerScope(ownerScope)
+                syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            }.onSuccess {
+                _state.update { it.copy(savedQuotes = emptyList(), isLoading = false) }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = error.localizedMessage ?: "Failed to clear local data"
+                    )
+                }
+            }
         }
     }
 }
