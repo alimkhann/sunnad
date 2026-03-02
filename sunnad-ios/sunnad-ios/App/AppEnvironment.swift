@@ -33,7 +33,7 @@ enum AppEnvironment: String {
             return url
         }
 
-        return URL(string: "sunnad://auth-callback")!
+        return URL(string: "adat://auth-callback")!
     }
 
     struct SupabaseConfig {
