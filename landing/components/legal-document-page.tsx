@@ -26,13 +26,13 @@ export default function LegalDocumentPage({
       <nav className={`border-b backdrop-blur-xl ${navBg}`}>
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
           <Link href={`/${locale}`} className="text-lg font-bold">
-            Sunnad
+            Adat
           </Link>
           <Link
             href={`/${locale}`}
             className={`text-sm transition-colors ${isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-black"}`}
           >
-            ← {backLabel}
+            {backLabel}
           </Link>
         </div>
       </nav>

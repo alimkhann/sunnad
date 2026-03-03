@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Sunnad Admin",
-  description: "Sunnad internal multilingual quote admin panel",
+  title: "Adat Admin",
+  description: "Adat internal multilingual quote admin panel",
 };
 
 export const viewport: Viewport = {

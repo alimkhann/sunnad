@@ -116,7 +116,7 @@ export type Dictionary = {
 
 const dictionaries: Record<Locale, Dictionary> = {
   en: {
-    appName: "Sunnad Quotes Admin",
+    appName: "Adat Quotes Admin",
     header: {
       badge: "Internal",
       title: "Quote Editorial Panel",
@@ -225,7 +225,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       "Translate for a respectful Islamic habits app. Keep meaning faithful.",
   },
   ru: {
-    appName: "Sunnad Quotes Admin",
+    appName: "Adat Quotes Admin",
     header: {
       badge: "Внутренний",
       title: "Редакция цитат",
@@ -334,7 +334,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       "Перевод для исламского приложения привычек. Сохраняй точный смысл.",
   },
   kk: {
-    appName: "Sunnad Quotes Admin",
+    appName: "Adat Quotes Admin",
     header: {
       badge: "Ішкі",
       title: "Дәйексөз редакция панелі",

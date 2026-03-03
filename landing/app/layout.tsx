@@ -4,7 +4,7 @@ import { PostHogProvider } from "@/app/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Sunnad — Build better habits, together",
+  title: "Adat - Build better habits, together",
   description:
     "An offline-first Islamic habit tracker with daily quotes, streaks, and group accountability.",
   icons: {

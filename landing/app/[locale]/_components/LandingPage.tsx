@@ -61,7 +61,7 @@ const translations = {
     faqs: [
       {
         id: "is_free",
-        q: "Is Sunnad free to use?",
+        q: "Is Adat free to use?",
         a: "Yes, the core habit tracking and group features will always remain free. We may add optional premium icons and themes in the future to support development.",
       },
       {
@@ -77,7 +77,7 @@ const translations = {
       {
         id: "analytics_work",
         q: "How does the analytics tracking work?",
-        a: "Sunnad shows streaks, completion rates, and gentle charts so you can notice patterns without feeling guilt or overwhelmed.",
+        a: "Adat shows streaks, completion rates, and gentle charts so you can notice patterns without feeling guilt or overwhelmed.",
       },
       {
         id: "security_privacy",
@@ -87,7 +87,7 @@ const translations = {
       {
         id: "social_feed",
         q: "Is this a social network or a feed?",
-        a: "No. Sunnad is intentionally minimal: no endless scrolling, no likes, no comments, just focused habit tracking and group accountability.",
+        a: "No. Adat is intentionally minimal: no endless scrolling, no likes, no comments, just focused habit tracking and group accountability.",
       },
     ],
     legal: {
@@ -135,7 +135,7 @@ const translations = {
     faqs: [
       {
         id: "is_free",
-        q: "Sunnad бесплатный?",
+        q: "Adat бесплатный?",
         a: "Да, базовый трекинг привычек и групповые функции всегда останутся бесплатными. В будущем могут появиться только опциональные премиум-иконки и темы для поддержки разработки.",
       },
       {
@@ -151,7 +151,7 @@ const translations = {
       {
         id: "analytics_work",
         q: "Как работает аналитика?",
-        a: "Sunnad показывает серии, процент выполнения и мягкие графики, чтобы вы замечали закономерности без чувства вины и перегруза.",
+        a: "Adat показывает серии, процент выполнения и мягкие графики, чтобы вы замечали закономерности без чувства вины и перегруза.",
       },
       {
         id: "security_privacy",
@@ -161,7 +161,7 @@ const translations = {
       {
         id: "social_feed",
         q: "Это социальная сеть или лента?",
-        a: "Нет. Sunnad намеренно минималистичен: без бесконечной ленты, лайков и комментариев, только сфокусированный трекинг привычек и групповая ответственность.",
+        a: "Нет. Adat намеренно минималистичен: без бесконечной ленты, лайков и комментариев, только сфокусированный трекинг привычек и групповая ответственность.",
       },
     ],
     legal: {
@@ -209,7 +209,7 @@ const translations = {
     faqs: [
       {
         id: "is_free",
-        q: "Sunnad тегін бе?",
+        q: "Adat тегін бе?",
         a: "Иә, негізгі әдет бақылауы мен топ мүмкіндіктері әрқашан тегін болады. Дамуды қолдау үшін болашақта тек қосымша премиум иконкалар мен тақырыптар қосылуы мүмкін.",
       },
       {
@@ -225,7 +225,7 @@ const translations = {
       {
         id: "analytics_work",
         q: "Аналитика қалай жұмыс істейді?",
-        a: "Sunnad серияларды, орындалу пайызын және жұмсақ графиктерді көрсетеді, сондықтан өз үлгілеріңізді кінә сезімінсіз және артық жүктемесіз байқайсыз.",
+        a: "Adat серияларды, орындалу пайызын және жұмсақ графиктерді көрсетеді, сондықтан өз үлгілеріңізді кінә сезімінсіз және артық жүктемесіз байқайсыз.",
       },
       {
         id: "security_privacy",
@@ -235,7 +235,7 @@ const translations = {
       {
         id: "social_feed",
         q: "Бұл әлеуметтік желі не лента ма?",
-        a: "Жоқ. Sunnad әдейі минимал: шексіз скролл, лайк, пікір жоқ, тек нысаналы әдет бақылауы және топтық жауапкершілік.",
+        a: "Жоқ. Adat әдейі минимал: шексіз скролл, лайк, пікір жоқ, тек нысаналы әдет бақылауы және топтық жауапкершілік.",
       },
     ],
     legal: {
@@ -464,7 +464,7 @@ function FeaturesScroll({
         </div>
 
         {/* Central Sticky Phone */}
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-[-10%] md:bottom-auto md:top-1/2 md:-translate-y-1/2 w-[286px] md:w-[320px] aspect-[450/920] drop-shadow-[0_25px_50px_rgba(0,0,0,0.15)] z-10">
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-[-15%] md:bottom-auto md:top-1/2 md:-translate-y-1/2 w-[286px] md:w-[320px] aspect-[450/920] drop-shadow-[0_25px_50px_rgba(0,0,0,0.15)] z-10">
           <div className="absolute inset-[13px] md:inset-[15px] rounded-[30px] md:rounded-[36px] overflow-hidden bg-black shadow-inner">
             <AnimatePresence mode="wait">
               <motion.img
@@ -516,10 +516,10 @@ function FAQSection({
           <p className="text-gray-500 max-w-xl mx-auto">
             {t.faqSubtitle}{" "}
             <a
-              href="mailto:support@sunnad.app"
+              href="mailto:support@adat.app"
               className="underline hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
             >
-              support@sunnad.app
+              support@adat.app
             </a>
           </p>
         </div>
@@ -833,11 +833,11 @@ export default function LandingPage({
         <div className="flex items-center gap-3">
           <img
             src="/logo.png"
-            alt="Sunnad Logo"
+            alt="Adat Logo"
             className="w-6 h-6 object-contain"
           />
           <span className="font-semibold text-[10px] md:text-sm tracking-tight hidden sm:block">
-            Sunnad
+            Adat
           </span>
         </div>
 

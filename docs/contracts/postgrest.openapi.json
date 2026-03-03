@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Sunnad PostgREST API (placeholder snapshot)",
+    "title": "Adat PostgREST API (placeholder snapshot)",
     "version": "0.1.0",
     "description": "Placeholder contract artifact. Regenerate from live Supabase/PostgREST using scripts/contracts/generate_postgrest_openapi.sh."
   },

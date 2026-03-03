@@ -7,10 +7,10 @@ const termsEN = `
 <p><em>Last updated: February 22, 2026</em></p>
 
 <h2>1. Acceptance of Terms</h2>
-<p>By accessing or using the Sunnad mobile application and related services (collectively, the "Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree, do not use the Service.</p>
+<p>By accessing or using the Adat mobile application and related services (collectively, the "Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree, do not use the Service.</p>
 
 <h2>2. Description of Service</h2>
-<p>Sunnad is an offline-first Islamic habit tracking application that helps users build consistent daily habits, track streaks, view daily quotes, and participate in group accountability features. The Service is provided by the Sunnad team ("we", "us", "our").</p>
+<p>Adat is an offline-first Islamic habit tracking application that helps users build consistent daily habits, track streaks, view daily quotes, and participate in group accountability features. The Service is provided by the Adat team ("we", "us", "our").</p>
 
 <h2>3. Eligibility</h2>
 <p>You must be at least 13 years old to use the Service. If you are under 18, you must have parental or guardian consent. By using the Service, you represent that you meet these requirements.</p>
@@ -36,7 +36,7 @@ const termsEN = `
 </ul>
 
 <h2>6. Content and Intellectual Property</h2>
-<p>All content included in the Service — including text, graphics, logos, icons, quotes, and software — is the property of the Sunnad team or its licensors and is protected by applicable intellectual property laws. You may not copy, modify, distribute, or create derivative works without prior written consent.</p>
+<p>All content included in the Service — including text, graphics, logos, icons, quotes, and software — is the property of the Adat team or its licensors and is protected by applicable intellectual property laws. You may not copy, modify, distribute, or create derivative works without prior written consent.</p>
 
 <h2>7. Privacy</h2>
 <p>Your use of the Service is also governed by our Privacy Policy. By using the Service, you consent to the collection and use of information as described therein.</p>
@@ -45,7 +45,7 @@ const termsEN = `
 <p>The Service is provided "as is" and "as available" without warranties of any kind, either express or implied. We do not warrant that the Service will be uninterrupted, error-free, or free of viruses or other harmful components.</p>
 
 <h2>9. Limitation of Liability</h2>
-<p>To the maximum extent permitted by applicable law, the Sunnad team shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly, or any loss of data, use, goodwill, or other intangible losses resulting from your use of the Service.</p>
+<p>To the maximum extent permitted by applicable law, the Adat team shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly, or any loss of data, use, goodwill, or other intangible losses resulting from your use of the Service.</p>
 
 <h2>10. Termination</h2>
 <p>We may suspend or terminate your access to the Service at any time, with or without cause, and with or without notice. Upon termination, your right to use the Service ceases immediately. You may delete your account at any time through the app settings.</p>
@@ -64,10 +64,10 @@ const termsRU = `
 <p><em>Последнее обновление: 22 февраля 2026 г.</em></p>
 
 <h2>1. Принятие условий</h2>
-<p>Получая доступ к мобильному приложению Sunnad и связанным сервисам (совместно именуемым «Сервис»), вы соглашаетесь соблюдать настоящие Условия использования («Условия»). Если вы не согласны, не используйте Сервис.</p>
+<p>Получая доступ к мобильному приложению Adat и связанным сервисам (совместно именуемым «Сервис»), вы соглашаетесь соблюдать настоящие Условия использования («Условия»). Если вы не согласны, не используйте Сервис.</p>
 
 <h2>2. Описание сервиса</h2>
-<p>Sunnad — это офлайн-первое исламское приложение для отслеживания привычек, которое помогает пользователям формировать ежедневные привычки, отслеживать серии, просматривать ежедневные цитаты и участвовать в групповой ответственности. Сервис предоставляется командой Sunnad («мы», «нас», «наш»).</p>
+<p>Adat — это офлайн-первое исламское приложение для отслеживания привычек, которое помогает пользователям формировать ежедневные привычки, отслеживать серии, просматривать ежедневные цитаты и участвовать в групповой ответственности. Сервис предоставляется командой Adat («мы», «нас», «наш»).</p>
 
 <h2>3. Допуск</h2>
 <p>Для использования Сервиса вам должно быть не менее 13 лет. Если вам менее 18 лет, вы должны иметь согласие родителей или опекунов. Используя Сервис, вы подтверждаете, что соответствуете этим требованиям.</p>
@@ -93,7 +93,7 @@ const termsRU = `
 </ul>
 
 <h2>6. Контент и интеллектуальная собственность</h2>
-<p>Весь контент Сервиса — включая текст, графику, логотипы, значки, цитаты и программное обеспечение — является собственностью команды Sunnad или её лицензиаров и защищён применимыми законами об интеллектуальной собственности.</p>
+<p>Весь контент Сервиса — включая текст, графику, логотипы, значки, цитаты и программное обеспечение — является собственностью команды Adat или её лицензиаров и защищён применимыми законами об интеллектуальной собственности.</p>
 
 <h2>7. Конфиденциальность</h2>
 <p>Использование Сервиса также регулируется нашей Политикой конфиденциальности. Используя Сервис, вы даёте согласие на сбор и использование информации.</p>
@@ -102,7 +102,7 @@ const termsRU = `
 <p>Сервис предоставляется «как есть» и «как доступно» без каких-либо гарантий, явных или подразумеваемых.</p>
 
 <h2>9. Ограничение ответственности</h2>
-<p>В максимальной степени, допускаемой законом, команда Sunnad не несёт ответственности за любые косвенные, случайные, штрафные убытки или потерю прибыли, данных или деловой репутации.</p>
+<p>В максимальной степени, допускаемой законом, команда Adat не несёт ответственности за любые косвенные, случайные, штрафные убытки или потерю прибыли, данных или деловой репутации.</p>
 
 <h2>10. Прекращение</h2>
 <p>Мы можем приостановить или прекратить ваш доступ к Сервису в любое время. Вы можете удалить свой аккаунт через настройки приложения.</p>
@@ -121,10 +121,10 @@ const termsKK = `
 <p><em>Соңғы жаңарту: 2026 жылғы 22 ақпан</em></p>
 
 <h2>1. Шарттарды қабылдау</h2>
-<p>Sunnad мобильді қосымшасына және онымен байланысты қызметтерге (жиынтықта «Қызмет») кіру немесе пайдалану арқылы сіз осы Қызмет көрсету шарттарын («Шарттар») сақтауға келісесіз. Келіспесеңіз, Қызметті пайдаланбаңыз.</p>
+<p>Adat мобильді қосымшасына және онымен байланысты қызметтерге (жиынтықта «Қызмет») кіру немесе пайдалану арқылы сіз осы Қызмет көрсету шарттарын («Шарттар») сақтауға келісесіз. Келіспесеңіз, Қызметті пайдаланбаңыз.</p>
 
 <h2>2. Қызмет сипаттамасы</h2>
-<p>Sunnad — бұл мұсылмандарға күнделікті әдеттерді қалыптастыруға, серияларды бақылауға, күнделікті дәйексөздерді көруге және топтық жауапкершілікке қатысуға көмектесетін офлайн-бірінші ислами әдет бақылау қосымшасы.</p>
+<p>Adat — бұл мұсылмандарға күнделікті әдеттерді қалыптастыруға, серияларды бақылауға, күнделікті дәйексөздерді көруге және топтық жауапкершілікке қатысуға көмектесетін офлайн-бірінші ислами әдет бақылау қосымшасы.</p>
 
 <h2>3. Қолжетімділік</h2>
 <p>Қызметті пайдалану үшін сіздің жасыңыз кем дегенде 13-те болуы керек. 18-ден томен болсаңыз, ата-ана немесе қорғаншы келісімі қажет.</p>
@@ -150,7 +150,7 @@ const termsKK = `
 </ul>
 
 <h2>6. Мазмұн және зияткерлік меншік</h2>
-<p>Қызметтегі барлық мазмұн — мәтін, графика, логотиптер, белгішелер, дәйексөздер және бағдарламалық қамтамасыз ету — Sunnad командасының немесе оның лицензиарларының меншігі болып табылады.</p>
+<p>Қызметтегі барлық мазмұн — мәтін, графика, логотиптер, белгішелер, дәйексөздер және бағдарламалық қамтамасыз ету — Adat командасының немесе оның лицензиарларының меншігі болып табылады.</p>
 
 <h2>7. Құпиялылық</h2>
 <p>Қызметті пайдалану біздің Құпиялылық саясатымызбен де реттеледі.</p>
@@ -159,7 +159,7 @@ const termsKK = `
 <p>Қызмет «қалай болса, солай» және «қолжетімді болса» негізінде ешқандай кепілдіксіз ұсынылады.</p>
 
 <h2>9. Жауапкершілікті шектеу</h2>
-<p>Заңмен рұқсат етілген шамада Sunnad командасы жанама, кездейсоқ, айыппұл шығындары немесе пайда, деректер жоғалтуы үшін жауапты болмайды.</p>
+<p>Заңмен рұқсат етілген шамада Adat командасы жанама, кездейсоқ, айыппұл шығындары немесе пайда, деректер жоғалтуы үшін жауапты болмайды.</p>
 
 <h2>10. Тоқтату</h2>
 <p>Біз сіздің Қызметке кіруіңізді кез келген уақытта тоқтата аламыз. Тіркелгіңізді қосымша баптаулары арқылы жоюға болады.</p>
@@ -181,7 +181,7 @@ const privacyEN = `
 <p><em>Last updated: February 22, 2026</em></p>
 
 <h2>1. Introduction</h2>
-<p>This Privacy Policy explains how Sunnad ("we", "us", "our") collects, uses, and protects information when you use our mobile application and related services (the "Service"). We are committed to protecting your privacy and being transparent about our data practices.</p>
+<p>This Privacy Policy explains how Adat ("we", "us", "our") collects, uses, and protects information when you use our mobile application and related services (the "Service"). We are committed to protecting your privacy and being transparent about our data practices.</p>
 
 <h2>2. Information We Collect</h2>
 
@@ -258,7 +258,7 @@ const privacyRU = `
 <p><em>Последнее обновление: 22 февраля 2026 г.</em></p>
 
 <h2>1. Введение</h2>
-<p>Настоящая Политика конфиденциальности объясняет, как Sunnad («мы», «нас», «наш») собирает, использует и защищает информацию при использовании мобильного приложения и связанных сервисов («Сервис»).</p>
+<p>Настоящая Политика конфиденциальности объясняет, как Adat («мы», «нас», «наш») собирает, использует и защищает информацию при использовании мобильного приложения и связанных сервисов («Сервис»).</p>
 
 <h2>2. Собираемая информация</h2>
 
@@ -325,7 +325,7 @@ const privacyKK = `
 <p><em>Соңғы жаңарту: 2026 жылғы 22 ақпан</em></p>
 
 <h2>1. Кіріспе</h2>
-<p>Бұл Құпиялылық саясаты Sunnad («біз», «бізді», «біздің») мобильді қосымшаны және онымен байланысты қызметтерді («Қызмет») пайдаланған кезде ақпаратты қалай жинайтынын, пайдаланатынын және қорғайтынын түсіндіреді.</p>
+<p>Бұл Құпиялылық саясаты Adat («біз», «бізді», «біздің») мобильді қосымшаны және онымен байланысты қызметтерді («Қызмет») пайдаланған кезде ақпаратты қалай жинайтынын, пайдаланатынын және қорғайтынын түсіндіреді.</p>
 
 <h2>2. Жиналатын ақпарат</h2>
 
