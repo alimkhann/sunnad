@@ -2,6 +2,7 @@ package com.arystan.almasuly.sunnadandroid.features.groups
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -120,11 +121,22 @@ fun GroupsScreen(
     var selectedGroupId by remember { mutableStateOf<UUID?>(null) }
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var showJoinDialog by rememberSaveable { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) { onLoad() }
+    var isPullRefreshing by remember { mutableStateOf(false) }
 
     val selectedGroup = remember(state.groups, selectedGroupId) {
         selectedGroupId?.let { id -> state.groups.firstOrNull { it.id == id } }
+    }
+
+    LaunchedEffect(state.hasLoadedOnce) {
+        if (!state.hasLoadedOnce && !state.isLoading) {
+            onLoad()
+        }
+    }
+
+    LaunchedEffect(state.isLoading) {
+        if (!state.isLoading) {
+            isPullRefreshing = false
+        }
     }
 
     selectedGroup?.let { group ->
@@ -132,8 +144,11 @@ fun GroupsScreen(
             group = group,
             dueHabits = dueHabits,
             allHabits = allHabits,
-            isRefreshing = state.isLoading,
-            onRefresh = onLoad,
+            isRefreshing = isPullRefreshing && state.isLoading,
+            onRefresh = {
+                isPullRefreshing = true
+                onLoad()
+            },
             onBack = { selectedGroupId = null },
             onRenameGroup = { newName -> onRenameGroup(group, newName) },
             onToggleJoinLock = { onToggleJoinLock(group) },
@@ -157,8 +172,11 @@ fun GroupsScreen(
 
     SunnadScreenSurface {
         PullToRefreshBox(
-            isRefreshing = state.isLoading,
-            onRefresh = onLoad,
+            isRefreshing = isPullRefreshing && state.isLoading,
+            onRefresh = {
+                isPullRefreshing = true
+                onLoad()
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
             LazyColumn(
@@ -484,13 +502,10 @@ private fun GroupDetailScreen(
     var ownCompletionOverrides by remember(group.id) { mutableStateOf<Map<UUID, Boolean>>(emptyMap()) }
     var codeCopiedSequence by remember(group.id) { mutableStateOf(0) }
     var showsCopiedCodeSuccess by remember(group.id) { mutableStateOf(false) }
+    var isPullRefreshing by remember(group.id) { mutableStateOf(false) }
 
     val currentUserMemberId = group.currentUserMemberId
     val isOwner = currentUserMemberId != null && currentUserMemberId == group.ownerMemberId
-
-    LaunchedEffect(group.id) {
-        onRefresh()
-    }
 
     LaunchedEffect(group.sharedHabitIds) {
         val serverSharedHabitIds = group.sharedHabitIds
@@ -524,6 +539,12 @@ private fun GroupDetailScreen(
         showsCopiedCodeSuccess = false
     }
 
+    LaunchedEffect(isRefreshing) {
+        if (!isRefreshing) {
+            isPullRefreshing = false
+        }
+    }
+
     LaunchedEffect(sharedHabitIds) {
         if (sharedHabitIds == lastServerSharedHabitIds) return@LaunchedEffect
         val target = sharedHabitIds
@@ -549,8 +570,11 @@ private fun GroupDetailScreen(
 
     SunnadScreenSurface {
         PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = onRefresh,
+            isRefreshing = isPullRefreshing && isRefreshing,
+            onRefresh = {
+                isPullRefreshing = true
+                onRefresh()
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
             LazyColumn(
@@ -659,51 +683,54 @@ private fun GroupDetailScreen(
             }
 
             item {
-                SunnadCard {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = group.code,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = group.code,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Icon(
+                                imageVector = if (group.joinLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 8.dp, end = 2.dp)
+                            )
+                            IconButton(
+                                onClick = {
+                                    clipboard.setText(AnnotatedString(group.code))
+                                    codeCopiedSequence += 1
+                                    showsCopiedCodeSuccess = true
+                                    Toast.makeText(context, context.getString(R.string.common_copied), Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
                                 Icon(
-                                    imageVector = if (group.joinLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                                    imageVector = if (showsCopiedCodeSuccess) Icons.Rounded.CheckCircle else Icons.Rounded.ContentCopy,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(start = 8.dp, end = 2.dp)
+                                    tint = if (showsCopiedCodeSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
                                 )
-                                IconButton(
-                                    onClick = {
-                                        clipboard.setText(AnnotatedString(group.code))
-                                        codeCopiedSequence += 1
-                                        showsCopiedCodeSuccess = true
-                                        Toast.makeText(context, context.getString(R.string.common_copied), Toast.LENGTH_SHORT).show()
-                                    },
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (showsCopiedCodeSuccess) Icons.Rounded.CheckCircle else Icons.Rounded.ContentCopy,
-                                        contentDescription = null,
-                                        tint = if (showsCopiedCodeSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
                             }
                         }
-                        Spacer(modifier = Modifier.weight(1f))
                     }
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
 

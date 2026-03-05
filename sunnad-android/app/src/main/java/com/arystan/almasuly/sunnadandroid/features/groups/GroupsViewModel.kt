@@ -18,6 +18,7 @@ import java.util.UUID
 data class GroupsUiState(
     val groups: List<Group> = emptyList(),
     val isLoading: Boolean = false,
+    val hasLoadedOnce: Boolean = false,
     val errorMessage: String? = null
 )
 
@@ -49,10 +50,10 @@ class GroupsViewModel(
                         )
                     }
                     syncSharingPipelines(merged)
-                    _state.update { it.copy(groups = merged, isLoading = false) }
+                    _state.update { it.copy(groups = merged, isLoading = false, hasLoadedOnce = true) }
                 }
                 .onFailure { error ->
-                    _state.update { it.copy(isLoading = false, errorMessage = error.localizedMessage) }
+                    _state.update { it.copy(isLoading = false, hasLoadedOnce = true, errorMessage = error.localizedMessage) }
                 }
         }
     }

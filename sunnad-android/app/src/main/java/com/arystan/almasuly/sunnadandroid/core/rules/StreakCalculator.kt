@@ -21,6 +21,19 @@ object StreakCalculator {
             cursor = cursor.minusDays(1)
         }
 
+        if (habit.isDue(cursor)) {
+            val currentCompletion = normalized[cursor]
+            val isCompleted = currentCompletion?.isCompleted(habit) == true
+            if (!isCompleted) {
+                val previous = previousDueDate(habit, cursor)
+                if (cursor == asOf && previous != null) {
+                    cursor = previous
+                } else {
+                    return 0
+                }
+            }
+        }
+
         while (true) {
             val completion = normalized[cursor] ?: break
             if (!completion.isCompleted(habit)) break

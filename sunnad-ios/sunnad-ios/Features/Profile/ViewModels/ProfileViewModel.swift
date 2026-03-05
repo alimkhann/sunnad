@@ -65,7 +65,8 @@ final class ProfileViewModel: ObservableObject {
                     completions: history,
                     asOf: today,
                     calendar: calendar,
-                    timeZone: timeZone
+                    timeZone: timeZone,
+                    referenceDate: today
                 )
                 mappedHabits.append(
                     habit.asUIHabit(

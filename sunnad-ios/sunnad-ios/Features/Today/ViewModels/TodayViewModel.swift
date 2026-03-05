@@ -27,6 +27,7 @@ final class TodayViewModel: ObservableObject {
 
     private var localeCode: String
     private var domainHabitsByID: [UUID: Habit] = [:]
+    private var completionHistoryByHabitID: [UUID: [HabitCompletion]] = [:]
     private var currentQuote: Quote?
 
     init(
@@ -67,16 +68,19 @@ final class TodayViewModel: ObservableObject {
 
             var uiHabits: [UIHabit] = []
             uiHabits.reserveCapacity(habits.count)
+            var historyByHabitID: [UUID: [HabitCompletion]] = [:]
 
             for habit in habits {
                 let completion = completionByHabitID[habit.id] ?? HabitCompletion(habitID: habit.id, dayDate: today, value: 0)
                 let history = try await completionsRepository.fetchCompletions(for: habit.id)
+                historyByHabitID[habit.id] = history
                 let streak = StreakCalculator.streak(
                     for: habit,
                     completions: history,
                     asOf: today,
                     calendar: calendar,
-                    timeZone: timeZone
+                    timeZone: timeZone,
+                    referenceDate: today
                 )
 
                 let uiHabit = habit.asUIHabit(
@@ -90,6 +94,7 @@ final class TodayViewModel: ObservableObject {
             }
 
             self.habits = uiHabits
+            completionHistoryByHabitID = historyByHabitID
 
             if let quote = try await quotesRepository.fetchQuoteOfDay(
                 locale: localeCode,
@@ -137,6 +142,23 @@ final class TodayViewModel: ObservableObject {
         }
 
         var updatedHabit = habits[index]
+        let today = now()
+        let optimisticCompletion = HabitCompletion(
+            habitID: habitID,
+            dayDate: today,
+            value: nextValue,
+            completedAt: nextValue > 0 ? today : nil,
+            updatedAt: today
+        )
+        let optimisticHistory = updatedHistory(for: habitID, completion: optimisticCompletion)
+        let optimisticStreak = StreakCalculator.streak(
+            for: habit,
+            completions: optimisticHistory,
+            asOf: today,
+            calendar: calendar,
+            timeZone: timeZone,
+            referenceDate: today
+        )
         if habit.type == .binary {
             updatedHabit.completedToday = nextValue > 0
         } else {
@@ -144,6 +166,7 @@ final class TodayViewModel: ObservableObject {
             updatedHabit.completedToday = nextValue >= habit.normalizedTargetCount
             updatedHabit.dhikrCountsByKey[updatedHabit.selectedDhikrKey] = nextValue
         }
+        updatedHabit.streak = optimisticStreak
         habits[index] = updatedHabit
 
         return HabitToggleTransaction(
@@ -170,6 +193,7 @@ final class TodayViewModel: ObservableObject {
             )
 
             try await completionsRepository.upsertCompletion(completion, calendar: calendar, timeZone: timeZone)
+            completionHistoryByHabitID[transaction.habitID] = updatedHistory(for: transaction.habitID, completion: completion)
             logger.log(.habitToggled, metadata: ["habit_id": transaction.habitID.uuidString, "value": "\(transaction.nextValue)"])
             return true
         } catch {
@@ -195,6 +219,22 @@ final class TodayViewModel: ObservableObject {
             restoredHabit.completedToday = transaction.previousValue >= habit.normalizedTargetCount
             restoredHabit.dhikrCountsByKey[restoredHabit.selectedDhikrKey] = transaction.previousValue
         }
+        let today = now()
+        let restoredCompletion = HabitCompletion(
+            habitID: transaction.habitID,
+            dayDate: today,
+            value: transaction.previousValue,
+            completedAt: transaction.previousValue > 0 ? today : nil,
+            updatedAt: today
+        )
+        restoredHabit.streak = StreakCalculator.streak(
+            for: habit,
+            completions: updatedHistory(for: transaction.habitID, completion: restoredCompletion),
+            asOf: today,
+            calendar: calendar,
+            timeZone: timeZone,
+            referenceDate: today
+        )
         habits[index] = restoredHabit
     }
 
@@ -216,5 +256,15 @@ final class TodayViewModel: ObservableObject {
             logger.log(.storageFailure, metadata: ["scope": "save_quote", "error": error.localizedDescription])
             return false
         }
+    }
+
+    private func updatedHistory(for habitID: UUID, completion: HabitCompletion) -> [HabitCompletion] {
+        var normalizedCalendar = calendar
+        normalizedCalendar.timeZone = timeZone
+        let targetDay = normalizedCalendar.startOfDay(for: completion.dayDate)
+        let prior = completionHistoryByHabitID[habitID, default: []].filter {
+            normalizedCalendar.startOfDay(for: $0.dayDate) != targetDay
+        }
+        return (prior + [completion]).sorted { $0.dayDate < $1.dayDate }
     }
 }

@@ -46,6 +46,7 @@ data class TodayUiState(
     val allHabits: List<Habit> = emptyList(),
     val dueHabits: List<TodayHabitUiModel> = emptyList(),
     val habitStreakById: Map<UUID, Int> = emptyMap(),
+    val completionRevision: Long = 0,
     val pendingHabitToggleIds: Set<UUID> = emptySet(),
     val quote: Quote? = null,
     val isQuoteSaved: Boolean = false,
@@ -63,6 +64,7 @@ class TodayViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow(TodayUiState())
     val state: StateFlow<TodayUiState> = _state.asStateFlow()
+    private var completionHistoryByHabitId: Map<UUID, List<HabitCompletion>> = emptyMap()
 
     fun updateLocale(locale: String) {
         _state.update { it.copy(locale = locale) }
@@ -78,9 +80,11 @@ class TodayViewModel(
                 val dueHabits = habitsRepository.fetchDueHabits(today).sortedBy { it.sortOrder }
                 val completionByHabitId = completionsRepository.fetchCompletions(today).associateBy { it.habitId }
                 val streakById = mutableMapOf<UUID, Int>()
+                val completionHistory = mutableMapOf<UUID, List<HabitCompletion>>()
 
                 allHabits.forEach { habit ->
                     val history = completionsRepository.fetchCompletions(habit.id)
+                    completionHistory[habit.id] = history
                     streakById[habit.id] = StreakCalculator.streak(habit, history, today)
                 }
 
@@ -99,6 +103,7 @@ class TodayViewModel(
                     day = today
                 )
                 val isQuoteSaved = quote?.let { quotesRepository.isQuoteSaved(it.id) } ?: false
+                completionHistoryByHabitId = completionHistory
 
                 _state.update {
                     it.copy(
@@ -139,16 +144,6 @@ class TodayViewModel(
                 dhikrCount = nextValue
             )
 
-            _state.update { state ->
-                state.copy(
-                    dueHabits = state.dueHabits.map { due ->
-                        if (due.id == habitId) optimisticModel else due
-                    },
-                    pendingHabitToggleIds = state.pendingHabitToggleIds + habitId,
-                    errorMessage = null
-                )
-            }
-
             val nowInstant = Instant.now()
             val completion = HabitCompletion(
                 habitId = habitId,
@@ -157,17 +152,42 @@ class TodayViewModel(
                 completedAt = if (nextValue > 0) nowInstant else null,
                 updatedAt = nowInstant
             )
+            val optimisticHistory = updatedHistoryFor(habitId, completion)
+            val optimisticStreak = StreakCalculator.streak(habit, optimisticHistory, completion.dayDate)
+            val optimisticModelWithStreak = optimisticModel.copy(streak = optimisticStreak)
+
+            _state.update { state ->
+                state.copy(
+                    dueHabits = state.dueHabits.map { due ->
+                        if (due.id == habitId) optimisticModelWithStreak else due
+                    },
+                    pendingHabitToggleIds = state.pendingHabitToggleIds + habitId,
+                    errorMessage = null,
+                    habitStreakById = state.habitStreakById + (habitId to optimisticStreak)
+                )
+            }
 
             runCatching {
                 completionsRepository.upsertCompletion(completion)
+                completionHistoryByHabitId = completionHistoryByHabitId + (habitId to optimisticHistory)
                 syncCoordinator.enqueueCompletionUpsert(habitId, LocalDate.now())
                 syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+                _state.update { state ->
+                    state.copy(
+                        dueHabits = state.dueHabits.map { due ->
+                            if (due.id == habitId) due.copy(streak = optimisticStreak) else due
+                        },
+                        habitStreakById = state.habitStreakById + (habitId to optimisticStreak),
+                        completionRevision = state.completionRevision + 1
+                    )
+                }
             }.onFailure { error ->
                 _state.update { state ->
                     state.copy(
                         dueHabits = state.dueHabits.map { due ->
                             if (due.id == habitId) model else due
                         },
+                        habitStreakById = state.habitStreakById + (habitId to model.streak),
                         errorMessage = error.localizedMessage
                     )
                 }
@@ -328,6 +348,12 @@ class TodayViewModel(
 
     fun chooseHabit(habitId: UUID?) {
         _state.update { it.copy(selectedHabitId = habitId) }
+    }
+
+    private fun updatedHistoryFor(habitId: UUID, completion: HabitCompletion): List<HabitCompletion> {
+        val currentHistory = completionHistoryByHabitId[habitId].orEmpty()
+        val withoutToday = currentHistory.filter { it.dayDate != completion.dayDate }
+        return (withoutToday + completion).sortedBy { it.dayDate }
     }
 
     private fun todayUiModel(habit: Habit, completion: HabitCompletion, streak: Int): TodayHabitUiModel {

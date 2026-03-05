@@ -27,9 +27,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -69,6 +71,14 @@ fun InsightsScreen(
 
     LaunchedEffect(Unit) {
         viewModel.load()
+    }
+
+    LaunchedEffect(state.points) {
+        if (state.points.isEmpty()) {
+            selectedPointDate = null
+        } else if (selectedPointDate == null || state.points.none { it.date == selectedPointDate }) {
+            selectedPointDate = state.points.last().date
+        }
     }
 
     SunnadScreenSurface {
@@ -111,11 +121,13 @@ fun InsightsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    CompletionTrendChart(
-                        points = state.points,
-                        selectedDate = selectedPointDate,
-                        onSelectDate = { selectedPointDate = it }
-                    )
+                    key(state.points.map { "${it.date}:${it.completed}:${it.due}" }) {
+                        CompletionTrendChart(
+                            points = state.points,
+                            selectedDate = selectedPointDate,
+                            onSelectDate = { selectedPointDate = it }
+                        )
+                    }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -140,6 +152,11 @@ fun InsightsScreen(
                             text = selectedPoint.date.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "${selectedPoint.completed} of ${selectedPoint.due} completed",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = stringResource(R.string.insights_missed_habits),
@@ -338,20 +355,28 @@ private fun CompletionTrendChart(
 ) {
     val scroll = rememberScrollState()
     var didAutoScrollToLatest by remember(points) { mutableStateOf(false) }
-    val maxDue = remember(points) { max(1, points.maxOfOrNull { it.due } ?: 1) }
-    val chartWidth = maxOf(340.dp, (points.size * 42).dp)
+    val chartScaleMaxDue = remember(points) {
+        val latestWindow = if (points.size <= 7) points else points.takeLast(7)
+        max(1, latestWindow.maxOfOrNull { it.due } ?: 1)
+    }
+    val chartWidth = maxOf(380.dp, (points.size * 48).dp)
     val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
     val completedColor = MaterialTheme.colorScheme.primary
     val completedLineShadowColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f)
+    val completedMarkerOuterColor = MaterialTheme.colorScheme.surface
     val dueColor = Color(0xFFF4C430)
     val selectedLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
     val selectedIndex = selectedDate?.let { selected ->
         points.indexOfFirst { it.date == selected }.takeIf { it != -1 }
     }
+    val latestIndex = points.lastIndex
 
     LaunchedEffect(points.size, scroll.maxValue) {
         if (!didAutoScrollToLatest && points.isNotEmpty() && scroll.maxValue > 0) {
-            scroll.scrollTo(scroll.maxValue)
+            repeat(3) {
+                scroll.scrollTo(scroll.maxValue)
+                withFrameNanos { }
+            }
             didAutoScrollToLatest = true
         }
     }
@@ -388,7 +413,7 @@ private fun CompletionTrendChart(
                 val chartWidthPx = size.width - horizontalInset * 2f
                 val stepX = if (points.size <= 1) 0f else chartWidthPx / (points.size - 1)
                 val baselineY = size.height - verticalPadding
-                val minCompletedVisualRatio = 0.035f
+                val minCompletedVisualRatio = 0.08f
 
                 repeat(5) { index ->
                     val y = verticalPadding + chartHeight * (index / 4f)
@@ -401,14 +426,14 @@ private fun CompletionTrendChart(
                 }
 
                 val duePoints = points.mapIndexed { index, point ->
-                    val normalized = point.due.toFloat() / maxDue.toFloat()
+                    val normalized = point.due.toFloat() / chartScaleMaxDue.toFloat()
                     Offset(
                         x = horizontalInset + stepX * index,
                         y = verticalPadding + chartHeight * (1f - normalized)
                     )
                 }
                 val completedPoints = points.mapIndexed { index, point ->
-                    val rawNormalized = point.completed.toFloat() / maxDue.toFloat()
+                    val rawNormalized = point.completed.toFloat() / chartScaleMaxDue.toFloat()
                     val normalized = if (point.completed > 0) {
                         max(rawNormalized, minCompletedVisualRatio)
                     } else {
@@ -424,6 +449,7 @@ private fun CompletionTrendChart(
                 val completedLinePath = smoothPath(completedPoints)
                 val completedAreaPath = areaToBaselinePath(completedPoints, baselineY)
                 val dueMinusCompletedAreaPath = areaBetweenPathsPath(duePoints, completedPoints)
+                val completedStemWidth = max(6.dp.toPx(), stepX * 0.18f)
 
                 drawPath(
                     path = completedAreaPath,
@@ -443,6 +469,18 @@ private fun CompletionTrendChart(
                     )
                 )
 
+                completedPoints.forEachIndexed { index, point ->
+                    val value = points[index].completed
+                    if (value <= 0) return@forEachIndexed
+                    drawLine(
+                        color = completedColor.copy(alpha = 0.24f),
+                        start = Offset(point.x, baselineY),
+                        end = point,
+                        strokeWidth = completedStemWidth,
+                        cap = StrokeCap.Round
+                    )
+                }
+
                 drawPath(
                     path = dueLinePath,
                     color = dueColor,
@@ -451,19 +489,31 @@ private fun CompletionTrendChart(
                 drawPath(
                     path = completedLinePath,
                     color = completedLineShadowColor,
-                    style = Stroke(width = 4.5.dp.toPx(), cap = StrokeCap.Round)
+                    style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
                 )
                 drawPath(
                     path = completedLinePath,
                     color = completedColor,
-                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                    style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
                 )
 
-                completedPoints.forEach {
+                completedPoints.forEachIndexed { index, point ->
+                    val value = points[index].completed
+                    if (value <= 0 && index != selectedIndex && index != latestIndex) return@forEachIndexed
+                    val radius = when {
+                        index == selectedIndex -> 4.5.dp.toPx()
+                        value > 0 -> 3.5.dp.toPx()
+                        else -> 2.5.dp.toPx()
+                    }
+                    drawCircle(
+                        color = completedMarkerOuterColor,
+                        radius = radius + 1.5.dp.toPx(),
+                        center = point
+                    )
                     drawCircle(
                         color = completedColor,
-                        radius = 2.dp.toPx(),
-                        center = it
+                        radius = radius,
+                        center = point
                     )
                 }
 
@@ -535,16 +585,9 @@ private fun DrawScope.smoothPath(points: List<Offset>): Path {
     if (points.size == 1) return path
 
     for (index in 1 until points.size) {
-        val prev = points[index - 1]
         val current = points[index]
-        val control = Offset(
-            x = (prev.x + current.x) / 2f,
-            y = (prev.y + current.y) / 2f
-        )
-        path.quadraticTo(prev.x, prev.y, control.x, control.y)
+        path.lineTo(current.x, current.y)
     }
-    val last = points.last()
-    path.lineTo(last.x, last.y)
     return path
 }
 
@@ -555,13 +598,8 @@ private fun areaToBaselinePath(points: List<Offset>, baselineY: Float): Path {
     path.lineTo(points.first().x, points.first().y)
     if (points.size > 1) {
         for (index in 1 until points.size) {
-            val prev = points[index - 1]
             val current = points[index]
-            val control = Offset(
-                x = (prev.x + current.x) / 2f,
-                y = (prev.y + current.y) / 2f
-            )
-            path.quadraticTo(prev.x, prev.y, control.x, control.y)
+            path.lineTo(current.x, current.y)
         }
     }
     path.lineTo(points.last().x, points.last().y)
@@ -576,26 +614,16 @@ private fun areaBetweenPathsPath(top: List<Offset>, bottom: List<Offset>): Path 
     path.moveTo(top.first().x, top.first().y)
     if (top.size > 1) {
         for (index in 1 until top.size) {
-            val prev = top[index - 1]
             val current = top[index]
-            val control = Offset(
-                x = (prev.x + current.x) / 2f,
-                y = (prev.y + current.y) / 2f
-            )
-            path.quadraticTo(prev.x, prev.y, control.x, control.y)
+            path.lineTo(current.x, current.y)
         }
     }
     path.lineTo(top.last().x, top.last().y)
     path.lineTo(bottom.last().x, bottom.last().y)
     if (bottom.size > 1) {
         for (index in bottom.lastIndex downTo 1) {
-            val current = bottom[index]
-            val prev = bottom[index - 1]
-            val control = Offset(
-                x = (current.x + prev.x) / 2f,
-                y = (current.y + prev.y) / 2f
-            )
-            path.quadraticTo(current.x, current.y, control.x, control.y)
+            val previous = bottom[index - 1]
+            path.lineTo(previous.x, previous.y)
         }
     }
     path.lineTo(bottom.first().x, bottom.first().y)

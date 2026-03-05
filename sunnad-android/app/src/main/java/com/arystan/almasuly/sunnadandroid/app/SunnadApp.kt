@@ -260,7 +260,15 @@ fun SunnadApp(
         }
     }
 
-    LaunchedEffect(mainOverlay, todayState.dueHabits, todayState.allHabits) {
+    LaunchedEffect(mainOverlay, todayState.dueHabits, todayState.allHabits, todayState.completionRevision) {
+        if (mainOverlay == MainOverlayRoute.INSIGHTS) {
+            insightsViewModel.load()
+        }
+    }
+
+    LaunchedEffect(todayState.completionRevision) {
+        if (todayState.completionRevision == 0L) return@LaunchedEffect
+        profileViewModel.refresh()
         if (mainOverlay == MainOverlayRoute.INSIGHTS) {
             insightsViewModel.load()
         }
@@ -562,11 +570,7 @@ fun SunnadApp(
                                 onKickMember = groupsViewModel::kickMember,
                                 onSetProgressDisplayMode = groupsViewModel::setProgressDisplayMode,
                                 onUpdateSharing = groupsViewModel::updateSharing,
-                                onToggleOwnHabit = { habitId ->
-                                    todayViewModel.toggleHabit(habitId) {
-                                        groupsViewModel.loadGroups()
-                                    }
-                                },
+                                onToggleOwnHabit = todayViewModel::toggleHabit,
                                 onSendNudge = groupsViewModel::sendNudge,
                                 onSignIn = {
                                     authViewModel.openStep(AuthStep.SIGN_IN)

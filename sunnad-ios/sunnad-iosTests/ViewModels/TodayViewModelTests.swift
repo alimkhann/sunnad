@@ -187,6 +187,43 @@ struct TodayViewModelTests {
         #expect(vm.habits.first?.completedToday == false)
     }
 
+    @Test
+    func beginHabitToggleRecomputesStreakOptimistically() async {
+        let habit = Habit(
+            id: UUID(),
+            name: "Read Quran",
+            icon: "book.fill",
+            category: .spiritual,
+            type: .binary,
+            schedule: .daily
+        )
+        let yesterday = Calendar(identifier: .gregorian).date(byAdding: .day, value: -1, to: fixedDate)!
+        let yesterdayCompletion = HabitCompletion(habitID: habit.id, dayDate: yesterday, value: 1)
+
+        let vm = TodayViewModel(
+            habitsRepository: FakeHabitsRepository(habits: [habit]),
+            completionsRepository: FakeCompletionsRepository(completionsByHabit: [habit.id: [yesterdayCompletion]]),
+            quotesRepository: FakeQuotesRepository(quoteOfDay: Quote(locale: "en", text: "Quote", source: "Source", sortOrder: 0, active: true)),
+            logger: TestLogger(),
+            localeCode: "en",
+            now: { fixedDate }
+        )
+
+        await vm.loadToday()
+        #expect(vm.habits.first?.streak == 1)
+
+        let transaction = vm.beginHabitToggle(habit.id)
+        #expect(transaction != nil)
+        #expect(vm.habits.first?.completedToday == true)
+        #expect(vm.habits.first?.streak == 2)
+
+        if let transaction {
+            vm.rollbackHabitToggle(transaction)
+        }
+        #expect(vm.habits.first?.completedToday == false)
+        #expect(vm.habits.first?.streak == 1)
+    }
+
     private var fixedDate: Date {
         makeDate(year: 2026, month: 2, day: 19, hour: 10)
     }

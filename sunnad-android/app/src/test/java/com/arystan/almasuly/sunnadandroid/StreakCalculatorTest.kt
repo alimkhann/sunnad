@@ -41,4 +41,16 @@ class StreakCalculatorTest {
 
         assertEquals(3, StreakCalculator.streak(habit, completions, asOf))
     }
+
+    @Test
+    fun currentDueDayWithoutCompletionKeepsPriorStreak() {
+        val today = LocalDate.of(2026, 2, 19)
+        val habit = Habit(name = "Read", icon = "book", type = HabitType.BINARY, schedule = HabitSchedule.Daily)
+        val completions = listOf(
+            HabitCompletion(habit.id, today.minusDays(1), 1),
+            HabitCompletion(habit.id, today.minusDays(2), 1)
+        )
+
+        assertEquals(2, StreakCalculator.streak(habit, completions, today))
+    }
 }

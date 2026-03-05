@@ -388,9 +388,14 @@ private fun HabitRow(
 ) {
     val completedFill = MaterialTheme.colorScheme.primary
     val incompleteFill = MaterialTheme.colorScheme.surfaceContainerHighest
+    val streakSubtitle = if (habit.completedToday && habit.streak > 0) {
+        stringResource(R.string.today_streak, habit.streak)
+    } else {
+        null
+    }
     SunnadListRow(
         title = habit.title,
-        subtitle = stringResource(R.string.today_streak, habit.streak),
+        subtitle = streakSubtitle,
         leading = {
             Icon(
                 imageVector = iconForHabitName(habit.icon, habit.title),

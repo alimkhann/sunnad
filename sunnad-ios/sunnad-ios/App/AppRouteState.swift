@@ -1649,7 +1649,7 @@ final class AppRouteState: ObservableObject {
                 ) ?? HabitCompletion(habitID: habit.id, dayDate: today, value: 0)
 
                 let history = try await dependencies.completionsRepository.fetchCompletions(for: habit.id)
-                let streak = StreakCalculator.streak(for: habit, completions: history, asOf: today)
+                let streak = StreakCalculator.streak(for: habit, completions: history, asOf: today, referenceDate: today)
                 marksByHabit[habit.id] = Self.lastSevenMarks(
                     for: habit,
                     completions: history,

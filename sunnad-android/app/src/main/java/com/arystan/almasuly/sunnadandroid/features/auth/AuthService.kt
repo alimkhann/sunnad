@@ -28,6 +28,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 
 enum class OtpFlowMode {
@@ -150,7 +151,7 @@ class SupabaseAuthService(
         return runCatching {
             client.auth.loadFromStorage(autoRefresh = true)
             client.auth.awaitInitialization()
-            client.auth.currentUserOrNull()?.let { toSessionUser(it) }
+            client.auth.currentUserOrNull()?.let { toSessionUser(it, fetchRemoteProfile = false) }
         }.getOrNull()
     }
 
@@ -337,8 +338,15 @@ class SupabaseAuthService(
         }.getOrElse { throw mapAuthError(it) }
     }
 
-    private suspend fun toSessionUser(user: UserInfo): SessionUser {
-        val profile = fetchProfile(user.id)
+    private suspend fun toSessionUser(
+        user: UserInfo,
+        fetchRemoteProfile: Boolean = true
+    ): SessionUser {
+        val profile = if (fetchRemoteProfile) {
+            withTimeoutOrNull(1_500) { fetchProfile(user.id) }
+        } else {
+            null
+        }
         val id = runCatching { UUID.fromString(user.id) }.getOrElse { UUID.randomUUID() }
         val metadataUsername = user.userMetadata?.get("username")?.jsonPrimitive?.contentOrNull
         val provider = when (user.appMetadata?.get("provider")?.jsonPrimitive?.contentOrNull?.lowercase()) {

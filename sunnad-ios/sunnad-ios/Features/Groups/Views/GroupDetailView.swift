@@ -68,7 +68,6 @@ struct GroupDetailView: View {
     @State private var isEditingSharing = false
     @State private var pendingRemoteSharedHabitIDs: Set<UUID>?
     @State private var sharingDebounceTask: Task<Void, Never>?
-    @State private var ownToggleRefreshTask: Task<Void, Never>?
 
     @State private var reminderTarget: ReminderTarget?
     @State private var reminderToast: ReminderToast?
@@ -78,7 +77,6 @@ struct GroupDetailView: View {
     @State private var swipedMemberID: UUID?
     @State private var showsLeaveConfirmation = false
     @State private var showsDeleteConfirmation = false
-    @State private var didRunInitialRefresh = false
     @State private var showsCopiedCodeSuccess = false
     @State private var copyCodeSequence = 0
     @State private var showsRenameSheet = false
@@ -141,11 +139,6 @@ struct GroupDetailView: View {
             sharedHabitIDs = currentSharedHabitIDs() ?? group.sharedHabitIDs
             progressDisplayMode = group.progressDisplayMode
             reconcileOwnCompletionOverrides()
-            guard !didRunInitialRefresh else { return }
-            didRunInitialRefresh = true
-            Task {
-                await onRefresh()
-            }
         }
         .onChange(of: group.sharedHabitIDs) { oldValue, newValue in
             _ = oldValue
@@ -171,8 +164,6 @@ struct GroupDetailView: View {
         .onDisappear {
             sharingDebounceTask?.cancel()
             sharingDebounceTask = nil
-            ownToggleRefreshTask?.cancel()
-            ownToggleRefreshTask = nil
         }
         .sheet(item: $reminderTarget) { target in
             ReminderPromptSheet(
@@ -579,11 +570,6 @@ struct GroupDetailView: View {
             Button {
                 ownCompletionOverrides[sharedHabit.habitID] = !sharedHabit.completedToday
                 onToggleOwnHabit(sharedHabit.habitID)
-                ownToggleRefreshTask?.cancel()
-                ownToggleRefreshTask = Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 450_000_000)
-                    await onRefresh()
-                }
             } label: {
                 Image(systemName: sharedHabit.completedToday ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
