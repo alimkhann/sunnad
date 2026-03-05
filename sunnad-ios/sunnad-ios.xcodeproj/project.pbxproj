@@ -8,9 +8,25 @@
 
 /* Begin PBXBuildFile section */
 		A31E9D112F70000100A7A101 /* OneSignalFramework in Frameworks */ = {isa = PBXBuildFile; productRef = A31E9D122F70000100A7A101 /* OneSignalFramework */; };
+		A31E9D142F70000100A7A101 /* OneSignalExtension in Frameworks */ = {isa = PBXBuildFile; productRef = A31E9D232F70000100A7A101 /* OneSignalExtension */; };
+		A31E9D152F70000100A7A101 /* sunnad-iosNotificationServiceExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A31E9D172F70000100A7A101 /* sunnad-iosNotificationServiceExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		47A6918B2F47B88900BC3F31 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A1D9E801D7D14B9A8A5E1001 /* Supabase */; };
 		47A69F1F2F4DE15800BC3F31 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = 47A69F1E2F4DE15800BC3F31 /* PostHog */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A31E9D192F70000100A7A101 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A31E9D152F70000100A7A101 /* sunnad-iosNotificationServiceExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXContainerItemProxy section */
 		47C8D7292F44B4DD006F8DF3 /* PBXContainerItemProxy */ = {
@@ -27,13 +43,33 @@
 			remoteGlobalIDString = 47C8D7182F44B4DC006F8DF3;
 			remoteInfo = "sunnad-ios";
 		};
+		A31E9D162F70000100A7A101 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 47C8D7112F44B4DC006F8DF3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A31E9D1B2F70000100A7A101;
+			remoteInfo = "sunnad-iosNotificationServiceExtension";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		47C8D7192F44B4DC006F8DF3 /* sunnad-ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "sunnad-ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		47C8D7282F44B4DD006F8DF3 /* sunnad-iosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "sunnad-iosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		47C8D7322F44B4DD006F8DF3 /* sunnad-iosUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "sunnad-iosUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A31E9D172F70000100A7A101 /* sunnad-iosNotificationServiceExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "sunnad-iosNotificationServiceExtension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A31E9D242F70000100A7A101 /* Exceptions for "sunnad-iosNotificationServiceExtension" folder in "sunnad-iosNotificationServiceExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				README.md,
+				"sunnad-iosNotificationServiceExtension.entitlements",
+			);
+			target = A31E9D1B2F70000100A7A101 /* sunnad-iosNotificationServiceExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		47C8D71B2F44B4DC006F8DF3 /* sunnad-ios */ = {
@@ -49,6 +85,14 @@
 		47C8D7352F44B4DD006F8DF3 /* sunnad-iosUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "sunnad-iosUITests";
+			sourceTree = "<group>";
+		};
+		A31E9D182F70000100A7A101 /* sunnad-iosNotificationServiceExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A31E9D242F70000100A7A101 /* Exceptions for "sunnad-iosNotificationServiceExtension" folder in "sunnad-iosNotificationServiceExtension" target */,
+			);
+			path = "sunnad-iosNotificationServiceExtension";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -78,26 +122,36 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A31E9D1A2F70000100A7A101 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A31E9D142F70000100A7A101 /* OneSignalExtension in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		47C8D7102F44B4DC006F8DF3 = {
 			isa = PBXGroup;
-			children = (
-				47C8D71B2F44B4DC006F8DF3 /* sunnad-ios */,
-				47C8D72B2F44B4DD006F8DF3 /* sunnad-iosTests */,
-				47C8D7352F44B4DD006F8DF3 /* sunnad-iosUITests */,
-				47C8D71A2F44B4DC006F8DF3 /* Products */,
-			);
+				children = (
+					47C8D71B2F44B4DC006F8DF3 /* sunnad-ios */,
+					A31E9D182F70000100A7A101 /* sunnad-iosNotificationServiceExtension */,
+					47C8D72B2F44B4DD006F8DF3 /* sunnad-iosTests */,
+					47C8D7352F44B4DD006F8DF3 /* sunnad-iosUITests */,
+					47C8D71A2F44B4DC006F8DF3 /* Products */,
+				);
 			sourceTree = "<group>";
 		};
 		47C8D71A2F44B4DC006F8DF3 /* Products */ = {
 			isa = PBXGroup;
-			children = (
-				47C8D7192F44B4DC006F8DF3 /* sunnad-ios.app */,
-				47C8D7282F44B4DD006F8DF3 /* sunnad-iosTests.xctest */,
-				47C8D7322F44B4DD006F8DF3 /* sunnad-iosUITests.xctest */,
-			);
+				children = (
+					47C8D7192F44B4DC006F8DF3 /* sunnad-ios.app */,
+					A31E9D172F70000100A7A101 /* sunnad-iosNotificationServiceExtension.appex */,
+					47C8D7282F44B4DD006F8DF3 /* sunnad-iosTests.xctest */,
+					47C8D7322F44B4DD006F8DF3 /* sunnad-iosUITests.xctest */,
+				);
 			name = Products;
 			sourceTree = "<group>";
 		};
@@ -111,10 +165,12 @@
 				47C8D7152F44B4DC006F8DF3 /* Sources */,
 				47C8D7162F44B4DC006F8DF3 /* Frameworks */,
 				47C8D7172F44B4DC006F8DF3 /* Resources */,
+				A31E9D192F70000100A7A101 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A31E9D1E2F70000100A7A101 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				47C8D71B2F44B4DC006F8DF3 /* sunnad-ios */,
@@ -128,6 +184,29 @@
 			productName = "sunnad-ios";
 			productReference = 47C8D7192F44B4DC006F8DF3 /* sunnad-ios.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A31E9D1B2F70000100A7A101 /* sunnad-iosNotificationServiceExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A31E9D1F2F70000100A7A101 /* Build configuration list for PBXNativeTarget "sunnad-iosNotificationServiceExtension" */;
+			buildPhases = (
+				A31E9D1D2F70000100A7A101 /* Sources */,
+				A31E9D1A2F70000100A7A101 /* Frameworks */,
+				A31E9D1C2F70000100A7A101 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A31E9D182F70000100A7A101 /* sunnad-iosNotificationServiceExtension */,
+			);
+			name = "sunnad-iosNotificationServiceExtension";
+			packageProductDependencies = (
+				A31E9D232F70000100A7A101 /* OneSignalExtension */,
+			);
+			productName = "sunnad-iosNotificationServiceExtension";
+			productReference = A31E9D172F70000100A7A101 /* sunnad-iosNotificationServiceExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		47C8D7272F44B4DD006F8DF3 /* sunnad-iosTests */ = {
 			isa = PBXNativeTarget;
@@ -188,6 +267,9 @@
 					47C8D7182F44B4DC006F8DF3 = {
 						CreatedOnToolsVersion = 26.2;
 					};
+					A31E9D1B2F70000100A7A101 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					47C8D7272F44B4DD006F8DF3 = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = 47C8D7182F44B4DC006F8DF3;
@@ -218,6 +300,7 @@
 			projectRoot = "";
 			targets = (
 				47C8D7182F44B4DC006F8DF3 /* sunnad-ios */,
+				A31E9D1B2F70000100A7A101 /* sunnad-iosNotificationServiceExtension */,
 				47C8D7272F44B4DD006F8DF3 /* sunnad-iosTests */,
 				47C8D7312F44B4DD006F8DF3 /* sunnad-iosUITests */,
 			);
@@ -240,6 +323,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		47C8D7302F44B4DD006F8DF3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A31E9D1C2F70000100A7A101 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -270,6 +360,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A31E9D1D2F70000100A7A101 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -282,6 +379,11 @@
 			isa = PBXTargetDependency;
 			target = 47C8D7182F44B4DC006F8DF3 /* sunnad-ios */;
 			targetProxy = 47C8D7332F44B4DD006F8DF3 /* PBXContainerItemProxy */;
+		};
+		A31E9D1E2F70000100A7A101 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A31E9D1B2F70000100A7A101 /* sunnad-iosNotificationServiceExtension */;
+			targetProxy = A31E9D162F70000100A7A101 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -515,13 +617,102 @@
 			};
 			name = Release;
 		};
+		A31E9D202F70000100A7A101 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = "sunnad-iosNotificationServiceExtension/sunnad-iosNotificationServiceExtension.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M5YPTF3F3J;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "sunnad-iosNotificationServiceExtension/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.arystan.almasuly.sunnad-ios.dev.NotificationServiceExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUNNAD_ONESIGNAL_APP_GROUP_ID_BUNDLE = "group.com.arystan.almasuly.sunnad";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A31E9D212F70000100A7A101 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = "sunnad-iosNotificationServiceExtension/sunnad-iosNotificationServiceExtension.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M5YPTF3F3J;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "sunnad-iosNotificationServiceExtension/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.arystan.almasuly.sunnad-ios.NotificationServiceExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUNNAD_ONESIGNAL_APP_GROUP_ID_BUNDLE = "group.com.arystan.almasuly.sunnad";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A31E9D222F70000100A7A101 /* Local */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = "sunnad-iosNotificationServiceExtension/sunnad-iosNotificationServiceExtension.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = M5YPTF3F3J;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "sunnad-iosNotificationServiceExtension/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.arystan.almasuly.sunnad-ios.local.NotificationServiceExtension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUNNAD_ONESIGNAL_APP_GROUP_ID_BUNDLE = "group.com.arystan.almasuly.sunnad";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Local;
+		};
 		47C8D7402F44B4DD006F8DF3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-					CODE_SIGN_STYLE = Automatic;
-					CODE_SIGN_ENTITLEMENTS = "sunnad-ios/sunnad-ios.entitlements";
-					CURRENT_PROJECT_VERSION = 1;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
 				MARKETING_VERSION = 1.0;
@@ -729,6 +920,16 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		A31E9D1F2F70000100A7A101 /* Build configuration list for PBXNativeTarget "sunnad-iosNotificationServiceExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A31E9D202F70000100A7A101 /* Debug */,
+				A31E9D222F70000100A7A101 /* Local */,
+				A31E9D212F70000100A7A101 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		47C8D73F2F44B4DD006F8DF3 /* Build configuration list for PBXNativeTarget "sunnad-iosTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -783,6 +984,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A31E9D132F70000100A7A101 /* XCRemoteSwiftPackageReference "OneSignal-iOS-SDK" */;
 			productName = OneSignalFramework;
+		};
+		A31E9D232F70000100A7A101 /* OneSignalExtension */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A31E9D132F70000100A7A101 /* XCRemoteSwiftPackageReference "OneSignal-iOS-SDK" */;
+			productName = OneSignalExtension;
 		};
 		47A69F1E2F4DE15800BC3F31 /* PostHog */ = {
 			isa = XCSwiftPackageProductDependency;

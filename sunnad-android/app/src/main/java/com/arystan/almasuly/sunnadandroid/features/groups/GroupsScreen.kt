@@ -488,6 +488,10 @@ private fun GroupDetailScreen(
     val currentUserMemberId = group.currentUserMemberId
     val isOwner = currentUserMemberId != null && currentUserMemberId == group.ownerMemberId
 
+    LaunchedEffect(group.id) {
+        onRefresh()
+    }
+
     LaunchedEffect(group.sharedHabitIds) {
         val serverSharedHabitIds = group.sharedHabitIds
         val localHasPendingSelection = sharedHabitIds != lastServerSharedHabitIds

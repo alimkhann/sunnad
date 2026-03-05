@@ -337,6 +337,7 @@ private fun CompletionTrendChart(
     onSelectDate: (LocalDate?) -> Unit
 ) {
     val scroll = rememberScrollState()
+    var didAutoScrollToLatest by remember(points) { mutableStateOf(false) }
     val maxDue = remember(points) { max(1, points.maxOfOrNull { it.due } ?: 1) }
     val chartWidth = maxOf(340.dp, (points.size * 42).dp)
     val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
@@ -346,6 +347,13 @@ private fun CompletionTrendChart(
     val selectedLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
     val selectedIndex = selectedDate?.let { selected ->
         points.indexOfFirst { it.date == selected }.takeIf { it != -1 }
+    }
+
+    LaunchedEffect(points.size, scroll.maxValue) {
+        if (!didAutoScrollToLatest && points.isNotEmpty() && scroll.maxValue > 0) {
+            scroll.scrollTo(scroll.maxValue)
+            didAutoScrollToLatest = true
+        }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
