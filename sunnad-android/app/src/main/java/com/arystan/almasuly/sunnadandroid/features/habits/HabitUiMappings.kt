@@ -30,9 +30,59 @@ object HabitIconKey {
     const val PRAYER = "building.columns.fill"
 }
 
+val canonicalHabitIconKeys: List<String> = listOf(
+    "star.fill",
+    "heart.fill",
+    "sun.max.fill",
+    "sunrise.fill",
+    "moon.stars.fill",
+    "moon.fill",
+    "book.closed.fill",
+    "book.fill",
+    "text.book.closed.fill",
+    "bookmark.fill",
+    "figure.run",
+    "figure.walk",
+    "dumbbell.fill",
+    "flame.fill",
+    "bolt.fill",
+    "drop.fill",
+    "leaf.fill",
+    "fork.knife",
+    "cup.and.saucer.fill",
+    "bed.double.fill",
+    "alarm.fill",
+    "clock.fill",
+    "calendar",
+    "checkmark.circle.fill",
+    "target",
+    "brain.head.profile",
+    "sparkles",
+    "hands.sparkles.fill",
+    "building.columns.fill",
+    "person.2.fill",
+    "figure.2.and.child.holdinghands",
+    "phone.fill",
+    "message.fill",
+    "briefcase.fill",
+    "chart.bar.fill",
+    "banknote.fill",
+    "creditcard.fill",
+    "cart.fill",
+    "graduationcap.fill",
+    "paintpalette.fill",
+    "music.note",
+    "globe"
+)
+
+private val canonicalHabitIconKeySet = canonicalHabitIconKeys.toSet()
+
 fun canonicalHabitIconKey(iconName: String, title: String = ""): String {
     val source = iconName.lowercase()
     val titleLower = title.lowercase()
+    if (source in canonicalHabitIconKeySet) {
+        return source
+    }
     return when {
         source in setOf("sun", "sunrise", "sunrise.fill", "sun.max.fill", "wb_sunny", "wbsunny") ||
             titleLower.contains("morning") -> HabitIconKey.SUN
@@ -118,17 +168,27 @@ fun canonicalHabitIconKey(iconName: String, title: String = ""): String {
     }
 }
 
-fun iconForHabitKey(key: String): ImageVector = when (canonicalHabitIconKey(key)) {
-    HabitIconKey.SUN -> Icons.Rounded.WbSunny
-    HabitIconKey.MOON -> Icons.Rounded.Bedtime
-    HabitIconKey.BOOK -> Icons.Rounded.MenuBook
-    HabitIconKey.RUN -> Icons.Rounded.FitnessCenter
-    HabitIconKey.GROUP -> Icons.Rounded.Groups
-    HabitIconKey.MONEY -> Icons.Rounded.MonetizationOn
-    HabitIconKey.STAR -> Icons.Rounded.Star
-    HabitIconKey.SPA -> Icons.Rounded.Spa
-    HabitIconKey.PRAYER -> Icons.Rounded.SelfImprovement
-    else -> Icons.Rounded.SelfImprovement
+fun iconForHabitKey(key: String): ImageVector {
+    return when (canonicalHabitIconKey(key)) {
+        "sun.max.fill", "sunrise.fill" -> Icons.Rounded.WbSunny
+        "moon.stars.fill", "moon.fill", "bed.double.fill" -> Icons.Rounded.Bedtime
+        "book.closed.fill", "book.fill", "text.book.closed.fill", "bookmark.fill", "graduationcap.fill" -> Icons.Rounded.MenuBook
+        "figure.run", "figure.walk", "dumbbell.fill" -> Icons.Rounded.FitnessCenter
+        "person.2.fill", "figure.2.and.child.holdinghands", "phone.fill", "message.fill" -> Icons.Rounded.Groups
+        "banknote.fill", "creditcard.fill", "cart.fill", "chart.bar.fill", "briefcase.fill" -> Icons.Rounded.MonetizationOn
+        "sparkles", "hands.sparkles.fill", "drop.fill", "leaf.fill", "cup.and.saucer.fill", "fork.knife", "brain.head.profile", "paintpalette.fill" -> Icons.Rounded.Spa
+        "building.columns.fill", "flame.fill" -> Icons.Rounded.SelfImprovement
+        "star.fill", "heart.fill", "bolt.fill", "alarm.fill", "clock.fill", "calendar", "checkmark.circle.fill", "target", "music.note", "globe" -> Icons.Rounded.Star
+        HabitIconKey.SUN -> Icons.Rounded.WbSunny
+        HabitIconKey.MOON -> Icons.Rounded.Bedtime
+        HabitIconKey.BOOK -> Icons.Rounded.MenuBook
+        HabitIconKey.RUN -> Icons.Rounded.FitnessCenter
+        HabitIconKey.GROUP -> Icons.Rounded.Groups
+        HabitIconKey.MONEY -> Icons.Rounded.MonetizationOn
+        HabitIconKey.SPA -> Icons.Rounded.Spa
+        HabitIconKey.PRAYER -> Icons.Rounded.SelfImprovement
+        else -> Icons.Rounded.Star
+    }
 }
 
 fun iconForHabitName(iconName: String, title: String): ImageVector =

@@ -698,18 +698,7 @@ fun IconPickerRow(
     selectedIcon: String,
     onSelect: (String) -> Unit
 ) {
-    val iconOptions = listOf(
-        HabitIconKey.STAR,
-        HabitIconKey.SUN,
-        HabitIconKey.MOON,
-        HabitIconKey.BOOK,
-        HabitIconKey.RUN,
-        HabitIconKey.HEART,
-        HabitIconKey.GROUP,
-        HabitIconKey.MONEY,
-        HabitIconKey.SPA,
-        HabitIconKey.PRAYER
-    )
+    val iconOptions = canonicalHabitIconKeys
 
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(8.dp),

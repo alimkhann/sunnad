@@ -333,7 +333,7 @@ struct InsightsView: View {
                 VStack(spacing: 0) {
                     ForEach(Array(viewModel.categoryPerformance.enumerated()), id: \.element.id) { index, item in
                         HStack(spacing: 10) {
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: 8) {
                                 Text(item.title)
                                     .font(.body.weight(.medium))
                                     .lineLimit(1)
@@ -348,6 +348,8 @@ struct InsightsView: View {
                                 )
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+
+                                categoryCompletionBar(percentage: item.percentage)
                             }
 
                             Spacer()
@@ -366,6 +368,28 @@ struct InsightsView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func categoryCompletionBar(percentage: Int) -> some View {
+        let clamped = min(max(percentage, 0), 100)
+        let progress = CGFloat(clamped) / 100.0
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(Color.secondary.opacity(0.16))
+                Capsule(style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [SunnadTheme.primary, .yellow],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: proxy.size.width * progress)
+            }
+        }
+        .frame(height: 7)
     }
 
     private var headerRow: some View {

@@ -152,16 +152,18 @@ class InsightsViewModel(
                 }.sortedWith(compareByDescending<HabitPerformanceUi> { it.percentage }.thenBy { it.title })
 
                 val categoryPerformance = categoryAggregates.map { (key, aggregate) ->
-                    val percentage = if (aggregate.totalDays == 0) 0 else {
-                        ((aggregate.completedDays.toDouble() / aggregate.totalDays.toDouble()) * 100.0).toInt()
+                    val clampedTotal = aggregate.totalDays.coerceIn(0, totalDays)
+                    val clampedCompleted = aggregate.completedDays.coerceIn(0, clampedTotal)
+                    val percentage = if (clampedTotal == 0) 0 else {
+                        ((clampedCompleted.toDouble() / clampedTotal.toDouble()) * 100.0).toInt()
                     }
                     CategoryPerformanceUi(
                         key = key,
                         category = aggregate.category,
                         customLabel = aggregate.customLabel,
                         percentage = percentage,
-                        completed = aggregate.completedDays,
-                        total = aggregate.totalDays.coerceAtMost(totalDays)
+                        completed = clampedCompleted,
+                        total = clampedTotal
                     )
                 }.sortedWith(
                     compareByDescending<CategoryPerformanceUi> { it.percentage }.thenBy {

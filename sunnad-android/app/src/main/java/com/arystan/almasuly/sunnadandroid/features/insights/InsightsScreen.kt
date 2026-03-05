@@ -341,6 +341,7 @@ private fun CompletionTrendChart(
     val chartWidth = maxOf(340.dp, (points.size * 42).dp)
     val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
     val completedColor = MaterialTheme.colorScheme.primary
+    val completedLineShadowColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f)
     val dueColor = Color(0xFFF4C430)
     val selectedLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
     val selectedIndex = selectedDate?.let { selected ->
@@ -379,6 +380,7 @@ private fun CompletionTrendChart(
                 val chartWidthPx = size.width - horizontalInset * 2f
                 val stepX = if (points.size <= 1) 0f else chartWidthPx / (points.size - 1)
                 val baselineY = size.height - verticalPadding
+                val minCompletedVisualRatio = 0.035f
 
                 repeat(5) { index ->
                     val y = verticalPadding + chartHeight * (index / 4f)
@@ -398,7 +400,12 @@ private fun CompletionTrendChart(
                     )
                 }
                 val completedPoints = points.mapIndexed { index, point ->
-                    val normalized = point.completed.toFloat() / maxDue.toFloat()
+                    val rawNormalized = point.completed.toFloat() / maxDue.toFloat()
+                    val normalized = if (point.completed > 0) {
+                        max(rawNormalized, minCompletedVisualRatio)
+                    } else {
+                        0f
+                    }
                     Offset(
                         x = horizontalInset + stepX * index,
                         y = verticalPadding + chartHeight * (1f - normalized)
@@ -432,6 +439,11 @@ private fun CompletionTrendChart(
                     path = dueLinePath,
                     color = dueColor,
                     style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                )
+                drawPath(
+                    path = completedLinePath,
+                    color = completedLineShadowColor,
+                    style = Stroke(width = 4.5.dp.toPx(), cap = StrokeCap.Round)
                 )
                 drawPath(
                     path = completedLinePath,
