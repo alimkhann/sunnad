@@ -1884,7 +1884,10 @@ final class AppRouteState: ObservableObject {
             await dependencies.syncCoordinator.promoteGuestDataIfNeeded(to: sessionUser.id)
         }
         currentSessionUserID = sessionUser.id
-        await OneSignalBridge.shared.configure(appID: dependencies.environment.oneSignalAppID)
+        await OneSignalBridge.shared.configure(
+            appID: dependencies.environment.oneSignalAppID,
+            appGroupID: dependencies.environment.oneSignalAppGroupID
+        )
         await OneSignalBridge.shared.login(externalID: sessionUser.id.uuidString)
         await dependencies.deviceTokenSyncService.setGroupRemindersEnabled(
             notificationPreferences.groupReminders,
@@ -2413,13 +2416,20 @@ actor OneSignalBridge {
 
     private enum Keys {
         static let subscriptionID = "sunnad.device.onesignal-subscription-id"
+        static let sharedSubscriptionID = "sunnad.onesignal.subscription-id"
+        static let sharedAppID = "sunnad.onesignal.app-id"
     }
 
     private let userDefaults = UserDefaults.standard
     private var configuredAppID: String?
+    private var configuredAppGroupID: String?
 
-    func configure(appID: String?) {
+    func configure(appID: String?, appGroupID: String? = nil) {
         let trimmed = appID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmedGroupID = appGroupID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmedGroupID.isEmpty {
+            configuredAppGroupID = trimmedGroupID
+        }
         guard !trimmed.isEmpty else { return }
         guard configuredAppID != trimmed else { return }
 
@@ -2427,6 +2437,7 @@ actor OneSignalBridge {
         OneSignal.initialize(trimmed, withLaunchOptions: nil)
         #endif
         configuredAppID = trimmed
+        sharedDefaults?.set(trimmed, forKey: Keys.sharedAppID)
     }
 
     func login(externalID: String) async {
@@ -2444,16 +2455,23 @@ actor OneSignalBridge {
         OneSignal.logout()
         #endif
         userDefaults.removeObject(forKey: Keys.subscriptionID)
+        sharedDefaults?.removeObject(forKey: Keys.sharedSubscriptionID)
     }
 
     private func refreshSubscriptionID() async {
         for _ in 0 ..< 8 {
             if let id = currentSubscriptionID() {
                 userDefaults.set(id, forKey: Keys.subscriptionID)
+                sharedDefaults?.set(id, forKey: Keys.sharedSubscriptionID)
                 return
             }
             try? await Task.sleep(nanoseconds: 1_000_000_000)
         }
+    }
+
+    private var sharedDefaults: UserDefaults? {
+        guard let groupID = configuredAppGroupID, !groupID.isEmpty else { return nil }
+        return UserDefaults(suiteName: groupID)
     }
 
     private func currentSubscriptionID() -> String? {
