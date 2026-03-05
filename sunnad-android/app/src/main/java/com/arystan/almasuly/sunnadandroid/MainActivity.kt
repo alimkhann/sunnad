@@ -16,8 +16,11 @@ import androidx.core.content.ContextCompat
 import androidx.core.os.LocaleListCompat
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.lifecycle.lifecycleScope
+import com.onesignal.OneSignal
 import com.arystan.almasuly.sunnadandroid.services.AppLanguage
 import com.arystan.almasuly.sunnadandroid.services.AppSettingsStore
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import com.arystan.almasuly.sunnadandroid.app.SunnadApp
@@ -45,6 +48,12 @@ class MainActivity : AppCompatActivity() {
                     ) {
                         permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     }
+                    lifecycleScope.launch {
+                        runCatching {
+                            OneSignal.Notifications.requestPermission(false)
+                        }
+                    }
+                    Unit
                 }
             }
             SunnadApp(

@@ -22,6 +22,7 @@ ktor = "3.3.3"
 datastore = "1.1.7"
 appcompat = "1.7.1"
 coil = "2.7.0"
+onesignal = "5.1.7"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -60,6 +61,7 @@ supabase-storage = { group = "io.github.jan-tennert.supabase", name = "storage-k
 ktor-client-android = { group = "io.ktor", name = "ktor-client-android", version.ref = "ktor" }
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+onesignal = { group = "com.onesignal", name = "OneSignal", version.ref = "onesignal" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

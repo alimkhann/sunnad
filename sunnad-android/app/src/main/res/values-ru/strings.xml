@@ -62,14 +62,16 @@
     <string name="groups_create">Создать группу</string>
     <string name="groups_join_code">Код приглашения</string>
     <string name="groups_join">Вступить</string>
+    <string name="groups_join_with_code">Вступить по коду</string>
     <string name="groups_code">Код: %1$s</string>
-    <string name="groups_members_count">Участники: %1$d</string>
+    <string name="groups_members_count">%1$d участников</string>
     <string name="groups_members_section">УЧАСТНИКИ</string>
     <string name="groups_members_and_code">%1$d участников • %2$s</string>
     <string name="groups_unlock">Открыть вступление</string>
     <string name="groups_lock">Закрыть вступление</string>
     <string name="groups_rotate_code">Обновить код</string>
     <string name="groups_nudge">Напомнить</string>
+    <string name="groups_nudge_confirm_message">Отправить напоминание %1$s о «%2$s»?</string>
     <string name="groups_leave">Выйти</string>
     <string name="groups_rename">Переименовать группу</string>
     <string name="groups_sign_in_required_title">Требуется вход</string>
@@ -77,10 +79,12 @@
     <string name="groups_empty_title">Групп пока нет</string>
     <string name="groups_empty_subtitle">Создайте группу или присоединитесь по коду.</string>
     <string name="groups_sharing_title">Доступ</string>
+    <string name="groups_sharing_summary">Открыто %1$d привычек</string>
     <string name="groups_nudge_sent">Напоминание отправлено.</string>
     <string name="groups_nudge_duplicate">Напоминание уже недавно отправлялось.</string>
     <string name="groups_nudge_forbidden">Нельзя отправить напоминание.</string>
     <string name="groups_nudge_error">Не удалось отправить напоминание.</string>
+    <string name="groups_member_today_progress">%1$d/%2$d сегодня</string>
     <string name="groups_kick_member">Удалить участника</string>
     <string name="groups_leave_confirm">Выйти из этой группы?</string>
     <string name="groups_delete_confirm">Удалить эту группу для всех участников?</string>
@@ -190,7 +194,7 @@
 
     <string name="onboarding_welcome_title">Баланс жизни</string>
     <string name="onboarding_welcome_subtitle">Выстраивайте устойчивые привычки в духовной, физической, социальной и личной сферах.</string>
-    <string name="onboarding_welcome_body">Sunnad помогает сохранять фокус на Сегодня, работать офлайн и оставаться спокойным. Начните с шаблонов.</string>
+    <string name="onboarding_welcome_body">Adat помогает сохранять фокус на Сегодня, работать офлайн и оставаться спокойным. Начните с шаблонов.</string>
     <string name="onboarding_welcome_quote">Призовите себя к отчёту, прежде чем вас призовут к отчёту. Взвешивайте свои деяния, прежде чем их взвесят.\n- Омар ибн аль-Хаттаб, да будет доволен им Аллах.</string>
     <string name="onboarding_get_started">Начать</string>
     <string name="onboarding_continue">Продолжить</string>
@@ -211,12 +215,22 @@
     <string name="onboarding_template_avoid_debt">Избегать долгов</string>
     <string name="onboarding_template_attention_spouse">Внимание супругу(е)</string>
     <string name="onboarding_template_time_children">Время с детьми</string>
+    <string name="onboarding_template_work_focus">Сессия глубокой работы</string>
+    <string name="onboarding_template_hobby_practice">Практика хобби</string>
+    <string name="onboarding_template_five_times_prayer">Пять намазов</string>
+    <string name="onboarding_template_fajr">Фаджр намаз</string>
+    <string name="onboarding_template_dhuhr">Зухр намаз</string>
+    <string name="onboarding_template_asr">Аср намаз</string>
+    <string name="onboarding_template_maghrib">Магриб намаз</string>
+    <string name="onboarding_template_isha">Иша намаз</string>
     <string name="onboarding_category_spiritual">Духовное</string>
     <string name="onboarding_category_social">Социальное</string>
     <string name="onboarding_category_physical">Физическое</string>
     <string name="onboarding_category_learning">Обучение</string>
     <string name="onboarding_category_financial">Финансы</string>
     <string name="onboarding_category_family">Семья</string>
+    <string name="onboarding_category_work">Работа</string>
+    <string name="onboarding_category_hobby">Хобби</string>
     <string name="onboarding_notifications_title">Оставайтесь в ритме</string>
     <string name="onboarding_notifications_subtitle">Включите напоминания, чтобы не пропускать ежедневные привычки.</string>
     <string name="onboarding_notifications_toggle">Включить локальные напоминания</string>
@@ -235,7 +249,7 @@
     <string name="notification_habit_reminder_title">Напоминание о привычке</string>
     <string name="notification_habit_reminder_body">Время выполнить: %1$s</string>
     <string name="notification_quote_reminder_title">Цитата дня</string>
-    <string name="notification_quote_reminder_body">Откройте Sunnad, чтобы увидеть цитату и чеклист на сегодня.</string>
+    <string name="notification_quote_reminder_body">Откройте Adat, чтобы увидеть цитату и чеклист на сегодня.</string>
 
     <string name="language_english">English</string>
     <string name="language_russian">Русский</string>
@@ -258,6 +272,8 @@
     <string name="habit_add_templates">Выбрать из шаблонов</string>
     <string name="habit_add_custom">Создать свою привычку</string>
     <string name="habit_custom_name_placeholder">Название привычки</string>
+    <string name="habit_category_custom_option">Своя категория</string>
+    <string name="habit_category_custom_placeholder">Введите свою категорию</string>
     <string name="habit_details">Детали</string>
     <string name="habit_last_7_days">Последние 7 дней</string>
     <string name="habit_category">Категория</string>
@@ -277,6 +293,8 @@
     <string name="insights_last_40_days">Последние 40 дней</string>
     <string name="insights_missed_habits">Пропущенные привычки</string>
     <string name="insights_none_missed">Пропущенных привычек нет</string>
+    <string name="insights_category_analytics">Аналитика категорий</string>
+    <string name="insights_category_completed_ratio">Выполнено %1$d/%2$d</string>
     <string name="schedule_title">Расписание</string>
     <string name="schedule_mode_all">Все</string>
     <string name="schedule_mode_upcoming">Скоро</string>
@@ -292,6 +310,9 @@
     <string name="feedback_sending">Отправка…</string>
     <string name="feedback_sent">Отзыв отправлен</string>
     <string name="feedback_failed">Не удалось отправить отзыв</string>
+    <string name="groups_progress_mode_title">Отображение прогресса участников</string>
+    <string name="groups_progress_mode_percent">Проценты</string>
+    <string name="groups_progress_mode_streak">Серия</string>
     <string name="dhikr_choice_subhanallah">СубханАллах</string>
     <string name="dhikr_choice_alhamdulillah">Альхамдулиллях</string>
     <string name="dhikr_choice_allahu_akbar">Аллаху Акбар</string>

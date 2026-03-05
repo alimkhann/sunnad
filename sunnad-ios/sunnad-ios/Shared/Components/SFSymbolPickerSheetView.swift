@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct SFSymbolPickerSheetView: View {
     @Environment(\.dismiss) private var dismiss
@@ -7,7 +8,7 @@ struct SFSymbolPickerSheetView: View {
     @State private var searchText = ""
 
     private var symbols: [String] {
-        let base = SFSymbolCatalog.availableNames
+        let base = CuratedHabitSFSymbols.available
 
         guard !searchText.isEmpty else {
             return base
@@ -77,4 +78,51 @@ struct SFSymbolPickerSheetView: View {
             }
         }
     }
+}
+
+private enum CuratedHabitSFSymbols {
+    static let names: [String] = [
+        "star.fill",
+        "heart.fill",
+        "sun.max.fill",
+        "moon.stars.fill",
+        "book.closed.fill",
+        "text.book.closed.fill",
+        "bookmark.fill",
+        "figure.run",
+        "figure.walk",
+        "dumbbell.fill",
+        "flame.fill",
+        "bolt.fill",
+        "drop.fill",
+        "leaf.fill",
+        "fork.knife",
+        "cup.and.saucer.fill",
+        "bed.double.fill",
+        "alarm.fill",
+        "clock.fill",
+        "calendar",
+        "checkmark.circle.fill",
+        "target",
+        "brain.head.profile",
+        "sparkles",
+        "hands.sparkles.fill",
+        "building.columns.fill",
+        "person.2.fill",
+        "figure.2.and.child.holdinghands",
+        "phone.fill",
+        "message.fill",
+        "briefcase.fill",
+        "chart.bar.fill",
+        "banknote.fill",
+        "creditcard.fill",
+        "cart.fill",
+        "graduationcap.fill",
+        "paintpalette.fill",
+        "music.note",
+        "book.fill",
+        "globe"
+    ]
+
+    static let available: [String] = names.filter { UIImage(systemName: $0) != nil }
 }

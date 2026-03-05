@@ -8,7 +8,9 @@ extension UIHabit {
             id: id,
             name: displayTitle,
             icon: iconSystemName,
+            iconKey: iconSystemName,
             category: HabitCategoryValue(rawValue: category.rawValue) ?? .spiritual,
+            categoryCustom: categoryCustom,
             type: isDhikr ? .dhikr : .binary,
             targetCount: isDhikr ? dhikrTarget : nil,
             schedule: HabitSchedule.fromUI(schedule, weekdays: weekdays),
@@ -53,8 +55,9 @@ extension Habit {
         return UIHabit(
             id: id,
             customTitle: name,
-            iconSystemName: icon,
+            iconSystemName: iconKey ?? icon,
             category: HabitCategory(rawValue: category.rawValue) ?? .spiritual,
+            categoryCustom: categoryCustom,
             completedToday: completedToday,
             streak: streak,
             schedule: schedule.asUI,
@@ -119,7 +122,8 @@ extension UISharedHabit {
             title: habitTitle,
             icon: habitIconSystemName,
             completedToday: completedToday,
-            streak: streak
+            streak: streak,
+            rollingCompletionPercent: rollingCompletionPercent
         )
     }
 }
@@ -132,7 +136,8 @@ extension SharedHabit {
             habitTitle: title,
             habitIconSystemName: icon,
             completedToday: completedToday,
-            streak: streak
+            streak: streak,
+            rollingCompletionPercent: rollingCompletionPercent
         )
     }
 }
@@ -173,7 +178,8 @@ extension UIGroup {
             members: members.map { $0.asDomainGroupMember() },
             sharedHabitIDs: sharedHabitIDs,
             ownerMemberID: ownerMemberID,
-            currentUserMemberID: currentUserMemberID
+            currentUserMemberID: currentUserMemberID,
+            progressDisplayMode: progressDisplayMode
         )
     }
 }
@@ -188,7 +194,8 @@ extension Group {
             members: members.map { $0.asUIGroupMember() },
             sharedHabitIDs: sharedHabitIDs,
             ownerMemberID: ownerMemberID,
-            currentUserMemberID: currentUserMemberID
+            currentUserMemberID: currentUserMemberID,
+            progressDisplayMode: progressDisplayMode
         )
     }
 }

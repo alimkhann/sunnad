@@ -31,6 +31,8 @@ struct HabitDetailSheetView: View {
     @State private var showsDeleteConfirmation = false
     @State private var didApplyDebugMode = false
     @State private var sharedGroupIDs: Set<UUID> = []
+    @State private var customCategoryEnabled = false
+    @State private var customCategoryDraft = ""
 
     var body: some View {
         NavigationStack {
@@ -70,6 +72,7 @@ struct HabitDetailSheetView: View {
             .sunnadSolidBars()
             .onAppear(perform: applyDebugModeIfNeeded)
             .onAppear(perform: syncSharedGroups)
+            .onAppear(perform: syncCustomCategoryDraft)
             .onChange(of: groups) {
                 syncSharedGroups()
             }
@@ -144,20 +147,47 @@ struct HabitDetailSheetView: View {
 
             SectionHeader(title: L10n.t("habit.category"))
             Card(contentPadding: 0) {
-                HStack {
-                    Text(L10n.t("habit.category"))
-                        .font(.body.weight(.medium))
+                VStack(spacing: 0) {
+                    HStack {
+                        Text(L10n.t("habit.category"))
+                            .font(.body.weight(.medium))
 
-                    Spacer()
+                        Spacer()
 
-                    Picker(L10n.t("habit.category"), selection: $habit.category) {
-                        ForEach(HabitCategory.allCases) { category in
-                            Text(L10n.t(category.titleKey)).tag(category)
+                        Picker(L10n.t("habit.category"), selection: $habit.category) {
+                            ForEach(HabitCategory.allCases) { category in
+                                Text(L10n.t(category.titleKey)).tag(category)
+                            }
                         }
+                        .labelsHidden()
                     }
-                    .labelsHidden()
+                    .padding(16)
+
+                    Divider().padding(.leading, 16)
+
+                    Toggle(L10n.t("habit.category_custom_option"), isOn: $customCategoryEnabled)
+                        .padding(16)
+                        .onChange(of: customCategoryEnabled) { _, enabled in
+                            if enabled {
+                                let current = (habit.categoryCustom ?? customCategoryDraft).trimmingCharacters(in: .whitespacesAndNewlines)
+                                customCategoryDraft = current
+                                habit.categoryCustom = current.isEmpty ? "" : current
+                            } else {
+                                habit.categoryCustom = nil
+                            }
+                        }
+
+                    if customCategoryEnabled {
+                        Divider().padding(.leading, 16)
+                        TextField(L10n.t("habit.category_custom_placeholder"), text: $customCategoryDraft)
+                            .textFieldStyle(.plain)
+                            .padding(16)
+                            .onChange(of: customCategoryDraft) { _, newValue in
+                                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                habit.categoryCustom = trimmed.isEmpty ? nil : trimmed
+                            }
+                    }
                 }
-                .padding(16)
             }
 
             SectionHeader(title: L10n.t("habit.icon"))
@@ -386,6 +416,12 @@ struct HabitDetailSheetView: View {
             break
         }
         #endif
+    }
+
+    private func syncCustomCategoryDraft() {
+        let normalized = habit.categoryCustom?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        customCategoryEnabled = !normalized.isEmpty
+        customCategoryDraft = normalized
     }
 
     private func syncSharedGroups() {

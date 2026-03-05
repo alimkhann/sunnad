@@ -38,6 +38,12 @@ private struct ReminderToast: Identifiable, Equatable {
     let style: Style
 }
 
+private struct SharingHabitCandidate: Identifiable {
+    let id: UUID
+    let title: String
+    let iconSystemName: String
+}
+
 struct GroupDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -49,6 +55,7 @@ struct GroupDetailView: View {
     let onLeaveGroup: () -> Void
     let onDeleteGroup: () -> Void
     let onKickMember: (UUID) -> Void
+    let onSetProgressDisplayMode: (GroupProgressDisplayMode) -> Void
     let onRenameGroup: (String) -> Void
     let onSetJoinLock: (Bool) -> Void
     let onRotateInviteCode: () -> Void
@@ -61,6 +68,7 @@ struct GroupDetailView: View {
     @State private var isEditingSharing = false
     @State private var pendingRemoteSharedHabitIDs: Set<UUID>?
     @State private var sharingDebounceTask: Task<Void, Never>?
+    @State private var ownToggleRefreshTask: Task<Void, Never>?
 
     @State private var reminderTarget: ReminderTarget?
     @State private var reminderToast: ReminderToast?
@@ -70,9 +78,11 @@ struct GroupDetailView: View {
     @State private var swipedMemberID: UUID?
     @State private var showsLeaveConfirmation = false
     @State private var showsDeleteConfirmation = false
+    @State private var didRunInitialRefresh = false
     @State private var showsCopiedCodeSuccess = false
     @State private var copyCodeSequence = 0
     @State private var showsRenameSheet = false
+    @State private var progressDisplayMode: GroupProgressDisplayMode
 
     init(
         group: UIGroup,
@@ -83,6 +93,7 @@ struct GroupDetailView: View {
         onLeaveGroup: @escaping () -> Void,
         onDeleteGroup: @escaping () -> Void,
         onKickMember: @escaping (UUID) -> Void,
+        onSetProgressDisplayMode: @escaping (GroupProgressDisplayMode) -> Void,
         onRenameGroup: @escaping (String) -> Void,
         onSetJoinLock: @escaping (Bool) -> Void,
         onRotateInviteCode: @escaping () -> Void,
@@ -98,6 +109,7 @@ struct GroupDetailView: View {
         self.onLeaveGroup = onLeaveGroup
         self.onDeleteGroup = onDeleteGroup
         self.onKickMember = onKickMember
+        self.onSetProgressDisplayMode = onSetProgressDisplayMode
         self.onRenameGroup = onRenameGroup
         self.onSetJoinLock = onSetJoinLock
         self.onRotateInviteCode = onRotateInviteCode
@@ -105,6 +117,7 @@ struct GroupDetailView: View {
         self.onMemberProgressViewed = onMemberProgressViewed
         self.currentSharedHabitIDs = currentSharedHabitIDs
         _sharedHabitIDs = State(initialValue: group.sharedHabitIDs)
+        _progressDisplayMode = State(initialValue: group.progressDisplayMode)
     }
 
     var body: some View {
@@ -118,8 +131,6 @@ struct GroupDetailView: View {
 
             SectionHeader(title: L10n.t("groups.sharing"))
             sharingCard
-
-            destructiveActionButton
         }
         .toolbar(.hidden, for: .navigationBar)
         .sunnadSolidBars()
@@ -128,20 +139,40 @@ struct GroupDetailView: View {
         }
         .onAppear {
             sharedHabitIDs = currentSharedHabitIDs() ?? group.sharedHabitIDs
+            progressDisplayMode = group.progressDisplayMode
+            reconcileOwnCompletionOverrides()
+            guard !didRunInitialRefresh else { return }
+            didRunInitialRefresh = true
+            Task {
+                await onRefresh()
+            }
         }
         .onChange(of: group.sharedHabitIDs) { oldValue, newValue in
             _ = oldValue
-            if let pending = pendingRemoteSharedHabitIDs, newValue != pending {
-                pendingRemoteSharedHabitIDs = nil
-                sharedHabitIDs = newValue
-                return
+            let resolvedSelection = currentSharedHabitIDs() ?? newValue
+            if let pending = pendingRemoteSharedHabitIDs {
+                if newValue != pending, resolvedSelection == newValue {
+                    // Server-corrected state (for example after filtering unsynced habit IDs).
+                    sharingDebounceTask?.cancel()
+                }
+                if newValue == pending || resolvedSelection == pending {
+                    pendingRemoteSharedHabitIDs = nil
+                }
             }
-            pendingRemoteSharedHabitIDs = nil
-            sharedHabitIDs = newValue
+            sharedHabitIDs = resolvedSelection
+            reconcileOwnCompletionOverrides()
+        }
+        .onChange(of: group.progressDisplayMode) { _, newValue in
+            progressDisplayMode = newValue
+        }
+        .onChange(of: habits) { _, _ in
+            reconcileOwnCompletionOverrides()
         }
         .onDisappear {
             sharingDebounceTask?.cancel()
             sharingDebounceTask = nil
+            ownToggleRefreshTask?.cancel()
+            ownToggleRefreshTask = nil
         }
         .sheet(item: $reminderTarget) { target in
             ReminderPromptSheet(
@@ -238,8 +269,8 @@ struct GroupDetailView: View {
 
             Spacer()
 
-            if isCurrentUserOwner {
-                Menu {
+            Menu {
+                if isCurrentUserOwner {
                     Button(L10n.t("groups.manage.rename")) {
                         showsRenameSheet = true
                     }
@@ -249,12 +280,46 @@ struct GroupDetailView: View {
                     Button(L10n.t("groups.manage.rotate_code")) {
                         onRotateInviteCode()
                     }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.title3.weight(.semibold))
                 }
-                .tint(.secondary)
+
+                Button {
+                    guard progressDisplayMode != .percent else { return }
+                    progressDisplayMode = .percent
+                    onSetProgressDisplayMode(.percent)
+                } label: {
+                    Label(
+                        L10n.t("groups.progress_mode.percent"),
+                        systemImage: progressDisplayMode == .percent ? "checkmark" : "chart.pie"
+                    )
+                }
+                Button {
+                    guard progressDisplayMode != .streak else { return }
+                    progressDisplayMode = .streak
+                    onSetProgressDisplayMode(.streak)
+                } label: {
+                    Label(
+                        L10n.t("groups.progress_mode.streak"),
+                        systemImage: progressDisplayMode == .streak ? "checkmark" : "flame"
+                    )
+                }
+
+                Button(role: .destructive) {
+                    if isCurrentUserOwner {
+                        showsDeleteConfirmation = true
+                    } else {
+                        showsLeaveConfirmation = true
+                    }
+                } label: {
+                    Label(
+                        isCurrentUserOwner ? L10n.t("groups.delete_group") : L10n.t("groups.leave"),
+                        systemImage: isCurrentUserOwner ? "trash" : "rectangle.portrait.and.arrow.right"
+                    )
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title3.weight(.semibold))
             }
+            .tint(.secondary)
         }
     }
 
@@ -263,11 +328,9 @@ struct GroupDetailView: View {
             Text(group.code)
                 .font(.headline.weight(.semibold))
 
-            if group.joinLocked {
-                Image(systemName: "lock.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
+            Image(systemName: group.joinLocked ? "lock.fill" : "lock.open.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
 
             Button {
                 UIPasteboard.general.string = group.code
@@ -317,7 +380,7 @@ struct GroupDetailView: View {
                                         .font(.body.weight(.semibold))
                                         .foregroundStyle(.primary)
 
-                                    Text("\(progress.completed)/\(progress.total) \(L10n.t("groups.today_suffix"))")
+                                    Text(progressSubtitle(completed: progress.completed, total: progress.total))
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                 }
@@ -407,7 +470,7 @@ struct GroupDetailView: View {
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(sharedHabit.habitTitle)
                                             .font(.body)
-                                        Text("\(sharedHabit.streak) \(L10n.t("today.day_streak"))")
+                                        Text(habitMetricSubtitle(sharedHabit))
                                         .font(.caption)
                                         .foregroundStyle(.yellow)
                                     }
@@ -443,23 +506,6 @@ struct GroupDetailView: View {
         )
     }
 
-    private var destructiveActionButton: some View {
-        Button(role: .destructive) {
-            if isCurrentUserOwner {
-                showsDeleteConfirmation = true
-            } else {
-                showsLeaveConfirmation = true
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: isCurrentUserOwner ? "trash" : "rectangle.portrait.and.arrow.right")
-                Text(isCurrentUserOwner ? L10n.t("groups.delete_group") : L10n.t("groups.leave"))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-        }
-    }
-
     private var sharingCard: some View {
         Card(contentPadding: 0) {
             VStack(spacing: 0) {
@@ -482,35 +528,44 @@ struct GroupDetailView: View {
 
                 if isEditingSharing {
                     Divider().padding(.leading, 16)
-
-                    ForEach(Array(habits.enumerated()), id: \.element.id) { index, habit in
-                        Toggle(isOn: Binding(
-                            get: { sharedHabitIDs.contains(habit.id) },
-                            set: { isOn in
-                                if isOn {
-                                    sharedHabitIDs.insert(habit.id)
-                                } else {
-                                    sharedHabitIDs.remove(habit.id)
+                    let candidates = sharingHabitCandidates
+                    if candidates.isEmpty {
+                        Text(L10n.t("today.empty.subtitle"))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                    } else {
+                        ForEach(Array(candidates.enumerated()), id: \.element.id) { index, habit in
+                            Toggle(isOn: Binding(
+                                get: { sharedHabitIDs.contains(habit.id) },
+                                set: { isOn in
+                                    if isOn {
+                                        sharedHabitIDs.insert(habit.id)
+                                    } else {
+                                        sharedHabitIDs.remove(habit.id)
+                                    }
+                                    queueSharingUpdate()
                                 }
-                                queueSharingUpdate()
-                            }
-                        )) {
-                            HStack(spacing: 12) {
-                                Image(systemName: habit.iconSystemName)
-                                    .font(.headline)
-                                    .foregroundStyle(SunnadTheme.primary)
-                                    .frame(width: 28, height: 28)
-                                    .background(Circle().fill(Color(.secondarySystemGroupedBackground)))
+                            )) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: habit.iconSystemName)
+                                        .font(.headline)
+                                        .foregroundStyle(SunnadTheme.primary)
+                                        .frame(width: 28, height: 28)
+                                        .background(Circle().fill(Color(.secondarySystemGroupedBackground)))
 
-                                Text(habit.displayTitle)
-                                    .font(.body.weight(.medium))
+                                    Text(habit.title)
+                                        .font(.body.weight(.medium))
+                                }
                             }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
 
-                        if index < habits.count - 1 {
-                            Divider().padding(.leading, 62)
+                            if index < candidates.count - 1 {
+                                Divider().padding(.leading, 62)
+                            }
                         }
                     }
                 }
@@ -524,6 +579,11 @@ struct GroupDetailView: View {
             Button {
                 ownCompletionOverrides[sharedHabit.habitID] = !sharedHabit.completedToday
                 onToggleOwnHabit(sharedHabit.habitID)
+                ownToggleRefreshTask?.cancel()
+                ownToggleRefreshTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 450_000_000)
+                    await onRefresh()
+                }
             } label: {
                 Image(systemName: sharedHabit.completedToday ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
@@ -566,6 +626,7 @@ struct GroupDetailView: View {
     private func displayedSharedHabits(for member: UIGroupMember, isCurrentUser: Bool) -> [UISharedHabit] {
         if isCurrentUser {
             let today = Date()
+            let remoteByHabitID = Dictionary(uniqueKeysWithValues: member.sharedHabits.map { ($0.habitID, $0) })
             return habits
                 .filter { sharedHabitIDs.contains($0.id) && $0.isScheduled(on: today) }
                 .map {
@@ -574,7 +635,8 @@ struct GroupDetailView: View {
                         habitTitle: $0.displayTitle,
                         habitIconSystemName: $0.iconSystemName,
                         completedToday: ownCompletionOverrides[$0.id] ?? $0.completedToday,
-                        streak: $0.streak
+                        streak: $0.streak,
+                        rollingCompletionPercent: remoteByHabitID[$0.id]?.rollingCompletionPercent
                     )
                 }
         }
@@ -582,13 +644,34 @@ struct GroupDetailView: View {
         return member.sharedHabits
     }
 
-    private func memberProgress(for member: UIGroupMember, isCurrentUser: Bool) -> (completed: Int, total: Int) {
-        guard isCurrentUser else {
-            return (member.completedToday, member.totalSharedHabits)
+    private func reconcileOwnCompletionOverrides() {
+        let habitCompletionByID = Dictionary(uniqueKeysWithValues: habits.map { ($0.id, $0.completedToday) })
+        ownCompletionOverrides = ownCompletionOverrides.filter { habitID, optimisticValue in
+            guard sharedHabitIDs.contains(habitID), let current = habitCompletionByID[habitID] else {
+                return false
+            }
+            return optimisticValue != current
         }
+    }
 
-        let ownHabits = displayedSharedHabits(for: member, isCurrentUser: true)
-        return (ownHabits.filter(\.completedToday).count, ownHabits.count)
+    private func memberProgress(for member: UIGroupMember, isCurrentUser _: Bool) -> (completed: Int, total: Int) {
+        (member.completedToday, member.totalSharedHabits)
+    }
+
+    private func progressSubtitle(completed: Int, total: Int) -> String {
+        "\(completed)/\(total) \(L10n.t("groups.today_suffix"))"
+    }
+
+    private func habitMetricSubtitle(_ sharedHabit: UISharedHabit) -> String {
+        switch progressDisplayMode {
+        case .streak:
+            return "\(sharedHabit.streak) \(L10n.t("today.day_streak"))"
+        case .percent:
+            return String(
+                format: L10n.t("insights.percent_complete"),
+                sharedHabit.rollingCompletionPercent ?? 0
+            )
+        }
     }
 
     private var isCurrentUserOwner: Bool {
@@ -667,6 +750,38 @@ struct GroupDetailView: View {
                 onUpdateSharing(targetSharing)
             }
         }
+    }
+
+    private var sharingHabitCandidates: [SharingHabitCandidate] {
+        if !habits.isEmpty {
+            return habits.map { habit in
+                SharingHabitCandidate(
+                    id: habit.id,
+                    title: habit.displayTitle,
+                    iconSystemName: habit.iconSystemName
+                )
+            }
+        }
+
+        guard let ownMember = group.members.first(where: { $0.id == resolvedCurrentUserMemberID }) else {
+            return []
+        }
+
+        var seen = Set<UUID>()
+        var candidates: [SharingHabitCandidate] = []
+        candidates.reserveCapacity(ownMember.sharedHabits.count)
+
+        for sharedHabit in ownMember.sharedHabits {
+            guard seen.insert(sharedHabit.habitID).inserted else { continue }
+            candidates.append(
+                SharingHabitCandidate(
+                    id: sharedHabit.habitID,
+                    title: sharedHabit.habitTitle,
+                    iconSystemName: sharedHabit.habitIconSystemName
+                )
+            )
+        }
+        return candidates
     }
 }
 

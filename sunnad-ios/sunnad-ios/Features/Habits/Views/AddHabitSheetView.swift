@@ -11,7 +11,7 @@ struct AddHabitSheetView: View {
 
     let existingHabits: [UIHabit]
     let onAddTemplates: ([HabitTemplate]) -> Void
-    let onAddCustomHabit: (String, String, HabitCategory, UIHabitSchedule, Set<Int>, Date?, Bool) -> Void
+    let onAddCustomHabit: (String, String, HabitCategory, String?, UIHabitSchedule, Set<Int>, Date?, Bool) -> Void
 
     @State private var step: AddHabitStep = .choice
     @State private var selectedTemplateIDs: Set<String> = []
@@ -20,6 +20,8 @@ struct AddHabitSheetView: View {
     @State private var customName = ""
     @State private var customIcon = "star.fill"
     @State private var customCategory: HabitCategory = .spiritual
+    @State private var useCustomCategory = false
+    @State private var customCategoryText = ""
     @State private var customSchedule: UIHabitSchedule = .daily
     @State private var customWeekdays: Set<Int> = Set(0...6)
     @State private var reminderEnabled = false
@@ -193,6 +195,18 @@ struct AddHabitSheetView: View {
                         .labelsHidden()
                     }
                     .padding(16)
+
+                    Divider().padding(.leading, 16)
+
+                    Toggle(L10n.t("habit.category_custom_option"), isOn: $useCustomCategory)
+                        .padding(16)
+
+                    if useCustomCategory {
+                        Divider().padding(.leading, 16)
+                        TextField(L10n.t("habit.category_custom_placeholder"), text: $customCategoryText)
+                            .textFieldStyle(.plain)
+                            .padding(16)
+                    }
                 }
             }
 
@@ -315,6 +329,7 @@ struct AddHabitSheetView: View {
             trimmedName,
             customIcon,
             customCategory,
+            useCustomCategory ? customCategoryText.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty : nil,
             customSchedule,
             customWeekdays,
             reminderEnabled ? reminderTime : nil,
@@ -345,5 +360,11 @@ struct AddHabitSheetView: View {
             break
         }
         #endif
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

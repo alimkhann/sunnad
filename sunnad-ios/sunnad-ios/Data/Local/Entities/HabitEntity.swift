@@ -7,7 +7,9 @@ final class HabitEntity {
     var ownerScope: String = "guest"
     var name: String
     var icon: String
+    var iconKey: String?
     var categoryRaw: String
+    var categoryCustom: String?
     var typeRaw: String
     var targetCount: Int?
     var scheduleFrequency: String
@@ -26,7 +28,9 @@ final class HabitEntity {
         ownerScope: String,
         name: String,
         icon: String,
+        iconKey: String?,
         categoryRaw: String,
+        categoryCustom: String?,
         typeRaw: String,
         targetCount: Int?,
         scheduleFrequency: String,
@@ -44,7 +48,9 @@ final class HabitEntity {
         self.ownerScope = ownerScope
         self.name = name
         self.icon = icon
+        self.iconKey = iconKey
         self.categoryRaw = categoryRaw
+        self.categoryCustom = categoryCustom
         self.typeRaw = typeRaw
         self.targetCount = targetCount
         self.scheduleFrequency = scheduleFrequency
@@ -65,8 +71,10 @@ extension HabitEntity {
     func apply(_ habit: Habit, ownerScope: String) {
         name = habit.name
         icon = habit.icon
+        iconKey = habit.iconKey
         self.ownerScope = ownerScope
         categoryRaw = habit.category.rawValue
+        categoryCustom = habit.categoryCustom
         typeRaw = habit.type.rawValue
         targetCount = habit.targetCount
         scheduleFrequency = habit.schedule.frequencyRaw
@@ -86,7 +94,9 @@ extension HabitEntity {
             id: id,
             name: name,
             icon: icon,
+            iconKey: iconKey,
             category: HabitCategoryValue(rawValue: categoryRaw) ?? .spiritual,
+            categoryCustom: categoryCustom,
             type: HabitType(rawValue: typeRaw) ?? .binary,
             targetCount: targetCount,
             schedule: HabitSchedule.fromStorage(frequency: scheduleFrequency, weekdayCSV: weekdaysISO),

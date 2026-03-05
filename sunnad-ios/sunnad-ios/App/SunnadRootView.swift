@@ -104,6 +104,7 @@ struct SunnadRootView: View {
                     onLeaveGroup: state.leaveGroup,
                     onDeleteGroup: state.deleteGroup,
                     onKickMember: state.kickMember,
+                    onSetProgressDisplayMode: state.setGroupProgressDisplayMode,
                     onRenameGroup: state.renameGroup,
                     onSetJoinLock: state.setGroupJoinLock,
                     onRotateInviteCode: state.rotateGroupInviteCode,
@@ -177,11 +178,12 @@ struct SunnadRootView: View {
                 onAddTemplates: { templates in
                     state.addTemplateHabits(templates)
                 },
-                onAddCustomHabit: { name, icon, category, schedule, weekdays, reminderTime, hasDhikrCounter in
+                onAddCustomHabit: { name, icon, category, categoryCustom, schedule, weekdays, reminderTime, hasDhikrCounter in
                     state.addCustomHabit(
                         name: name,
                         iconSystemName: icon,
                         category: category,
+                        categoryCustom: categoryCustom,
                         schedule: schedule,
                         weekdays: weekdays,
                         reminderTime: reminderTime,

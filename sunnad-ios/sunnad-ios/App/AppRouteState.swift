@@ -3,6 +3,9 @@ import Foundation
 import Network
 import SwiftUI
 import UIKit
+#if canImport(OneSignalFramework)
+import OneSignalFramework
+#endif
 
 @MainActor
 final class AppRouteState: ObservableObject {
@@ -175,6 +178,9 @@ final class AppRouteState: ObservableObject {
     private var activeOTPResendKey: String?
     private var otpResendTimerTask: Task<Void, Never>?
     private var todayReloadTask: Task<Void, Never>?
+    private var isLoadingTodayData = false
+    private var pendingTodayDataReload = false
+    private var pendingHabitToggleIDs = Set<UUID>()
     private var currentSessionUserID: UUID?
     private var streakByHabitID: [UUID: Int] = [:]
     private let sessionTracker: AppSessionAnalyticsTracker
@@ -484,9 +490,13 @@ final class AppRouteState: ObservableObject {
     }
 
     func toggleTodayHabit(_ habitID: UUID, source: String = "today") {
+        guard !pendingHabitToggleIDs.contains(habitID) else {
+            return
+        }
         guard let transaction = todayViewModel.beginHabitToggle(habitID) else {
             return
         }
+        pendingHabitToggleIDs.insert(habitID)
 
         dependencies.analytics.trackHabit(
             .completionToggled(
@@ -499,13 +509,15 @@ final class AppRouteState: ObservableObject {
             dependencies.interactionFeedback.habitCompleted(hapticsEnabled: feedbackPreferences.hapticsEnabled)
         }
 
-        Task {
+        Task { [weak self] in
+            guard let self else { return }
             let didCommit = await todayViewModel.commitHabitToggle(transaction)
             if didCommit {
                 scheduleTodayReload()
             } else {
                 todayViewModel.rollbackHabitToggle(transaction)
             }
+            pendingHabitToggleIDs.remove(habitID)
         }
     }
 
@@ -564,6 +576,7 @@ final class AppRouteState: ObservableObject {
         name: String,
         iconSystemName: String,
         category: HabitCategory,
+        categoryCustom: String?,
         schedule: UIHabitSchedule,
         weekdays: Set<Int>,
         reminderTime: Date?,
@@ -573,6 +586,7 @@ final class AppRouteState: ObservableObject {
             customTitle: name,
             iconSystemName: iconSystemName,
             category: category,
+            categoryCustom: categoryCustom,
             completedToday: false,
             streak: 0,
             schedule: schedule,
@@ -1068,6 +1082,7 @@ final class AppRouteState: ObservableObject {
             authSuccessMessage = nil
             user = .guest
             currentSessionUserID = nil
+            await OneSignalBridge.shared.logout()
             await dependencies.syncCoordinator.setSignedInUserID(nil)
             await loadTodayData()
         }
@@ -1107,6 +1122,7 @@ final class AppRouteState: ObservableObject {
             otpFlowMode = .signup
             user = .guest
             currentSessionUserID = nil
+            await OneSignalBridge.shared.logout()
             authErrorMessage = nil
             authSuccessMessage = nil
             markOnboardingCompleted()
@@ -1168,6 +1184,12 @@ final class AppRouteState: ObservableObject {
     func kickMember(groupID: UUID, memberID: UUID) {
         Task {
             await groupsViewModel.kickMember(groupID: groupID, memberID: memberID)
+        }
+    }
+
+    func setGroupProgressDisplayMode(groupID: UUID, mode: GroupProgressDisplayMode) {
+        Task {
+            await groupsViewModel.setProgressDisplayMode(groupID: groupID, mode: mode)
         }
     }
 
@@ -1580,6 +1602,21 @@ final class AppRouteState: ObservableObject {
     }
 
     private func loadTodayData() async {
+        if isLoadingTodayData {
+            pendingTodayDataReload = true
+            return
+        }
+        isLoadingTodayData = true
+        defer {
+            isLoadingTodayData = false
+            if pendingTodayDataReload {
+                pendingTodayDataReload = false
+                Task { [weak self] in
+                    await self?.loadTodayData()
+                }
+            }
+        }
+
         await reloadAllHabitsFromStorage()
         await todayViewModel.loadToday()
         trackStreakTransitions(using: todayViewModel.habits)
@@ -1832,6 +1869,7 @@ final class AppRouteState: ObservableObject {
         } else {
             currentSessionUserID = nil
             await dependencies.syncCoordinator.setSignedInUserID(nil)
+            await OneSignalBridge.shared.logout()
             dependencies.analyticsLogger.log(.syncFinished, metadata: ["scope": "auth_restore", "status": "no_session"])
         }
     }
@@ -1846,6 +1884,8 @@ final class AppRouteState: ObservableObject {
             await dependencies.syncCoordinator.promoteGuestDataIfNeeded(to: sessionUser.id)
         }
         currentSessionUserID = sessionUser.id
+        await OneSignalBridge.shared.configure(appID: dependencies.environment.oneSignalAppID)
+        await OneSignalBridge.shared.login(externalID: sessionUser.id.uuidString)
         await dependencies.deviceTokenSyncService.setGroupRemindersEnabled(
             notificationPreferences.groupReminders,
             for: sessionUser.id
@@ -1938,13 +1978,23 @@ final class AppRouteState: ObservableObject {
             return true
         }
 
+        guard let legacyCallbackURL = URL(string: "sunnad://auth-callback"),
+              let canonicalCallbackURL = URL(string: "adat://auth-callback")
+        else {
+            return false
+        }
+
+        let candidates = [dependencies.environment.authRedirectURL, canonicalCallbackURL, legacyCallbackURL]
+        return candidates.contains(where: { Self.matchesCallbackRoute(url, candidate: $0) })
+    }
+
+    private static func matchesCallbackRoute(_ url: URL, candidate: URL) -> Bool {
         let normalizedPath = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let normalizedHost = (url.host ?? "").lowercased()
-        let expected = dependencies.environment.authRedirectURL
-        let expectedPath = expected.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let expectedHost = (expected.host ?? "").lowercased()
+        let expectedPath = candidate.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let expectedHost = (candidate.host ?? "").lowercased()
 
-        return (url.scheme ?? "").lowercased() == (expected.scheme ?? "").lowercased()
+        return (url.scheme ?? "").lowercased() == (candidate.scheme ?? "").lowercased()
             && normalizedHost == expectedHost
             && normalizedPath == expectedPath
     }
@@ -2355,5 +2405,63 @@ final class AppRouteState: ObservableObject {
 private extension SessionUser {
     var asUIUserState: UIUserState {
         UIUserState(isGuest: false, name: displayName, email: email, avatarURL: avatarURL)
+    }
+}
+
+actor OneSignalBridge {
+    static let shared = OneSignalBridge()
+
+    private enum Keys {
+        static let subscriptionID = "sunnad.device.onesignal-subscription-id"
+    }
+
+    private let userDefaults = UserDefaults.standard
+    private var configuredAppID: String?
+
+    func configure(appID: String?) {
+        let trimmed = appID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return }
+        guard configuredAppID != trimmed else { return }
+
+        #if canImport(OneSignalFramework)
+        OneSignal.initialize(trimmed, withLaunchOptions: nil)
+        #endif
+        configuredAppID = trimmed
+    }
+
+    func login(externalID: String) async {
+        guard !externalID.isEmpty else { return }
+        guard configuredAppID != nil else { return }
+
+        #if canImport(OneSignalFramework)
+        OneSignal.login(externalID)
+        #endif
+        await refreshSubscriptionID()
+    }
+
+    func logout() {
+        #if canImport(OneSignalFramework)
+        OneSignal.logout()
+        #endif
+        userDefaults.removeObject(forKey: Keys.subscriptionID)
+    }
+
+    private func refreshSubscriptionID() async {
+        for _ in 0 ..< 8 {
+            if let id = currentSubscriptionID() {
+                userDefaults.set(id, forKey: Keys.subscriptionID)
+                return
+            }
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+    }
+
+    private func currentSubscriptionID() -> String? {
+        #if canImport(OneSignalFramework)
+        let raw = OneSignal.User.pushSubscription.id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return raw.isEmpty ? nil : raw
+        #else
+        return nil
+        #endif
     }
 }

@@ -7,6 +7,7 @@ import com.arystan.almasuly.sunnadandroid.core.model.HabitSchedule
 import com.arystan.almasuly.sunnadandroid.core.model.HabitType
 import com.arystan.almasuly.sunnadandroid.core.model.Weekday
 import com.arystan.almasuly.sunnadandroid.data.local.entity.HabitEntity
+import com.arystan.almasuly.sunnadandroid.features.habits.canonicalHabitIconKey
 import kotlinx.serialization.json.Json
 import java.util.UUID
 
@@ -25,7 +26,9 @@ fun HabitEntity.toDomain(): Habit {
         id = UUID.fromString(id),
         name = name,
         icon = icon,
+        iconKey = iconKey,
         category = runCatching { HabitCategoryValue.valueOf(category) }.getOrDefault(HabitCategoryValue.SPIRITUAL),
+        categoryCustom = categoryCustom,
         type = runCatching { HabitType.valueOf(type) }.getOrDefault(HabitType.BINARY),
         targetCount = targetCount,
         schedule = HabitSchedule.fromStorage(scheduleFrequency, weekdaysIso),
@@ -57,7 +60,9 @@ fun Habit.toEntity(ownerScope: String): HabitEntity {
         ownerScope = ownerScope,
         name = name,
         icon = icon,
+        iconKey = iconKey ?: canonicalHabitIconKey(icon, name),
         category = category.name,
+        categoryCustom = categoryCustom?.trim()?.takeIf { it.isNotEmpty() },
         type = type.name,
         targetCount = targetCount,
         scheduleFrequency = frequency,

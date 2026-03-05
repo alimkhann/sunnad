@@ -45,6 +45,8 @@ data class TodayHabitUiModel(
 data class TodayUiState(
     val allHabits: List<Habit> = emptyList(),
     val dueHabits: List<TodayHabitUiModel> = emptyList(),
+    val habitStreakById: Map<UUID, Int> = emptyMap(),
+    val pendingHabitToggleIds: Set<UUID> = emptySet(),
     val quote: Quote? = null,
     val isQuoteSaved: Boolean = false,
     val isLoading: Boolean = false,
@@ -75,6 +77,12 @@ class TodayViewModel(
                 val allHabits = habitsRepository.fetchHabits(includeArchived = false).sortedBy { it.sortOrder }
                 val dueHabits = habitsRepository.fetchDueHabits(today).sortedBy { it.sortOrder }
                 val completionByHabitId = completionsRepository.fetchCompletions(today).associateBy { it.habitId }
+                val streakById = mutableMapOf<UUID, Int>()
+
+                allHabits.forEach { habit ->
+                    val history = completionsRepository.fetchCompletions(habit.id)
+                    streakById[habit.id] = StreakCalculator.streak(habit, history, today)
+                }
 
                 val uiHabits = dueHabits.map { habit ->
                     val completion = completionByHabitId[habit.id] ?: HabitCompletion(
@@ -82,8 +90,7 @@ class TodayViewModel(
                         dayDate = today,
                         value = 0
                     )
-                    val history = completionsRepository.fetchCompletions(habit.id)
-                    val streak = StreakCalculator.streak(habit, history, today)
+                    val streak = streakById[habit.id] ?: 0
                     todayUiModel(habit, completion, streak)
                 }
 
@@ -97,6 +104,7 @@ class TodayViewModel(
                     it.copy(
                         allHabits = allHabits,
                         dueHabits = uiHabits,
+                        habitStreakById = streakById,
                         quote = quote,
                         isQuoteSaved = isQuoteSaved,
                         isLoading = false
@@ -111,8 +119,13 @@ class TodayViewModel(
     }
 
     fun toggleHabit(habitId: UUID) {
+        toggleHabit(habitId, onSettled = null)
+    }
+
+    fun toggleHabit(habitId: UUID, onSettled: (() -> Unit)?) {
         viewModelScope.launch {
             val current = _state.value
+            if (current.pendingHabitToggleIds.contains(habitId)) return@launch
             val model = current.dueHabits.firstOrNull { it.id == habitId } ?: return@launch
             val habit = current.allHabits.firstOrNull { it.id == habitId } ?: return@launch
             val nextValue = when {
@@ -120,6 +133,20 @@ class TodayViewModel(
                 habit.type == HabitType.BINARY && !model.completedToday -> 1
                 model.dhikrCount >= model.dhikrTarget -> 0
                 else -> model.dhikrTarget
+            }
+            val optimisticModel = model.copy(
+                completedToday = nextValue >= model.dhikrTarget,
+                dhikrCount = nextValue
+            )
+
+            _state.update { state ->
+                state.copy(
+                    dueHabits = state.dueHabits.map { due ->
+                        if (due.id == habitId) optimisticModel else due
+                    },
+                    pendingHabitToggleIds = state.pendingHabitToggleIds + habitId,
+                    errorMessage = null
+                )
             }
 
             val nowInstant = Instant.now()
@@ -131,10 +158,27 @@ class TodayViewModel(
                 updatedAt = nowInstant
             )
 
-            completionsRepository.upsertCompletion(completion)
-            syncCoordinator.enqueueCompletionUpsert(habitId, LocalDate.now())
-            syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
-            loadToday()
+            runCatching {
+                completionsRepository.upsertCompletion(completion)
+                syncCoordinator.enqueueCompletionUpsert(habitId, LocalDate.now())
+                syncCoordinator.runSyncCycle(SyncTrigger.MANUAL)
+            }.onFailure { error ->
+                _state.update { state ->
+                    state.copy(
+                        dueHabits = state.dueHabits.map { due ->
+                            if (due.id == habitId) model else due
+                        },
+                        errorMessage = error.localizedMessage
+                    )
+                }
+            }
+
+            _state.update { state ->
+                state.copy(
+                    pendingHabitToggleIds = state.pendingHabitToggleIds - habitId
+                )
+            }
+            onSettled?.invoke()
         }
     }
 
@@ -161,6 +205,7 @@ class TodayViewModel(
                 val habit = Habit(
                     name = template.title,
                     icon = canonicalHabitIconKey(template.iconName, template.title),
+                    iconKey = canonicalHabitIconKey(template.iconName, template.title),
                     category = template.categoryValue,
                     type = if (template.isDhikr) HabitType.DHIKR else HabitType.BINARY,
                     targetCount = if (template.isDhikr) template.targetCount.coerceAtLeast(1) else null,
@@ -182,6 +227,7 @@ class TodayViewModel(
         name: String,
         icon: String,
         category: HabitCategoryValue,
+        categoryCustom: String?,
         schedule: HabitSchedule,
         isDhikr: Boolean,
         targetCount: Int,
@@ -196,7 +242,9 @@ class TodayViewModel(
             val habit = Habit(
                 name = name,
                 icon = canonicalHabitIconKey(icon, name),
+                iconKey = canonicalHabitIconKey(icon, name),
                 category = category,
+                categoryCustom = categoryCustom?.trim()?.takeIf { it.isNotEmpty() },
                 type = if (isDhikr) HabitType.DHIKR else HabitType.BINARY,
                 targetCount = if (isDhikr) targetCount.coerceAtLeast(1) else null,
                 schedule = schedule,
@@ -246,6 +294,7 @@ class TodayViewModel(
             habitsRepository.saveHabit(
                 habit.copy(
                     icon = canonicalHabitIconKey(habit.icon, habit.name),
+                    iconKey = canonicalHabitIconKey(habit.icon, habit.name),
                     updatedAt = LocalDateTime.now()
                 )
             )

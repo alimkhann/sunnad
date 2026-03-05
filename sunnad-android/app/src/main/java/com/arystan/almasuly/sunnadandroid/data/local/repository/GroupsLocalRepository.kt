@@ -4,6 +4,7 @@ import com.arystan.almasuly.sunnadandroid.core.local.OwnerScopeResolver
 import com.arystan.almasuly.sunnadandroid.core.model.Group
 import com.arystan.almasuly.sunnadandroid.core.model.GroupMember
 import com.arystan.almasuly.sunnadandroid.core.model.GroupNudgeStatus
+import com.arystan.almasuly.sunnadandroid.core.model.GroupProgressDisplayMode
 import com.arystan.almasuly.sunnadandroid.domain.repository.GroupsRepository
 import com.arystan.almasuly.sunnadandroid.data.local.dao.GroupDao
 import com.arystan.almasuly.sunnadandroid.data.local.mappers.toDomain
@@ -86,6 +87,12 @@ class GroupsLocalRepository(
     override suspend fun kickMember(groupId: UUID, memberUserId: UUID) {
         mutate(groupId) { group ->
             group.copy(members = group.members.filterNot { it.id == memberUserId })
+        }
+    }
+
+    override suspend fun setProgressDisplayMode(groupId: UUID, mode: GroupProgressDisplayMode) {
+        mutate(groupId) { group ->
+            group.copy(progressDisplayMode = mode)
         }
     }
 

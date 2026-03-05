@@ -91,6 +91,18 @@ enum AppEnvironment: String {
         return "default"
     }
 
+    var oneSignalAppID: String? {
+        if let configured = bundleString("SunnadOneSignalAppID"), !configured.isEmpty {
+            return configured
+        }
+
+        if let override = debugResolveEnv(["SUNNAD_ONESIGNAL_APP_ID"]), !override.isEmpty {
+            return override
+        }
+
+        return nil
+    }
+
     var supabaseConfig: SupabaseConfig? {
         if let configuredURL = bundleString("SunnadSupabaseURL"),
            let url = URL(string: configuredURL),

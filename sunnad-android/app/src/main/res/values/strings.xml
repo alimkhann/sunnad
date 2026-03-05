@@ -52,6 +52,8 @@
     <string name="habit_add_templates">Choose from Templates</string>
     <string name="habit_add_custom">Create Custom Habit</string>
     <string name="habit_custom_name_placeholder">Habit name</string>
+    <string name="habit_category_custom_option">Custom category</string>
+    <string name="habit_category_custom_placeholder">Enter custom category</string>
     <string name="habit_name">Habit name</string>
     <string name="habit_details">Details</string>
     <string name="habit_last_7_days">Last 7 days</string>
@@ -81,14 +83,17 @@
     <string name="groups_create">Create group</string>
     <string name="groups_join_code">Invite code</string>
     <string name="groups_join">Join group</string>
+    <string name="groups_join_with_code">Join with code</string>
     <string name="groups_code">Code: %1$s</string>
-    <string name="groups_members_count">Members: %1$d</string>
+    <string name="groups_members_count">%1$d members</string>
+    <string name="groups_member_today_progress">%1$d/%2$d today</string>
     <string name="groups_members_section">MEMBERS</string>
     <string name="groups_members_and_code">%1$d members • %2$s</string>
     <string name="groups_unlock">Unlock joins</string>
     <string name="groups_lock">Lock joins</string>
     <string name="groups_rotate_code">Rotate code</string>
     <string name="groups_nudge">Nudge</string>
+    <string name="groups_nudge_confirm_message">Send a reminder to %1$s for \"%2$s\"?</string>
     <string name="groups_leave">Leave</string>
     <string name="groups_rename">Rename group</string>
     <string name="groups_sign_in_required_title">Sign in required</string>
@@ -96,6 +101,7 @@
     <string name="groups_empty_title">No groups yet</string>
     <string name="groups_empty_subtitle">Create a group or join with an invite code.</string>
     <string name="groups_sharing_title">Sharing</string>
+    <string name="groups_sharing_summary">Sharing %1$d habits</string>
     <string name="groups_nudge_sent">Nudge sent.</string>
     <string name="groups_nudge_duplicate">Already nudged recently.</string>
     <string name="groups_nudge_forbidden">Nudge not allowed.</string>
@@ -209,7 +215,7 @@
 
     <string name="onboarding_welcome_title">Balance Your Life</string>
     <string name="onboarding_welcome_subtitle">Build consistent habits across spiritual, physical, social, and personal growth.</string>
-    <string name="onboarding_welcome_body">Sunnad keeps Today focused, offline-first, and calm. Start with templates and continue as guest or member.</string>
+    <string name="onboarding_welcome_body">Adat keeps Today focused, offline-first, and calm. Start with templates and continue as guest or member.</string>
     <string name="onboarding_welcome_quote">Call yourselves to account before you are called to account. Weigh your deeds before your deeds are weighed.\n- Omar ibn al-Khattab, may Allah be pleased with him.</string>
     <string name="onboarding_get_started">Get Started</string>
     <string name="onboarding_continue">Continue</string>
@@ -230,12 +236,22 @@
     <string name="onboarding_template_avoid_debt">Avoid debt</string>
     <string name="onboarding_template_attention_spouse">Give attention to spouse</string>
     <string name="onboarding_template_time_children">Time with children</string>
+    <string name="onboarding_template_work_focus">Deep work session</string>
+    <string name="onboarding_template_hobby_practice">Hobby practice</string>
+    <string name="onboarding_template_five_times_prayer">5-times prayer</string>
+    <string name="onboarding_template_fajr">Fajr prayer</string>
+    <string name="onboarding_template_dhuhr">Dhuhr prayer</string>
+    <string name="onboarding_template_asr">Asr prayer</string>
+    <string name="onboarding_template_maghrib">Maghrib prayer</string>
+    <string name="onboarding_template_isha">Isha prayer</string>
     <string name="onboarding_category_spiritual">Spiritual</string>
     <string name="onboarding_category_social">Social</string>
     <string name="onboarding_category_physical">Physical</string>
     <string name="onboarding_category_learning">Learning</string>
     <string name="onboarding_category_financial">Financial</string>
     <string name="onboarding_category_family">Family</string>
+    <string name="onboarding_category_work">Work</string>
+    <string name="onboarding_category_hobby">Hobby</string>
     <string name="onboarding_notifications_title">Stay on Track</string>
     <string name="onboarding_notifications_subtitle">Get reminders to stay on track with your daily habits.</string>
     <string name="onboarding_notifications_toggle">Enable local reminders</string>
@@ -254,7 +270,7 @@
     <string name="notification_habit_reminder_title">Habit reminder</string>
     <string name="notification_habit_reminder_body">Time to complete: %1$s</string>
     <string name="notification_quote_reminder_title">Quote of the day</string>
-    <string name="notification_quote_reminder_body">Open Sunnad for today’s quote and checklist.</string>
+    <string name="notification_quote_reminder_body">Open Adat for today’s quote and checklist.</string>
 
     <string name="language_english">English</string>
     <string name="language_russian">Russian</string>
@@ -279,6 +295,8 @@
     <string name="insights_last_40_days">Last 40 days</string>
     <string name="insights_missed_habits">Missed habits</string>
     <string name="insights_none_missed">No missed habits</string>
+    <string name="insights_category_analytics">Category Analytics</string>
+    <string name="insights_category_completed_ratio">%1$d/%2$d completed</string>
 
     <string name="schedule_title">Schedule</string>
     <string name="schedule_mode_all">All</string>
@@ -296,6 +314,9 @@
     <string name="feedback_sending">Sending…</string>
     <string name="feedback_sent">Feedback sent</string>
     <string name="feedback_failed">Couldn’t send feedback</string>
+    <string name="groups_progress_mode_title">Member Progress Display</string>
+    <string name="groups_progress_mode_percent">Percent</string>
+    <string name="groups_progress_mode_streak">Streak</string>
 
     <string name="dhikr_choice_subhanallah">SubhanAllah</string>
     <string name="dhikr_choice_alhamdulillah">Alhamdulillah</string>

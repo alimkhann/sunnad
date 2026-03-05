@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.onesignal.OneSignal
 import com.arystan.almasuly.sunnadandroid.BuildConfig
 import com.arystan.almasuly.sunnadandroid.R
 import com.arystan.almasuly.sunnadandroid.SunnadApplication
@@ -54,6 +55,7 @@ import com.arystan.almasuly.sunnadandroid.sync.SyncTrigger
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenPadding
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenSurface
 import com.arystan.almasuly.sunnadandroid.ui.theme.SunnadTheme
+import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.util.UUID
 
@@ -118,6 +120,8 @@ fun SunnadApp(
     var mainOverlay by rememberSaveable { mutableStateOf(MainOverlayRoute.NONE) }
     var promotedUserId by rememberSaveable { mutableStateOf<String?>(null) }
     var pushTokenUserId by rememberSaveable { mutableStateOf<String?>(null) }
+    var registeredPushToken by rememberSaveable { mutableStateOf<String?>(null) }
+    var registeredOneSignalId by rememberSaveable { mutableStateOf<String?>(null) }
     var onboardingTemplatesSeeded by rememberSaveable { mutableStateOf(false) }
     var selectedOnboardingTemplateIds by rememberSaveable { mutableStateOf(setOf<String>()) }
     var pendingOnboardingTemplates by remember { mutableStateOf<List<OnboardingTemplateSeed>>(emptyList()) }
@@ -172,20 +176,87 @@ fun SunnadApp(
         )
     }
 
-    LaunchedEffect(authState.user?.id) {
-        val debugPushToken = BuildConfig.SUNNAD_DEBUG_PUSH_TOKEN.trim()
-        if (debugPushToken.isBlank()) return@LaunchedEffect
+    LaunchedEffect(authState.user?.id, profileState.settingsLoaded, profileState.settings.groupRemindersEnabled) {
         val signedInUser = authState.user
         if (signedInUser != null) {
-            container.pushTokenSyncService.registerToken(signedInUser.id, debugPushToken)
-            pushTokenUserId = signedInUser.id.toString()
+            runCatching { OneSignal.login(signedInUser.id.toString()) }
+            if (profileState.settingsLoaded && !profileState.settings.groupRemindersEnabled) {
+                val oneSignalSubscriptionId = runCatching {
+                    OneSignal.User.pushSubscription.id
+                }.getOrNull()?.trim().takeUnless { it.isNullOrBlank() }
+                val oneSignalToken = runCatching {
+                    OneSignal.User.pushSubscription.token
+                }.getOrNull()?.trim().takeUnless { it.isNullOrBlank() }
+                val token = registeredPushToken
+                    ?: oneSignalToken
+                    ?: oneSignalSubscriptionId?.let { "onesignal-subscription:$it" }
+                if (token != null) {
+                    container.pushTokenSyncService.clearToken(
+                        userId = signedInUser.id,
+                        token = token,
+                        oneSignalSubscriptionId = registeredOneSignalId ?: oneSignalSubscriptionId
+                    )
+                }
+                pushTokenUserId = signedInUser.id.toString()
+                registeredPushToken = null
+                registeredOneSignalId = null
+                return@LaunchedEffect
+            }
+            repeat(8) {
+                val oneSignalSubscriptionId = runCatching {
+                    OneSignal.User.pushSubscription.id
+                }.getOrNull()?.trim().takeUnless { it.isNullOrBlank() }
+
+                val oneSignalToken = runCatching {
+                    OneSignal.User.pushSubscription.token
+                }.getOrNull()?.trim().takeUnless { it.isNullOrBlank() }
+
+                val effectiveToken = oneSignalToken ?: oneSignalSubscriptionId?.let { "onesignal-subscription:$it" }
+                if (!effectiveToken.isNullOrBlank()) {
+                    if (
+                        pushTokenUserId == signedInUser.id.toString() &&
+                        registeredPushToken == effectiveToken &&
+                        registeredOneSignalId == oneSignalSubscriptionId
+                    ) {
+                        return@LaunchedEffect
+                    }
+                    container.pushTokenSyncService.registerToken(
+                        userId = signedInUser.id,
+                        token = effectiveToken,
+                        oneSignalSubscriptionId = oneSignalSubscriptionId
+                    )
+                    pushTokenUserId = signedInUser.id.toString()
+                    registeredPushToken = effectiveToken
+                    registeredOneSignalId = oneSignalSubscriptionId
+                    return@LaunchedEffect
+                }
+                delay(1200)
+            }
+
+            val debugPushToken = BuildConfig.SUNNAD_DEBUG_PUSH_TOKEN.trim()
+            if (debugPushToken.isNotBlank()) {
+                container.pushTokenSyncService.registerToken(signedInUser.id, debugPushToken)
+                pushTokenUserId = signedInUser.id.toString()
+                registeredPushToken = debugPushToken
+                registeredOneSignalId = null
+            }
         } else {
-            val previousId = pushTokenUserId ?: return@LaunchedEffect
-            val previousUuid = runCatching { UUID.fromString(previousId) }.getOrNull()
-            if (previousUuid != null) {
-                container.pushTokenSyncService.clearToken(previousUuid, debugPushToken)
+            runCatching { OneSignal.logout() }
+            val previousId = pushTokenUserId
+            val token = registeredPushToken
+            if (previousId != null && token != null) {
+                val previousUuid = runCatching { UUID.fromString(previousId) }.getOrNull()
+                if (previousUuid != null) {
+                    container.pushTokenSyncService.clearToken(
+                        userId = previousUuid,
+                        token = token,
+                        oneSignalSubscriptionId = registeredOneSignalId
+                    )
+                }
             }
             pushTokenUserId = null
+            registeredPushToken = null
+            registeredOneSignalId = null
         }
     }
 
@@ -198,6 +269,8 @@ fun SunnadApp(
     LaunchedEffect(
         onboardingCompleted,
         authState.user,
+        authState.step,
+        authState.otpFlowMode,
         authState.hasRestoredSession,
         profileState.settingsLoaded,
         rootGraph
@@ -210,6 +283,9 @@ fun SunnadApp(
             container.syncCoordinator.runSyncCycle(SyncTrigger.AUTH)
             promotedUserId = userId.toString()
         }
+        val hasPendingRecoveryPasswordUpdate =
+            authState.step == AuthStep.CHANGE_PASSWORD &&
+                authState.otpFlowMode == com.arystan.almasuly.sunnadandroid.features.auth.OtpFlowMode.RECOVERY
 
         when {
             rootGraph == RootGraph.LOADING -> {
@@ -230,19 +306,16 @@ fun SunnadApp(
                 rootGraph = RootGraph.LOADING
             }
 
-            rootGraph == RootGraph.ONBOARDING && authState.user != null -> {
+            authState.user != null && !hasPendingRecoveryPasswordUpdate -> {
                 if (!onboardingTemplatesSeeded && pendingOnboardingTemplates.isNotEmpty()) {
                     todayViewModel.seedHabitsFromTemplates(pendingOnboardingTemplates)
                     onboardingTemplatesSeeded = true
                 }
                 pendingOnboardingTemplates = emptyList()
                 selectedOnboardingTemplateIds = emptySet()
-                profileViewModel.setOnboardingCompleted(true)
-                rootGraph = RootGraph.MAIN
-                selectedTab = MainTabRoute.TODAY
-            }
-
-            rootGraph == RootGraph.AUTH && authState.user != null -> {
+                if (!profileState.settings.onboardingCompleted) {
+                    profileViewModel.setOnboardingCompleted(true)
+                }
                 rootGraph = RootGraph.MAIN
                 selectedTab = MainTabRoute.TODAY
             }
@@ -263,31 +336,6 @@ fun SunnadApp(
             mainOverlay = MainOverlayRoute.NONE
             selectedTab = MainTabRoute.TODAY
         }
-    }
-
-    LaunchedEffect(authState.user?.id, profileState.settingsLoaded) {
-        if (!profileState.settingsLoaded) return@LaunchedEffect
-        val signedIn = authState.user ?: return@LaunchedEffect
-
-        if (rootGraph == RootGraph.ONBOARDING) {
-            if (!onboardingTemplatesSeeded && pendingOnboardingTemplates.isNotEmpty()) {
-                todayViewModel.seedHabitsFromTemplates(pendingOnboardingTemplates)
-                onboardingTemplatesSeeded = true
-            }
-            pendingOnboardingTemplates = emptyList()
-            selectedOnboardingTemplateIds = emptySet()
-            if (!profileState.settings.onboardingCompleted) {
-                profileViewModel.setOnboardingCompleted(true)
-            }
-        }
-
-        if (rootGraph != RootGraph.MAIN) {
-            rootGraph = RootGraph.MAIN
-            selectedTab = MainTabRoute.TODAY
-        }
-
-        container.ownerScopeResolver.setSignedInUserId(signedIn.id)
-        container.syncCoordinator.setSignedInUserId(signedIn.id)
     }
 
     SunnadTheme(forcedDarkTheme = darkThemeMode) {
@@ -512,8 +560,13 @@ fun SunnadApp(
                                 onLeaveGroup = groupsViewModel::leaveGroup,
                                 onDeleteGroup = groupsViewModel::deleteGroup,
                                 onKickMember = groupsViewModel::kickMember,
+                                onSetProgressDisplayMode = groupsViewModel::setProgressDisplayMode,
                                 onUpdateSharing = groupsViewModel::updateSharing,
-                                onToggleOwnHabit = todayViewModel::toggleHabit,
+                                onToggleOwnHabit = { habitId ->
+                                    todayViewModel.toggleHabit(habitId) {
+                                        groupsViewModel.loadGroups()
+                                    }
+                                },
                                 onSendNudge = groupsViewModel::sendNudge,
                                 onSignIn = {
                                     authViewModel.openStep(AuthStep.SIGN_IN)
@@ -624,6 +677,7 @@ fun SunnadApp(
                         MainOverlayRoute.SCHEDULE -> {
                             ScheduleScreen(
                                 habits = todayState.allHabits,
+                                streakByHabitId = todayState.habitStreakById,
                                 onClose = { mainOverlay = MainOverlayRoute.NONE },
                                 onSelectHabit = { habitId ->
                                     selectedTab = MainTabRoute.TODAY

@@ -14,7 +14,9 @@ enum class HabitCategoryValue {
     SOCIAL,
     FINANCIAL,
     LEARNING,
-    FAMILY
+    FAMILY,
+    WORK,
+    HOBBY
 }
 
 data class HabitReminder(
@@ -29,7 +31,9 @@ data class Habit(
     val id: UUID = UUID.randomUUID(),
     val name: String,
     val icon: String,
+    val iconKey: String? = null,
     val category: HabitCategoryValue = HabitCategoryValue.SPIRITUAL,
+    val categoryCustom: String? = null,
     val type: HabitType,
     val targetCount: Int? = null,
     val schedule: HabitSchedule = HabitSchedule.Daily,

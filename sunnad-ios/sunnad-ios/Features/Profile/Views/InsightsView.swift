@@ -94,6 +94,9 @@ struct InsightsView: View {
             } else {
                 completionTrendSection
                 habitPerformanceSection
+                if !viewModel.categoryPerformance.isEmpty {
+                    categoryPerformanceSection
+                }
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -315,6 +318,48 @@ struct InsightsView: View {
                         }
 
                         if index < viewModel.habitPerformance.count - 1 {
+                            Divider().padding(.leading, 16)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var categoryPerformanceSection: some View {
+        VStack(spacing: 12) {
+            SectionHeader(title: L10n.t("insights.category_analytics"))
+            Card(contentPadding: 0) {
+                VStack(spacing: 0) {
+                    ForEach(Array(viewModel.categoryPerformance.enumerated()), id: \.element.id) { index, item in
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(item.title)
+                                    .font(.body.weight(.medium))
+                                    .lineLimit(1)
+                                    .foregroundStyle(.primary)
+
+                                Text(
+                                    L10n.t(
+                                        "insights.category_completed_ratio",
+                                        item.completed,
+                                        item.total
+                                    )
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Text(L10n.t("insights.percent_complete", item.percentage))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+
+                        if index < viewModel.categoryPerformance.count - 1 {
                             Divider().padding(.leading, 16)
                         }
                     }

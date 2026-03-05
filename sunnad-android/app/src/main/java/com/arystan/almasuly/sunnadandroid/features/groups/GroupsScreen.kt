@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -19,6 +20,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
@@ -30,16 +32,21 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PersonRemove
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.PieChart
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,7 +55,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -60,6 +70,7 @@ import coil.compose.AsyncImage
 import com.arystan.almasuly.sunnadandroid.R
 import com.arystan.almasuly.sunnadandroid.core.model.Group
 import com.arystan.almasuly.sunnadandroid.core.model.GroupNudgeStatus
+import com.arystan.almasuly.sunnadandroid.core.model.GroupProgressDisplayMode
 import com.arystan.almasuly.sunnadandroid.core.model.Habit
 import com.arystan.almasuly.sunnadandroid.core.model.SharedHabit
 import com.arystan.almasuly.sunnadandroid.features.habits.iconForHabitName
@@ -71,9 +82,18 @@ import com.arystan.almasuly.sunnadandroid.ui.components.SunnadCompactBackButton
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadListRow
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenPadding
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenSurface
+import com.arystan.almasuly.sunnadandroid.ui.components.SunnadSectionHeader
 import kotlinx.coroutines.delay
 import java.util.UUID
 
+private data class GroupNudgePrompt(
+    val memberId: UUID,
+    val memberName: String,
+    val habitId: UUID,
+    val habitTitle: String
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupsScreen(
     state: GroupsUiState,
@@ -89,6 +109,7 @@ fun GroupsScreen(
     onLeaveGroup: (Group) -> Unit,
     onDeleteGroup: (Group) -> Unit,
     onKickMember: (Group, UUID) -> Unit,
+    onSetProgressDisplayMode: (Group, GroupProgressDisplayMode) -> Unit,
     onUpdateSharing: (Group, Set<UUID>) -> Unit,
     onToggleOwnHabit: (UUID) -> Unit,
     onSendNudge: (UUID, UUID, UUID, (GroupNudgeStatus) -> Unit) -> Unit,
@@ -97,8 +118,8 @@ fun GroupsScreen(
     var createName by remember { mutableStateOf("") }
     var joinCode by remember { mutableStateOf("") }
     var selectedGroupId by remember { mutableStateOf<UUID?>(null) }
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var showJoinDialog by remember { mutableStateOf(false) }
+    var showCreateDialog by rememberSaveable { mutableStateOf(false) }
+    var showJoinDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { onLoad() }
 
@@ -111,6 +132,8 @@ fun GroupsScreen(
             group = group,
             dueHabits = dueHabits,
             allHabits = allHabits,
+            isRefreshing = state.isLoading,
+            onRefresh = onLoad,
             onBack = { selectedGroupId = null },
             onRenameGroup = { newName -> onRenameGroup(group, newName) },
             onToggleJoinLock = { onToggleJoinLock(group) },
@@ -124,6 +147,7 @@ fun GroupsScreen(
                 selectedGroupId = null
             },
             onKickMember = { memberUserId -> onKickMember(group, memberUserId) },
+            onSetProgressDisplayMode = { mode -> onSetProgressDisplayMode(group, mode) },
             onUpdateSharing = { updated -> onUpdateSharing(group, updated) },
             onToggleOwnHabit = onToggleOwnHabit,
             onSendNudge = onSendNudge
@@ -132,12 +156,17 @@ fun GroupsScreen(
     }
 
     SunnadScreenSurface {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = SunnadScreenPadding),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+        PullToRefreshBox(
+            isRefreshing = state.isLoading,
+            onRefresh = onLoad,
+            modifier = Modifier.fillMaxWidth()
         ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = SunnadScreenPadding),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             item {
                 Text(
                     text = stringResource(R.string.tab_groups),
@@ -193,7 +222,29 @@ fun GroupsScreen(
 
             if (state.groups.isEmpty()) {
                 item {
-                    SunnadCard {
+                    SunnadCard(contentPadding = 18.dp) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(58.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Groups,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                         Text(
                             text = stringResource(R.string.groups_empty_title),
                             style = MaterialTheme.typography.titleMedium,
@@ -204,22 +255,39 @@ fun GroupsScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        PrimaryPillButton(
+                            title = stringResource(R.string.groups_create),
+                            onClick = { showCreateDialog = true }
+                        )
+                        SecondaryPillButton(
+                            title = stringResource(R.string.groups_join_with_code),
+                            onClick = { showJoinDialog = true }
+                        )
                     }
                 }
             } else {
                 item {
                     SunnadCard(contentPadding = 0.dp) {
                         state.groups.forEachIndexed { index, group ->
-                            val avatar = group.members.firstOrNull()
                             SunnadListRow(
                                 title = group.name,
                                 subtitle = stringResource(R.string.groups_members_count, group.members.size),
                                 leading = {
-                                    AvatarCircle(
-                                        name = avatar?.name ?: group.name,
-                                        avatarUrl = avatar?.avatarUrl,
-                                        size = 36.dp
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .background(
+                                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                shape = CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Groups,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
                                 },
                                 trailing = {
                                     Icon(
@@ -240,16 +308,19 @@ fun GroupsScreen(
                 }
             }
 
-            item {
-                PrimaryPillButton(
-                    title = stringResource(R.string.groups_create),
-                    onClick = { showCreateDialog = true }
-                )
-                Box(modifier = Modifier.height(10.dp))
-                SecondaryPillButton(
-                    title = stringResource(R.string.groups_join),
-                    onClick = { showJoinDialog = true }
-                )
+            if (state.groups.isNotEmpty()) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PrimaryPillButton(
+                            title = stringResource(R.string.groups_create),
+                            onClick = { showCreateDialog = true }
+                        )
+                        SecondaryPillButton(
+                            title = stringResource(R.string.groups_join),
+                            onClick = { showJoinDialog = true }
+                        )
+                    }
+                }
             }
 
             state.errorMessage?.let { message ->
@@ -264,65 +335,49 @@ fun GroupsScreen(
                 }
             }
 
-            item { Box(modifier = Modifier.height(96.dp)) }
+                item { Box(modifier = Modifier.height(96.dp)) }
+            }
         }
     }
 
     if (showCreateDialog) {
-        AlertDialog(
-            onDismissRequest = { showCreateDialog = false },
-            title = { Text(stringResource(R.string.groups_create)) },
-            text = {
-                GroupDialogField(
-                    value = createName,
-                    onValueChange = { createName = it },
-                    placeholder = stringResource(R.string.groups_create_name)
-                )
+        GroupInputDialog(
+            title = stringResource(R.string.groups_create),
+            placeholder = stringResource(R.string.groups_create_name),
+            value = createName,
+            onValueChange = { createName = it },
+            confirmLabel = stringResource(R.string.groups_create),
+            onDismiss = {
+                showCreateDialog = false
+                createName = ""
             },
-            dismissButton = {
-                TextButton(onClick = { showCreateDialog = false }) {
-                    Text(stringResource(R.string.common_cancel))
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    onCreateGroup(createName)
-                    createName = ""
-                    showCreateDialog = false
-                }) {
-                    Text(stringResource(R.string.groups_create))
-                }
+            onConfirm = {
+                onCreateGroup(createName)
+                createName = ""
+                showCreateDialog = false
             }
         )
     }
 
     if (showJoinDialog) {
-        AlertDialog(
-            onDismissRequest = { showJoinDialog = false },
-            title = { Text(stringResource(R.string.groups_join)) },
-            text = {
-                GroupDialogField(
-                    value = joinCode,
-                    onValueChange = { joinCode = it.uppercase() },
-                    placeholder = stringResource(R.string.groups_join_code)
-                )
+        GroupInputDialog(
+            title = stringResource(R.string.groups_join_with_code),
+            placeholder = stringResource(R.string.groups_join_code),
+            value = joinCode,
+            onValueChange = { joinCode = it.uppercase() },
+            confirmLabel = stringResource(R.string.groups_join),
+            onDismiss = {
+                showJoinDialog = false
+                joinCode = ""
             },
-            dismissButton = {
-                TextButton(onClick = { showJoinDialog = false }) {
-                    Text(stringResource(R.string.common_cancel))
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    onJoinGroup(joinCode)
-                    joinCode = ""
-                    showJoinDialog = false
-                }) {
-                    Text(stringResource(R.string.groups_join))
-                }
+            onConfirm = {
+                onJoinGroup(joinCode)
+                joinCode = ""
+                showJoinDialog = false
             }
         )
     }
+
 }
 
 @Composable
@@ -355,10 +410,49 @@ private fun GroupDialogField(
 }
 
 @Composable
+private fun GroupInputDialog(
+    title: String,
+    placeholder: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    confirmLabel: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            GroupDialogField(
+                value = value,
+                onValueChange = onValueChange,
+                placeholder = placeholder
+            )
+        },
+        confirmButton = {
+            TextButton(
+                enabled = value.isNotBlank(),
+                onClick = onConfirm
+            ) {
+                Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_cancel))
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun GroupDetailScreen(
     group: Group,
     dueHabits: List<TodayHabitUiModel>,
     allHabits: List<Habit>,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
     onBack: () -> Unit,
     onRenameGroup: (String) -> Unit,
     onToggleJoinLock: () -> Unit,
@@ -366,6 +460,7 @@ private fun GroupDetailScreen(
     onLeaveGroup: () -> Unit,
     onDeleteGroup: () -> Unit,
     onKickMember: (UUID) -> Unit,
+    onSetProgressDisplayMode: (GroupProgressDisplayMode) -> Unit,
     onUpdateSharing: (Set<UUID>) -> Unit,
     onToggleOwnHabit: (UUID) -> Unit,
     onSendNudge: (UUID, UUID, UUID, (GroupNudgeStatus) -> Unit) -> Unit
@@ -379,40 +474,84 @@ private fun GroupDetailScreen(
     var showDeleteConfirm by rememberSaveable(group.id) { mutableStateOf(false) }
     var expandedMembers by remember(group.id) { mutableStateOf(setOf<UUID>()) }
     var nudgeStatusText by remember(group.id) { mutableStateOf<String?>(null) }
+    var nudgePrompt by remember(group.id) { mutableStateOf<GroupNudgePrompt?>(null) }
     var showOwnerMenu by remember { mutableStateOf(false) }
     var sharingEditMode by rememberSaveable(group.id) { mutableStateOf(false) }
     var sharedHabitIds by remember(group.id) { mutableStateOf(group.sharedHabitIds) }
-    var syncedSharedHabitIds by remember(group.id) { mutableStateOf(group.sharedHabitIds) }
+    var lastServerSharedHabitIds by remember(group.id) { mutableStateOf(group.sharedHabitIds) }
+    var shareRequestVersion by remember(group.id) { mutableStateOf(0) }
+    var progressDisplayMode by remember(group.id) { mutableStateOf(group.progressDisplayMode) }
+    var ownCompletionOverrides by remember(group.id) { mutableStateOf<Map<UUID, Boolean>>(emptyMap()) }
+    var codeCopiedSequence by remember(group.id) { mutableStateOf(0) }
+    var showsCopiedCodeSuccess by remember(group.id) { mutableStateOf(false) }
 
     val currentUserMemberId = group.currentUserMemberId
     val isOwner = currentUserMemberId != null && currentUserMemberId == group.ownerMemberId
 
     LaunchedEffect(group.sharedHabitIds) {
-        if (group.sharedHabitIds != syncedSharedHabitIds) {
-            syncedSharedHabitIds = group.sharedHabitIds
-            sharedHabitIds = group.sharedHabitIds
+        val serverSharedHabitIds = group.sharedHabitIds
+        val localHasPendingSelection = sharedHabitIds != lastServerSharedHabitIds
+        val staleEchoFromRefresh =
+            localHasPendingSelection &&
+            serverSharedHabitIds == lastServerSharedHabitIds &&
+            serverSharedHabitIds != sharedHabitIds
+
+        if (staleEchoFromRefresh) return@LaunchedEffect
+
+        if (serverSharedHabitIds != lastServerSharedHabitIds || serverSharedHabitIds != sharedHabitIds) {
+            lastServerSharedHabitIds = serverSharedHabitIds
+            sharedHabitIds = serverSharedHabitIds
+        }
+    }
+    LaunchedEffect(group.progressDisplayMode) {
+        progressDisplayMode = group.progressDisplayMode
+    }
+    LaunchedEffect(sharedHabitIds, dueHabits) {
+        val completionById = dueHabits.associate { it.id to it.completedToday }
+        ownCompletionOverrides = ownCompletionOverrides.filter { (habitId, optimisticValue) ->
+            val current = completionById[habitId] ?: return@filter false
+            sharedHabitIds.contains(habitId) && optimisticValue != current
         }
     }
 
+    LaunchedEffect(codeCopiedSequence) {
+        if (codeCopiedSequence <= 0) return@LaunchedEffect
+        delay(1100)
+        showsCopiedCodeSuccess = false
+    }
+
     LaunchedEffect(sharedHabitIds) {
-        if (sharedHabitIds != syncedSharedHabitIds) {
-            delay(250)
-            onUpdateSharing(sharedHabitIds)
-            syncedSharedHabitIds = sharedHabitIds
-        }
+        if (sharedHabitIds == lastServerSharedHabitIds) return@LaunchedEffect
+        val target = sharedHabitIds
+        val requestVersion = shareRequestVersion + 1
+        shareRequestVersion = requestVersion
+        delay(250)
+        if (shareRequestVersion != requestVersion || sharedHabitIds != target) return@LaunchedEffect
+        onUpdateSharing(target)
     }
 
     val ownSharedHabits = remember(dueHabits, sharedHabitIds) {
         dueHabits.filter { sharedHabitIds.contains(it.id) }
+    }.map {
+        if (ownCompletionOverrides.containsKey(it.id)) {
+            it.copy(completedToday = ownCompletionOverrides[it.id] == true)
+        } else {
+            it
+        }
     }
 
     SunnadScreenSurface {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = SunnadScreenPadding),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxWidth()
         ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = SunnadScreenPadding),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             item {
                 Row(
                     modifier = Modifier
@@ -430,15 +569,15 @@ private fun GroupDetailScreen(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    if (isOwner) {
-                        Box {
-                            IconButton(onClick = { showOwnerMenu = true }) {
-                                Icon(Icons.Rounded.MoreVert, contentDescription = null)
-                            }
-                            DropdownMenu(
-                                expanded = showOwnerMenu,
-                                onDismissRequest = { showOwnerMenu = false }
-                            ) {
+                    Box {
+                        IconButton(onClick = { showOwnerMenu = true }) {
+                            Icon(Icons.Rounded.MoreVert, contentDescription = null)
+                        }
+                        DropdownMenu(
+                            expanded = showOwnerMenu,
+                            onDismissRequest = { showOwnerMenu = false }
+                        ) {
+                            if (isOwner) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.groups_rename)) },
                                     leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
@@ -464,6 +603,40 @@ private fun GroupDetailScreen(
                                         onRotateCode()
                                     }
                                 )
+                            }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.groups_progress_mode_percent)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = if (progressDisplayMode == GroupProgressDisplayMode.PERCENT) Icons.Rounded.Check else Icons.Rounded.PieChart,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showOwnerMenu = false
+                                    if (progressDisplayMode != GroupProgressDisplayMode.PERCENT) {
+                                        progressDisplayMode = GroupProgressDisplayMode.PERCENT
+                                        onSetProgressDisplayMode(GroupProgressDisplayMode.PERCENT)
+                                    }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.groups_progress_mode_streak)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = if (progressDisplayMode == GroupProgressDisplayMode.STREAK) Icons.Rounded.Check else Icons.Rounded.LocalFireDepartment,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showOwnerMenu = false
+                                    if (progressDisplayMode != GroupProgressDisplayMode.STREAK) {
+                                        progressDisplayMode = GroupProgressDisplayMode.STREAK
+                                        onSetProgressDisplayMode(GroupProgressDisplayMode.STREAK)
+                                    }
+                                }
+                            )
+                            if (isOwner) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) },
                                     leadingIcon = { Icon(Icons.Rounded.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
@@ -484,37 +657,52 @@ private fun GroupDetailScreen(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = group.code,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (group.joinLocked) {
-                            Icon(
-                                imageVector = Icons.Rounded.Lock,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                clipboard.setText(AnnotatedString(group.code))
-                                Toast.makeText(context, context.getString(R.string.common_copied), Toast.LENGTH_SHORT).show()
-                            }
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
-                            Icon(Icons.Rounded.ContentCopy, contentDescription = null)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = group.code,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Icon(
+                                    imageVector = if (group.joinLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 8.dp, end = 2.dp)
+                                )
+                                IconButton(
+                                    onClick = {
+                                        clipboard.setText(AnnotatedString(group.code))
+                                        codeCopiedSequence += 1
+                                        showsCopiedCodeSuccess = true
+                                        Toast.makeText(context, context.getString(R.string.common_copied), Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (showsCopiedCodeSuccess) Icons.Rounded.CheckCircle else Icons.Rounded.ContentCopy,
+                                        contentDescription = null,
+                                        tint = if (showsCopiedCodeSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                         }
+                        Spacer(modifier = Modifier.weight(1f))
                     }
-                    Text(
-                        text = stringResource(R.string.groups_members_count, group.members.size),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
 
+            item {
+                SunnadSectionHeader(stringResource(R.string.groups_members_section))
+            }
             item {
                 SunnadCard(contentPadding = 0.dp) {
                     group.members.forEachIndexed { index, member ->
@@ -526,20 +714,27 @@ private fun GroupDetailScreen(
                                     title = it.title,
                                     icon = it.icon,
                                     completedToday = it.completedToday,
-                                    streak = it.streak
+                                    streak = it.streak,
+                                    rollingCompletionPercent = member.sharedHabits
+                                        .firstOrNull { shared -> shared.habitId == it.id }
+                                        ?.rollingCompletionPercent
                                 )
                             }
                         } else {
                             member.sharedHabits
                         }
 
-                        val completedCount = memberHabits.count { it.completedToday }
-                        val totalCount = memberHabits.size
+                        val completedCount = member.completedToday
+                        val totalCount = member.totalSharedHabits
 
                         Column {
                             SunnadListRow(
                                 title = member.name,
-                                subtitle = "$completedCount/$totalCount",
+                                subtitle = stringResource(
+                                    R.string.groups_member_today_progress,
+                                    completedCount,
+                                    totalCount
+                                ),
                                 leading = {
                                     AvatarCircle(
                                         name = member.name,
@@ -577,12 +772,21 @@ private fun GroupDetailScreen(
                                             modifier = Modifier.fillMaxWidth(),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Icon(
-                                                imageVector = iconForHabitName(sharedHabit.icon, sharedHabit.title),
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.padding(end = 8.dp)
-                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(34.dp)
+                                                    .background(
+                                                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                        shape = CircleShape
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = iconForHabitName(sharedHabit.icon, sharedHabit.title),
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(
                                                     text = sharedHabit.title,
@@ -591,41 +795,56 @@ private fun GroupDetailScreen(
                                                     overflow = TextOverflow.Ellipsis
                                                 )
                                                 Text(
-                                                    text = stringResource(R.string.today_streak, sharedHabit.streak),
+                                                    text = when (progressDisplayMode) {
+                                                        GroupProgressDisplayMode.STREAK ->
+                                                            stringResource(R.string.today_streak, sharedHabit.streak)
+
+                                                        GroupProgressDisplayMode.PERCENT ->
+                                                            stringResource(
+                                                                R.string.insights_percent_complete,
+                                                                sharedHabit.rollingCompletionPercent ?: 0
+                                                            )
+                                                    },
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    color = Color(0xFFE7C857)
                                                 )
                                             }
 
                                             if (isCurrentUser) {
-                                                IconButton(onClick = { onToggleOwnHabit(sharedHabit.habitId) }) {
+                                                IconButton(onClick = {
+                                                    ownCompletionOverrides = ownCompletionOverrides + (
+                                                        sharedHabit.habitId to !sharedHabit.completedToday
+                                                        )
+                                                    onToggleOwnHabit(sharedHabit.habitId)
+                                                }) {
                                                     Icon(
                                                         imageVector = if (sharedHabit.completedToday) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
                                                         contentDescription = null,
-                                                        tint = if (sharedHabit.completedToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                        tint = if (sharedHabit.completedToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(22.dp)
                                                     )
                                                 }
                                             } else if (sharedHabit.completedToday) {
                                                 Icon(
                                                     imageVector = Icons.Rounded.CheckCircle,
                                                     contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(22.dp)
                                                 )
                                             } else {
                                                 IconButton(onClick = {
-                                                    onSendNudge(group.id, member.id, sharedHabit.habitId) { status ->
-                                                        nudgeStatusText = when (status) {
-                                                            GroupNudgeStatus.SENT -> context.getString(R.string.groups_nudge_sent)
-                                                            GroupNudgeStatus.DUPLICATE -> context.getString(R.string.groups_nudge_duplicate)
-                                                            GroupNudgeStatus.FORBIDDEN -> context.getString(R.string.groups_nudge_forbidden)
-                                                            GroupNudgeStatus.ERROR -> context.getString(R.string.groups_nudge_error)
-                                                        }
-                                                    }
+                                                    nudgePrompt = GroupNudgePrompt(
+                                                        memberId = member.id,
+                                                        memberName = member.name,
+                                                        habitId = sharedHabit.habitId,
+                                                        habitTitle = sharedHabit.title
+                                                    )
                                                 }) {
                                                     Icon(
                                                         imageVector = Icons.Rounded.Notifications,
                                                         contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(22.dp)
                                                     )
                                                 }
                                             }
@@ -658,6 +877,9 @@ private fun GroupDetailScreen(
             }
 
             item {
+                SunnadSectionHeader(stringResource(R.string.groups_sharing_title))
+            }
+            item {
                 SunnadCard(contentPadding = 0.dp) {
                     Row(
                         modifier = Modifier
@@ -666,7 +888,7 @@ private fun GroupDetailScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = stringResource(R.string.groups_sharing_title),
+                            text = stringResource(R.string.groups_sharing_summary, sharedHabitIds.size),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f)
@@ -682,11 +904,22 @@ private fun GroupDetailScreen(
                             SunnadListRow(
                                 title = habit.name,
                                 leading = {
-                                    Icon(
-                                        imageVector = iconForHabitName(habit.icon, habit.name),
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(30.dp)
+                                            .background(
+                                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                shape = CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = iconForHabitName(habit.icon, habit.name),
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 },
                                 trailing = {
                                     Icon(
@@ -725,16 +958,8 @@ private fun GroupDetailScreen(
                 }
             }
 
-            item {
-                SecondaryPillButton(
-                    title = if (isOwner) stringResource(R.string.common_delete) else stringResource(R.string.groups_leave),
-                    onClick = {
-                        if (isOwner) showDeleteConfirm = true else showLeaveConfirm = true
-                    }
-                )
+                item { Box(modifier = Modifier.height(80.dp)) }
             }
-
-            item { Box(modifier = Modifier.height(80.dp)) }
         }
     }
 
@@ -806,6 +1031,42 @@ private fun GroupDetailScreen(
             }
         )
     }
+
+    nudgePrompt?.let { prompt ->
+        AlertDialog(
+            onDismissRequest = { nudgePrompt = null },
+            title = { Text(stringResource(R.string.groups_nudge)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.groups_nudge_confirm_message,
+                        prompt.memberName,
+                        prompt.habitTitle
+                    )
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { nudgePrompt = null }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onSendNudge(group.id, prompt.memberId, prompt.habitId) { status ->
+                        nudgeStatusText = when (status) {
+                            GroupNudgeStatus.SENT -> context.getString(R.string.groups_nudge_sent)
+                            GroupNudgeStatus.DUPLICATE -> context.getString(R.string.groups_nudge_duplicate)
+                            GroupNudgeStatus.FORBIDDEN -> context.getString(R.string.groups_nudge_forbidden)
+                            GroupNudgeStatus.ERROR -> context.getString(R.string.groups_nudge_error)
+                        }
+                    }
+                    nudgePrompt = null
+                }) {
+                    Text(stringResource(R.string.groups_nudge))
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -820,7 +1081,9 @@ private fun AvatarCircle(
             contentDescription = null,
             modifier = Modifier
                 .size(size)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
+            contentScale = ContentScale.Crop
         )
     } else {
         Box(

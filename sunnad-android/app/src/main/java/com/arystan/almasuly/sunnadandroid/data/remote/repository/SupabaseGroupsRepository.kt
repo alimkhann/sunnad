@@ -3,7 +3,15 @@ package com.arystan.almasuly.sunnadandroid.data.remote.repository
 import com.arystan.almasuly.sunnadandroid.core.model.Group
 import com.arystan.almasuly.sunnadandroid.core.model.GroupMember
 import com.arystan.almasuly.sunnadandroid.core.model.GroupNudgeStatus
+import com.arystan.almasuly.sunnadandroid.core.model.GroupProgressDisplayMode
+import com.arystan.almasuly.sunnadandroid.core.model.Habit
+import com.arystan.almasuly.sunnadandroid.core.model.HabitCategoryValue
+import com.arystan.almasuly.sunnadandroid.core.model.HabitCompletion
+import com.arystan.almasuly.sunnadandroid.core.model.HabitReminder
+import com.arystan.almasuly.sunnadandroid.core.model.HabitSchedule
+import com.arystan.almasuly.sunnadandroid.core.model.HabitType
 import com.arystan.almasuly.sunnadandroid.core.model.SharedHabit
+import com.arystan.almasuly.sunnadandroid.core.rules.StreakCalculator
 import com.arystan.almasuly.sunnadandroid.data.remote.generated.GroupMemberRowDto
 import com.arystan.almasuly.sunnadandroid.data.remote.generated.GroupRowDto
 import com.arystan.almasuly.sunnadandroid.data.remote.generated.GroupSharedHabitRowDto
@@ -18,6 +26,7 @@ import io.github.jan.supabase.storage.storage
 import io.ktor.client.call.body
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
+import kotlinx.coroutines.delay
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -30,97 +39,158 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 class SupabaseGroupsRepository(
     private val client: SupabaseClient
 ) : GroupsRepository {
+    private var supportsProgressDisplayModeRpc: Boolean? = null
     override suspend fun fetchGroups(): List<Group> {
-        val currentUserId = currentUserId() ?: return emptyList()
-        val memberships = client.from("group_members")
+        val currentUserId = currentUserId()
+            ?: throw IllegalStateException("Authentication session is still loading. Please refresh.")
+        val today = LocalDate.now(ZoneOffset.UTC)
+        val memberships = runCatching {
+            client.from("group_members")
             .select {
                 filter { eq("user_id", currentUserId.toString()) }
             }
             .decodeList<GroupMemberRowDto>()
+        }.getOrElse { error ->
+            throw IllegalStateException("Unable to fetch group memberships.", error)
+        }
 
         if (memberships.isEmpty()) return emptyList()
+
+        val habitRows = runCatching {
+            client.from("habits")
+                .select {
+                    filter { eq("archived", false) }
+                }
+                .decodeList<HabitRowDto>()
+        }.getOrDefault(emptyList())
+        val habitsById = habitRows.associateBy { it.id.lowercase() }
 
         val groups = mutableListOf<Group>()
         val groupIds = memberships.map { it.groupId }.distinct()
         for (groupId in groupIds) {
-            val groupRow = client.from("groups")
+            val groupRow = runCatching {
+                client.from("groups")
                 .select {
                     filter { eq("id", groupId) }
                 }
                 .decodeList<GroupRowDto>()
                 .firstOrNull()
-                ?: continue
+            }.getOrNull() ?: continue
 
-            val memberRows = client.from("group_members")
+            val memberRows = runCatching {
+                client.from("group_members")
                 .select {
                     filter { eq("group_id", groupId) }
                 }
                 .decodeList<GroupMemberRowDto>()
-
-            val sharedRows = client.from("group_shared_habits")
+            }.getOrDefault(emptyList())
+            val sharedRows = runCatching {
+                client.from("group_shared_habits")
                 .select {
                     filter { eq("group_id", groupId) }
                 }
                 .decodeList<GroupSharedHabitRowDto>()
                 .filter { it.shared }
+            }.getOrDefault(emptyList())
 
-            val habitRows = client.from("habits")
-                .select {
-                    filter { eq("archived", false) }
-                }
-                .decodeList<HabitRowDto>()
-            val habitsById = habitRows.associateBy { it.id.lowercase() }
-
-            val members = memberRows.map { member ->
-                val profile = client.from("profiles")
+            val members = memberRows.mapNotNull { member ->
+                val memberId = runCatching { UUID.fromString(member.userId) }.getOrNull() ?: return@mapNotNull null
+                val profile = runCatching {
+                    client.from("profiles")
                     .select {
                         filter { eq("id", member.userId) }
                     }
                     .decodeList<ProfileRow>()
                     .firstOrNull()
+                }.getOrNull()
 
-                val memberShared = sharedRows
+                val memberSharedRows = sharedRows
                     .filter { it.userId == member.userId }
-                    .map { shared ->
-                        val habit = habitsById[shared.habitId.lowercase()]
+                val memberHabitIds = memberSharedRows.mapNotNull { shared ->
+                    runCatching { UUID.fromString(shared.habitId) }.getOrNull()
+                }.toSet()
+                val completionsByHabit = runCatching {
+                    fetchCompletionHistoryByHabit(member.userId, memberHabitIds)
+                }.getOrDefault(emptyMap())
+                val groupCreated = parseDateOrNull(groupRow.createdAt) ?: today
+
+                val memberSharedWithDue = memberSharedRows.mapNotNull { shared ->
+                    val habitId = runCatching { UUID.fromString(shared.habitId) }.getOrNull() ?: return@mapNotNull null
+                    val habitRow = habitsById[shared.habitId.lowercase()]
+                    val habit = habitRow?.toDomainHabit(habitId) ?: return@mapNotNull (
                         SharedHabit(
-                            habitId = UUID.fromString(shared.habitId),
-                            title = habit?.name ?: "Shared habit",
-                            icon = habit?.icon ?: "check_circle",
+                            habitId = habitId,
+                            title = "Shared habit",
+                            icon = "star.fill",
                             completedToday = false,
-                            streak = 0
-                        )
-                    }
+                            streak = 0,
+                            rollingCompletionPercent = 0
+                        ) to false
+                    )
+                    val history = completionsByHabit[habitId].orEmpty()
+                    val streak = StreakCalculator.streak(habit, history, today)
+                    val completedToday = history.maxByOrNull { it.updatedAt }?.takeIf { it.dayDate == today }?.isCompleted(habit)
+                        ?: false
+                    val rollingPercent = rollingCompletionPercent(
+                        habit = habit,
+                        completions = history,
+                        groupCreatedAt = groupCreated,
+                        today = today
+                    )
+                    val sharedHabit = SharedHabit(
+                        habitId = habitId,
+                        title = habit.name,
+                        icon = habit.iconKey ?: habit.icon,
+                        completedToday = completedToday,
+                        streak = streak,
+                        rollingCompletionPercent = rollingPercent
+                    )
+                    sharedHabit to habit.isDue(today)
+                }
+                val memberShared = memberSharedWithDue.map { it.first }
+                val memberDueToday = memberSharedWithDue.filter { it.second }
 
                 GroupMember(
-                    id = UUID.fromString(member.userId),
+                    id = memberId,
                     name = profile?.username ?: "Member",
                     avatarUrl = avatarUrlFromPath(profile?.avatarPath),
-                    completedToday = memberShared.count { it.completedToday },
-                    totalSharedHabits = memberShared.size,
+                    completedToday = memberDueToday.count { it.first.completedToday },
+                    totalSharedHabits = memberDueToday.size,
                     sharedHabits = memberShared
                 )
             }
 
             val currentUserSharedIds = sharedRows
                 .filter { it.userId == currentUserId.toString() }
-                .map { UUID.fromString(it.habitId) }
+                .mapNotNull { runCatching { UUID.fromString(it.habitId) }.getOrNull() }
                 .toSet()
 
+            val parsedGroupId = runCatching { UUID.fromString(groupRow.id) }.getOrNull() ?: continue
+            val ownerMemberId = runCatching { UUID.fromString(groupRow.ownerId) }.getOrNull() ?: currentUserId
+
             groups += Group(
-                id = UUID.fromString(groupRow.id),
+                id = parsedGroupId,
                 name = groupRow.name,
                 code = groupRow.code,
                 joinLocked = groupRow.joinLocked,
                 members = members,
                 sharedHabitIds = currentUserSharedIds,
-                ownerMemberId = UUID.fromString(groupRow.ownerId),
-                currentUserMemberId = currentUserId
+                ownerMemberId = ownerMemberId,
+                currentUserMemberId = currentUserId,
+                progressDisplayMode = memberRows
+                    .firstOrNull { it.userId == currentUserId.toString() }
+                    ?.progressDisplayMode
+                    .toGroupProgressDisplayMode()
             )
         }
         return groups
@@ -191,7 +261,20 @@ class SupabaseGroupsRepository(
 
         if (habitIds.isEmpty()) return
 
-        val rows = habitIds.map {
+        val validHabitIds = client.from("habits")
+            .select {
+                filter {
+                    eq("user_id", currentUserId.toString())
+                    eq("archived", false)
+                }
+            }
+            .decodeList<HabitRowDto>()
+            .mapNotNull { runCatching { UUID.fromString(it.id) }.getOrNull() }
+            .toSet()
+        val filteredIds = habitIds.intersect(validHabitIds)
+        if (filteredIds.isEmpty()) return
+
+        val rows = filteredIds.map {
             GroupSharingRow(
                 groupId = groupId.toString(),
                 userId = currentUserId.toString(),
@@ -231,6 +314,27 @@ class SupabaseGroupsRepository(
                     eq("user_id", memberUserId.toString())
                 }
             }
+    }
+
+    override suspend fun setProgressDisplayMode(groupId: UUID, mode: GroupProgressDisplayMode) {
+        if (supportsProgressDisplayModeRpc == false) return
+        try {
+            client.postgrest.rpc(
+                function = "set_group_progress_display_mode",
+                parameters = buildJsonObject {
+                    put("p_group_id", groupId.toString())
+                    put("p_mode", mode.toStorageValue())
+                }
+            )
+            supportsProgressDisplayModeRpc = true
+        } catch (error: Throwable) {
+            if (isMissingProgressDisplayModeRpc(error)) {
+                // Older or partially-migrated backends may not expose this RPC yet.
+                supportsProgressDisplayModeRpc = false
+                return
+            }
+            throw error
+        }
     }
 
     override suspend fun refreshGroup(groupId: UUID): Group? {
@@ -279,8 +383,18 @@ class SupabaseGroupsRepository(
     }
 
     private suspend fun currentUserId(): UUID? {
-        val raw = client.auth.currentUserOrNull()?.id ?: return null
-        return runCatching { UUID.fromString(raw) }.getOrNull()
+        repeat(4) { attempt ->
+            val direct = client.auth.currentUserOrNull()?.id ?: client.auth.currentSessionOrNull()?.user?.id
+            if (!direct.isNullOrBlank()) {
+                return runCatching { UUID.fromString(direct) }.getOrNull()
+            }
+
+            if (attempt == 0) {
+                runCatching { client.auth.refreshCurrentSession() }
+            }
+            delay(200)
+        }
+        return null
     }
 
     private fun avatarUrlFromPath(path: String?): String? {
@@ -290,6 +404,140 @@ class SupabaseGroupsRepository(
         return runCatching {
             client.storage.from("avatars").publicUrl(trimmed)
         }.getOrDefault(trimmed)
+    }
+
+    private suspend fun fetchCompletionHistoryByHabit(
+        userId: String,
+        habitIds: Set<UUID>
+    ): Map<UUID, List<HabitCompletion>> {
+        if (habitIds.isEmpty()) return emptyMap()
+        val rows = client.from("habit_completions")
+            .select {
+                filter { eq("user_id", userId) }
+            }
+            .decodeList<CompletionHistoryRow>()
+
+        return rows.mapNotNull { row ->
+            val habitId = runCatching { UUID.fromString(row.habitId) }.getOrNull() ?: return@mapNotNull null
+            if (!habitIds.contains(habitId)) return@mapNotNull null
+            val day = parseDateOrNull(row.dayDate) ?: return@mapNotNull null
+            val updatedAt = parseInstantOrNow(row.updatedAt)
+            val completedAt = row.completedAt?.let(::parseInstantOrNow)
+            HabitCompletion(
+                habitId = habitId,
+                dayDate = day,
+                value = row.value.coerceAtLeast(0),
+                completedAt = completedAt,
+                updatedAt = updatedAt
+            )
+        }.groupBy { it.habitId }
+    }
+
+    private fun rollingCompletionPercent(
+        habit: Habit,
+        completions: List<HabitCompletion>,
+        groupCreatedAt: LocalDate,
+        today: LocalDate
+    ): Int {
+        val ageDays = kotlin.math.max(1L, java.time.temporal.ChronoUnit.DAYS.between(groupCreatedAt, today) + 1L)
+        val windowDays = kotlin.math.min(40L, ageDays)
+        val startDate = today.minusDays(windowDays - 1)
+        val completionByDay = completions
+            .groupBy { it.dayDate }
+            .mapValues { (_, rows) -> rows.maxByOrNull { it.updatedAt } }
+
+        var dueCount = 0
+        var completedCount = 0
+        var day = startDate
+        while (!day.isAfter(today)) {
+            if (habit.isDue(day)) {
+                dueCount += 1
+                val completion = completionByDay[day]
+                if (completion != null && completion.isCompleted(habit)) {
+                    completedCount += 1
+                }
+            }
+            day = day.plusDays(1)
+        }
+        if (dueCount == 0) return 0
+        return ((completedCount.toDouble() / dueCount.toDouble()) * 100.0).toInt()
+    }
+
+    private fun HabitRowDto.toDomainHabit(id: UUID): Habit {
+        val schedule = HabitSchedule.fromStorage(schedule, weekdays.toSet())
+        val reminder = reminderTime?.let { time ->
+            parseLocalTimeOrNull(time)?.let { HabitReminder(hour = it.hour, minute = it.minute) }
+        }
+        val habitType = when (type.lowercase()) {
+            "dhikr" -> HabitType.DHIKR
+            else -> HabitType.BINARY
+        }
+        val categoryValue = presetCategory?.let(::parseCategory) ?: HabitCategoryValue.SPIRITUAL
+        return Habit(
+            id = id,
+            name = name,
+            icon = icon ?: "star.fill",
+            iconKey = iconKey,
+            category = categoryValue,
+            categoryCustom = categoryCustom?.trim()?.takeUnless { it.isNullOrEmpty() },
+            type = habitType,
+            targetCount = targetCount,
+            schedule = schedule,
+            reminder = reminder,
+            sortOrder = sortOrder,
+            archived = archived,
+            createdAt = parseLocalDateTimeOrNow(createdAt),
+            updatedAt = parseLocalDateTimeOrNow(updatedAt)
+        )
+    }
+
+    private fun parseDateOrNull(raw: String?): LocalDate? {
+        if (raw.isNullOrBlank()) return null
+        return runCatching { LocalDate.parse(raw) }.getOrNull()
+            ?: runCatching { Instant.parse(raw).atZone(ZoneOffset.UTC).toLocalDate() }.getOrNull()
+    }
+
+    private fun parseInstantOrNow(raw: String): Instant {
+        return runCatching { Instant.parse(raw) }.getOrElse { Instant.now() }
+    }
+
+    private fun parseLocalDateTimeOrNow(raw: String): LocalDateTime {
+        return runCatching { LocalDateTime.parse(raw) }.getOrElse {
+            runCatching { Instant.parse(raw).atZone(ZoneOffset.UTC).toLocalDateTime() }
+                .getOrElse { LocalDateTime.now() }
+        }
+    }
+
+    private fun parseLocalTimeOrNull(raw: String): LocalTime? {
+        return runCatching {
+            when {
+                raw.contains(":") -> LocalTime.parse(raw.take(8))
+                else -> null
+            }
+        }.getOrNull()
+    }
+
+    private fun parseCategory(raw: String): HabitCategoryValue {
+        return when (raw.lowercase()) {
+            "physical" -> HabitCategoryValue.PHYSICAL
+            "social" -> HabitCategoryValue.SOCIAL
+            "financial" -> HabitCategoryValue.FINANCIAL
+            "learning" -> HabitCategoryValue.LEARNING
+            "family" -> HabitCategoryValue.FAMILY
+            "work" -> HabitCategoryValue.WORK
+            "hobby" -> HabitCategoryValue.HOBBY
+            else -> HabitCategoryValue.SPIRITUAL
+        }
+    }
+
+    private fun isMissingProgressDisplayModeRpc(error: Throwable): Boolean {
+        val lower = error.message.orEmpty().lowercase()
+        return "set_group_progress_display_mode" in lower && (
+            "pgrst202" in lower ||
+                "schema cache" in lower ||
+                "no matches were found" in lower ||
+                "function public.set_group_progress_display_mode" in lower
+            )
     }
 
     companion object {
@@ -345,6 +593,20 @@ class SupabaseGroupsRepository(
                 else -> GroupNudgeStatus.ERROR
             }
         }
+
+        private fun String?.toGroupProgressDisplayMode(): GroupProgressDisplayMode {
+            return when (this?.lowercase()) {
+                "streak" -> GroupProgressDisplayMode.STREAK
+                else -> GroupProgressDisplayMode.PERCENT
+            }
+        }
+
+        private fun GroupProgressDisplayMode.toStorageValue(): String {
+            return when (this) {
+                GroupProgressDisplayMode.PERCENT -> "percent"
+                GroupProgressDisplayMode.STREAK -> "streak"
+            }
+        }
     }
 }
 
@@ -360,6 +622,15 @@ private data class GroupSharingRow(
     @SerialName("user_id") val userId: String,
     @SerialName("habit_id") val habitId: String,
     val shared: Boolean
+)
+
+@Serializable
+private data class CompletionHistoryRow(
+    @SerialName("habit_id") val habitId: String,
+    @SerialName("day_date") val dayDate: String,
+    val value: Int,
+    @SerialName("completed_at") val completedAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String
 )
 
 @Serializable

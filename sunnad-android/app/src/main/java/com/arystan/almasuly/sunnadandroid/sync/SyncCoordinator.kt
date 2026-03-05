@@ -6,12 +6,15 @@ import com.arystan.almasuly.sunnadandroid.data.local.dao.CompletionDao
 import com.arystan.almasuly.sunnadandroid.data.local.dao.GroupDao
 import com.arystan.almasuly.sunnadandroid.data.local.dao.HabitDao
 import com.arystan.almasuly.sunnadandroid.data.local.dao.OutboxDao
+import com.arystan.almasuly.sunnadandroid.data.local.dao.QuoteDao
 import com.arystan.almasuly.sunnadandroid.data.local.dao.SavedQuoteDao
 import com.arystan.almasuly.sunnadandroid.data.local.dao.SyncCursorDao
 import com.arystan.almasuly.sunnadandroid.data.local.entity.OutboxEventEntity
+import com.arystan.almasuly.sunnadandroid.data.local.entity.QuoteEntity
 import com.arystan.almasuly.sunnadandroid.data.local.entity.SavedQuoteEntity
 import com.arystan.almasuly.sunnadandroid.data.local.entity.SyncCursorEntity
 import com.arystan.almasuly.sunnadandroid.data.local.mappers.completionStorageKey
+import com.arystan.almasuly.sunnadandroid.features.habits.canonicalHabitIconKey
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import kotlinx.serialization.SerialName
@@ -62,6 +65,7 @@ class SupabaseSyncCoordinator(
     private val ownerScopeResolver: OwnerScopeResolver,
     private val habitDao: HabitDao,
     private val completionDao: CompletionDao,
+    private val quoteDao: QuoteDao,
     private val savedQuoteDao: SavedQuoteDao,
     private val groupDao: GroupDao,
     private val client: SupabaseClient?
@@ -240,6 +244,9 @@ class SupabaseSyncCoordinator(
                         put("user_id", userId.toString())
                         put("name", local.name)
                         put("icon", local.icon)
+                        put("icon_key", local.iconKey ?: canonicalHabitIconKey(local.icon, local.name))
+                        put("preset_category", local.category.lowercase())
+                        put("category_custom", local.categoryCustom)
                         put("type", local.type.lowercase())
                         put("target_count", local.targetCount)
                         put("schedule", local.scheduleFrequency)
@@ -347,8 +354,10 @@ class SupabaseSyncCoordinator(
                     id = remote.id,
                     ownerScope = ownerScope,
                     name = remote.name,
-                    icon = remote.icon ?: "check_circle",
-                    category = "SPIRITUAL",
+                    icon = remote.icon ?: remote.iconKey ?: "check_circle",
+                    iconKey = remote.iconKey ?: remote.icon,
+                    category = remote.presetCategory?.uppercase() ?: "SPIRITUAL",
+                    categoryCustom = remote.categoryCustom,
                     type = remote.type.uppercase(),
                     targetCount = remote.targetCount,
                     scheduleFrequency = remote.schedule,
@@ -385,12 +394,29 @@ class SupabaseSyncCoordinator(
             )
         }
 
-        val quotesById = syncClient.from("quotes")
+        val remoteQuotes = syncClient.from("quotes")
             .select {
                 filter { eq("active", true) }
             }
             .decodeList<RemoteQuoteRow>()
-            .associateBy { it.id.lowercase() }
+        if (remoteQuotes.isNotEmpty()) {
+            quoteDao.deleteAll()
+            quoteDao.upsertAll(
+                remoteQuotes.mapIndexed { index, remote ->
+                    QuoteEntity(
+                        id = remote.id,
+                        locale = remote.locale.ifBlank { "en" },
+                        text = remote.text,
+                        source = remote.source,
+                        sortOrder = remote.sortOrder ?: index,
+                        active = remote.active,
+                        createdAtEpochMillis = remote.createdAt.toEpochMillisSafe(),
+                        updatedAtEpochMillis = remote.updatedAt.toEpochMillisSafe()
+                    )
+                }
+            )
+        }
+        val quotesById = remoteQuotes.associateBy { it.id.lowercase() }
 
         val savedQuotes = syncClient.from("saved_quotes")
             .select {
@@ -406,7 +432,7 @@ class SupabaseSyncCoordinator(
                     ownerScope = ownerScope,
                     quoteId = remote.quoteId,
                     text = quote?.text ?: "",
-                    author = quote?.source ?: "Sunnad",
+                    author = quote?.source ?: "Adat",
                     savedAtEpochMillis = remote.savedAt.toEpochMillisSafe()
                 )
             )
@@ -440,6 +466,9 @@ private data class RemoteHabitRow(
     val id: String,
     val name: String,
     val icon: String? = null,
+    @SerialName("icon_key") val iconKey: String? = null,
+    @SerialName("preset_category") val presetCategory: String? = null,
+    @SerialName("category_custom") val categoryCustom: String? = null,
     val type: String,
     @SerialName("target_count") val targetCount: Int? = null,
     val schedule: String,
@@ -469,6 +498,11 @@ private data class RemoteSavedQuoteRow(
 @Serializable
 private data class RemoteQuoteRow(
     val id: String,
+    val locale: String = "en",
     val text: String,
-    val source: String? = null
+    val source: String? = null,
+    @SerialName("sort_order") val sortOrder: Int? = null,
+    val active: Boolean = true,
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("updated_at") val updatedAt: String = ""
 )

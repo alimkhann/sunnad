@@ -79,6 +79,7 @@ fun AddHabitSheet(
         name: String,
         icon: String,
         category: HabitCategoryValue,
+        categoryCustom: String?,
         schedule: HabitSchedule,
         isDhikr: Boolean,
         targetCount: Int,
@@ -99,6 +100,8 @@ fun AddHabitSheet(
     var customName by rememberSaveable { mutableStateOf("") }
     var customIcon by rememberSaveable { mutableStateOf(HabitIconKey.STAR) }
     var customCategory by rememberSaveable { mutableStateOf(HabitCategoryValue.SPIRITUAL) }
+    var customCategoryText by rememberSaveable { mutableStateOf("") }
+    var useCustomCategory by rememberSaveable { mutableStateOf(false) }
     var customScheduleWeekly by rememberSaveable { mutableStateOf(false) }
     var customWeekdays by rememberSaveable { mutableStateOf(mondayFirstWeekdays.toSet()) }
     var reminderEnabled by rememberSaveable { mutableStateOf(false) }
@@ -312,7 +315,11 @@ fun AddHabitSheet(
                                         )
                                         Spacer(modifier = Modifier.weight(1f))
                                         Text(
-                                            text = stringResource(categoryTitleRes(customCategory)),
+                                            text = if (useCustomCategory) {
+                                                customCategoryText.trim().ifBlank { stringResource(R.string.habit_category_custom_option) }
+                                            } else {
+                                                stringResource(categoryTitleRes(customCategory))
+                                            },
                                             color = MaterialTheme.colorScheme.primary,
                                             style = MaterialTheme.typography.bodyLarge,
                                             fontWeight = FontWeight.SemiBold
@@ -327,10 +334,43 @@ fun AddHabitSheet(
                                                 text = { Text(stringResource(categoryTitleRes(category))) },
                                                 onClick = {
                                                     customCategory = category
+                                                    useCustomCategory = false
                                                     categoryMenuExpanded = false
                                                 }
                                             )
                                         }
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.habit_category_custom_option)) },
+                                            onClick = {
+                                                useCustomCategory = true
+                                                categoryMenuExpanded = false
+                                            }
+                                        )
+                                    }
+                                    if (useCustomCategory) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(1.dp)
+                                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                                        )
+                                        TextField(
+                                            value = customCategoryText,
+                                            onValueChange = { customCategoryText = it },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            placeholder = {
+                                                Text(stringResource(R.string.habit_category_custom_placeholder))
+                                            },
+                                            colors = TextFieldDefaults.colors(
+                                                focusedContainerColor = Color.Transparent,
+                                                unfocusedContainerColor = Color.Transparent,
+                                                disabledContainerColor = Color.Transparent,
+                                                focusedIndicatorColor = Color.Transparent,
+                                                unfocusedIndicatorColor = Color.Transparent,
+                                                disabledIndicatorColor = Color.Transparent
+                                            )
+                                        )
                                     }
                                 }
                             }
@@ -492,6 +532,7 @@ fun AddHabitSheet(
                                 customName.trim(),
                                 customIcon,
                                 customCategory,
+                                if (useCustomCategory) customCategoryText.trim().takeIf { it.isNotEmpty() } else null,
                                 schedule,
                                 hasCounter,
                                 targetRaw.toIntOrNull()?.coerceAtLeast(1) ?: 33,
@@ -664,12 +705,15 @@ fun IconPickerRow(
         HabitIconKey.BOOK,
         HabitIconKey.RUN,
         HabitIconKey.HEART,
-        HabitIconKey.GROUP
+        HabitIconKey.GROUP,
+        HabitIconKey.MONEY,
+        HabitIconKey.SPA,
+        HabitIconKey.PRAYER
     )
 
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.height(118.dp)
+        modifier = Modifier.height(176.dp)
     ) {
         items(iconOptions.chunked(4)) { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -11,13 +11,19 @@ enum class GroupNudgeStatus {
     ERROR
 }
 
+enum class GroupProgressDisplayMode {
+    PERCENT,
+    STREAK
+}
+
 data class SharedHabit(
     val id: UUID = UUID.randomUUID(),
     val habitId: UUID,
     val title: String,
     val icon: String,
     val completedToday: Boolean,
-    val streak: Int
+    val streak: Int,
+    val rollingCompletionPercent: Int? = null
 )
 
 data class GroupMember(
@@ -37,7 +43,8 @@ data class Group(
     val members: List<GroupMember>,
     val sharedHabitIds: Set<UUID>,
     val ownerMemberId: UUID = members.firstOrNull()?.id ?: UUID.randomUUID(),
-    val currentUserMemberId: UUID? = null
+    val currentUserMemberId: UUID? = null,
+    val progressDisplayMode: GroupProgressDisplayMode = GroupProgressDisplayMode.PERCENT
 )
 
 data class Nudge(

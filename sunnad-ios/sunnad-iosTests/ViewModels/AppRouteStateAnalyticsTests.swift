@@ -19,6 +19,7 @@ struct AppRouteStateAnalyticsTests {
             name: "Read",
             iconSystemName: "book.fill",
             category: .spiritual,
+            categoryCustom: nil,
             schedule: .weekly,
             weekdays: [2, 4],
             reminderTime: UIFixtures.time(hour: 9, minute: 0),

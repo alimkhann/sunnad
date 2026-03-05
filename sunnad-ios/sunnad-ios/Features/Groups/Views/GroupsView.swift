@@ -18,6 +18,7 @@ struct GroupsView: View {
     let onLeaveGroup: (UUID) -> Void
     let onDeleteGroup: (UUID) -> Void
     let onKickMember: (UUID, UUID) -> Void
+    let onSetProgressDisplayMode: (UUID, GroupProgressDisplayMode) -> Void
     let onRenameGroup: (UUID, String) -> Void
     let onSetJoinLock: (UUID, Bool) -> Void
     let onRotateInviteCode: (UUID) -> Void
@@ -94,25 +95,31 @@ struct GroupsView: View {
                     VStack(spacing: 0) {
                         ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                             NavigationLink {
-                                GroupDetailView(
-                                    group: group,
-                                    habits: habits,
-                                    onUpdateSharing: { onUpdateGroupSharing(group.id, $0) },
-                                    onToggleOwnHabit: onToggleOwnHabit,
-                                    onSendReminder: { memberID, habitID in
-                                        await onSendReminder(group.id, memberID, habitID)
-                                    },
-                                    onLeaveGroup: { onLeaveGroup(group.id) },
-                                    onDeleteGroup: { onDeleteGroup(group.id) },
-                                    onKickMember: { onKickMember(group.id, $0) },
-                                    onRenameGroup: { onRenameGroup(group.id, $0) },
-                                    onSetJoinLock: { onSetJoinLock(group.id, $0) },
-                                    onRotateInviteCode: { onRotateInviteCode(group.id) },
-                                    onRefresh: { await onRefreshGroup(group.id) },
-                                    onMemberProgressViewed: onGroupMemberProgressViewed,
-                                    currentSharedHabitIDs: { currentGroupSharedHabitIDs(group.id) }
-                                )
-                                .id(groupDetailIdentity(for: group))
+                                if let liveGroup = groups.first(where: { $0.id == group.id }) {
+                                    GroupDetailView(
+                                        group: liveGroup,
+                                        habits: habits,
+                                        onUpdateSharing: { onUpdateGroupSharing(liveGroup.id, $0) },
+                                        onToggleOwnHabit: onToggleOwnHabit,
+                                        onSendReminder: { memberID, habitID in
+                                            await onSendReminder(liveGroup.id, memberID, habitID)
+                                        },
+                                        onLeaveGroup: { onLeaveGroup(liveGroup.id) },
+                                        onDeleteGroup: { onDeleteGroup(liveGroup.id) },
+                                        onKickMember: { onKickMember(liveGroup.id, $0) },
+                                        onSetProgressDisplayMode: { onSetProgressDisplayMode(liveGroup.id, $0) },
+                                        onRenameGroup: { onRenameGroup(liveGroup.id, $0) },
+                                        onSetJoinLock: { onSetJoinLock(liveGroup.id, $0) },
+                                        onRotateInviteCode: { onRotateInviteCode(liveGroup.id) },
+                                        onRefresh: { await onRefreshGroup(liveGroup.id) },
+                                        onMemberProgressViewed: onGroupMemberProgressViewed,
+                                        currentSharedHabitIDs: { currentGroupSharedHabitIDs(liveGroup.id) }
+                                    )
+                                    .id(groupDetailIdentity(for: liveGroup))
+                                } else {
+                                    ProgressView()
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                                }
                             } label: {
                                 HStack(spacing: 12) {
                                     Image(systemName: "person.3.fill")
@@ -174,6 +181,6 @@ struct GroupsView: View {
     }
 
     private func groupDetailIdentity(for group: UIGroup) -> String {
-        "\(group.id.uuidString)-\(group.members.count)-\(group.joinLocked)-\(group.code)"
+        group.id.uuidString
     }
 }

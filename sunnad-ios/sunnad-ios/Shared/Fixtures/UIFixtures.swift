@@ -17,10 +17,18 @@ enum UIFixtures {
         HabitTemplate(id: "exercise", titleKey: "habit.exercise", iconSystemName: "figure.run", category: .physical, isDhikr: false),
         HabitTemplate(id: "give-charity", titleKey: "habit.give_charity", iconSystemName: "heart.fill", category: .financial, isDhikr: false),
         HabitTemplate(id: "go-mosque", titleKey: "habit.go_to_the_mosque", iconSystemName: "building.columns.fill", category: .spiritual, isDhikr: false),
+        HabitTemplate(id: "five-times-prayer", titleKey: "habit.five_times_prayer", iconSystemName: "building.columns.fill", category: .spiritual, isDhikr: false),
+        HabitTemplate(id: "fajr", titleKey: "habit.fajr", iconSystemName: "building.columns.fill", category: .spiritual, isDhikr: false),
+        HabitTemplate(id: "dhuhr", titleKey: "habit.dhuhr", iconSystemName: "building.columns.fill", category: .spiritual, isDhikr: false),
+        HabitTemplate(id: "asr", titleKey: "habit.asr", iconSystemName: "building.columns.fill", category: .spiritual, isDhikr: false),
+        HabitTemplate(id: "maghrib", titleKey: "habit.maghrib", iconSystemName: "building.columns.fill", category: .spiritual, isDhikr: false),
+        HabitTemplate(id: "isha", titleKey: "habit.isha", iconSystemName: "building.columns.fill", category: .spiritual, isDhikr: false),
         HabitTemplate(id: "avoid-debt", titleKey: "habit.avoid_debt", iconSystemName: "creditcard.fill", category: .financial, isDhikr: false),
         HabitTemplate(id: "care-parents", titleKey: "habit.care_for_parents", iconSystemName: "person.2.fill", category: .family, isDhikr: false),
         HabitTemplate(id: "attention-spouse", titleKey: "habit.give_attention_to_spouse", iconSystemName: "person.2.circle.fill", category: .social, isDhikr: false),
-        HabitTemplate(id: "time-children", titleKey: "habit.time_with_children", iconSystemName: "figure.2.and.child.holdinghands", category: .family, isDhikr: false)
+        HabitTemplate(id: "time-children", titleKey: "habit.time_with_children", iconSystemName: "figure.2.and.child.holdinghands", category: .family, isDhikr: false),
+        HabitTemplate(id: "work-focus", titleKey: "habit.work_focus", iconSystemName: "briefcase.fill", category: .work, isDhikr: false),
+        HabitTemplate(id: "hobby-practice", titleKey: "habit.hobby_practice", iconSystemName: "paintpalette.fill", category: .hobby, isDhikr: false)
     ]
 
     static var initialHabits: [UIHabit] {

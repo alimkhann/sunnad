@@ -6,12 +6,18 @@ import com.arystan.almasuly.sunnadandroid.data.local.entity.QuoteEntity
 import com.arystan.almasuly.sunnadandroid.data.local.entity.SavedQuoteEntity
 import java.util.UUID
 
+private fun normalizeLegacyBranding(value: String?): String? {
+    val trimmed = value?.trim().orEmpty()
+    if (trimmed.isEmpty()) return null
+    return if (trimmed.equals("sunnad", ignoreCase = true)) "Adat" else trimmed
+}
+
 fun QuoteEntity.toDomain(): Quote {
     return Quote(
         id = UUID.fromString(id),
         locale = locale,
         text = text,
-        source = source,
+        source = normalizeLegacyBranding(source),
         sortOrder = sortOrder,
         active = active,
         createdAt = createdAtEpochMillis.toInstantSafe(),
@@ -24,7 +30,7 @@ fun Quote.toEntity(): QuoteEntity {
         id = id.toString(),
         locale = locale,
         text = text,
-        source = source,
+        source = normalizeLegacyBranding(source),
         sortOrder = sortOrder,
         active = active,
         createdAtEpochMillis = createdAt.toEpochMillisSafe(),
@@ -37,7 +43,7 @@ fun SavedQuoteEntity.toDomain(): SavedQuote {
         id = UUID.fromString(id),
         quoteId = quoteId?.let(UUID::fromString),
         text = text,
-        author = author,
+        author = normalizeLegacyBranding(author).orEmpty(),
         savedAt = savedAtEpochMillis.toInstantSafe()
     )
 }
@@ -48,7 +54,7 @@ fun SavedQuote.toEntity(ownerScope: String): SavedQuoteEntity {
         ownerScope = ownerScope,
         quoteId = quoteId?.toString(),
         text = text,
-        author = author,
+        author = normalizeLegacyBranding(author).orEmpty(),
         savedAtEpochMillis = savedAt.toEpochMillisSafe()
     )
 }

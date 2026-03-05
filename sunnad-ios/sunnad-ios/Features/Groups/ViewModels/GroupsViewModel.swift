@@ -54,12 +54,19 @@ final class GroupsViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            let fetchedGroups = try await groupsRepository.fetchGroups().map { $0.asUIGroup() }
+            let fetchedGroups = try await groupsRepository.fetchGroups().map { group in
+                var uiGroup = group.asUIGroup()
+                uiGroup.sharedHabitIDs = resolvedSharedHabitIDs(
+                    for: uiGroup.id,
+                    fallback: uiGroup.sharedHabitIDs
+                )
+                return uiGroup
+            }
             groups = refreshGroupProgress(for: fetchedGroups)
             syncSharingPipelines(with: groups)
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.load"))
             logger.log(.storageFailure, metadata: ["scope": "groups_refresh", "error": error.localizedDescription])
         }
     }
@@ -67,7 +74,11 @@ final class GroupsViewModel: ObservableObject {
     func refreshGroup(groupID: UUID) async {
         guard !user.isGuest else { return }
         do {
-            if let group = try await groupsRepository.refreshGroup(groupID: groupID)?.asUIGroup() {
+            if var group = try await groupsRepository.refreshGroup(groupID: groupID)?.asUIGroup() {
+                group.sharedHabitIDs = resolvedSharedHabitIDs(
+                    for: group.id,
+                    fallback: group.sharedHabitIDs
+                )
                 mergeOrAppend(group)
                 groups = refreshGroupProgress(for: groups)
                 syncSharingPipeline(for: groupID)
@@ -77,7 +88,7 @@ final class GroupsViewModel: ObservableObject {
             }
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.load"))
             logger.log(.storageFailure, metadata: ["scope": "groups_refresh_group", "error": error.localizedDescription])
         }
     }
@@ -109,7 +120,7 @@ final class GroupsViewModel: ObservableObject {
         } catch {
             groups.removeAll(where: { $0.id == pendingGroup.id })
             groups = refreshGroupProgress(for: groups)
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.create"))
             logger.log(.storageFailure, metadata: ["scope": "groups_create", "error": error.localizedDescription])
         }
     }
@@ -136,7 +147,7 @@ final class GroupsViewModel: ObservableObject {
         } catch {
             groups.removeAll(where: { $0.id == pendingGroup.id })
             groups = refreshGroupProgress(for: groups)
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.join"))
             logger.log(.storageFailure, metadata: ["scope": "groups_join", "error": error.localizedDescription])
             analytics.trackGroup(.joinResult(status: "failure", reason: "error"))
         }
@@ -147,7 +158,7 @@ final class GroupsViewModel: ObservableObject {
             try await groupsRepository.renameGroup(groupID: groupID, name: name.trimmingCharacters(in: .whitespacesAndNewlines))
             await refreshGroup(groupID: groupID)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.rename"))
             logger.log(.storageFailure, metadata: ["scope": "groups_rename", "error": error.localizedDescription])
         }
     }
@@ -157,7 +168,7 @@ final class GroupsViewModel: ObservableObject {
             try await groupsRepository.setJoinLock(groupID: groupID, locked: locked)
             await refreshGroup(groupID: groupID)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.permissions"))
             logger.log(.storageFailure, metadata: ["scope": "groups_set_lock", "error": error.localizedDescription])
         }
     }
@@ -167,7 +178,7 @@ final class GroupsViewModel: ObservableObject {
             _ = try await groupsRepository.rotateInviteCode(groupID: groupID)
             await refreshGroup(groupID: groupID)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.permissions"))
             logger.log(.storageFailure, metadata: ["scope": "groups_rotate_code", "error": error.localizedDescription])
         }
     }
@@ -201,7 +212,7 @@ final class GroupsViewModel: ObservableObject {
             }
             await refresh()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.permissions"))
             logger.log(.storageFailure, metadata: ["scope": "groups_update_habit_sharing", "error": error.localizedDescription])
         }
     }
@@ -222,7 +233,7 @@ final class GroupsViewModel: ObservableObject {
             groups.insert(removedGroup, at: min(index, groups.count))
             groups = refreshGroupProgress(for: groups)
             syncSharingPipeline(for: groupID)
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.permissions"))
             logger.log(.storageFailure, metadata: ["scope": "groups_leave", "error": error.localizedDescription])
         }
     }
@@ -242,7 +253,7 @@ final class GroupsViewModel: ObservableObject {
             groups.insert(removedGroup, at: min(index, groups.count))
             groups = refreshGroupProgress(for: groups)
             syncSharingPipeline(for: groupID)
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.permissions"))
             logger.log(.storageFailure, metadata: ["scope": "groups_delete", "error": error.localizedDescription])
         }
     }
@@ -259,8 +270,20 @@ final class GroupsViewModel: ObservableObject {
             try await groupsRepository.kickMember(groupID: groupID, memberUserID: memberID)
             await refreshGroup(groupID: groupID)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.permissions"))
             logger.log(.storageFailure, metadata: ["scope": "groups_kick_member", "error": error.localizedDescription])
+        }
+    }
+
+    func setProgressDisplayMode(groupID: UUID, mode: GroupProgressDisplayMode) async {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+        groups[index].progressDisplayMode = mode
+        do {
+            try await groupsRepository.setProgressDisplayMode(groupID: groupID, mode: mode)
+            await refreshGroup(groupID: groupID)
+        } catch {
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.permissions"))
+            logger.log(.storageFailure, metadata: ["scope": "groups_set_progress_mode", "error": error.localizedDescription])
         }
     }
 
@@ -306,31 +329,17 @@ final class GroupsViewModel: ObservableObject {
     }
 
     private func refreshGroupProgress(for groups: [UIGroup]) -> [UIGroup] {
-        let today = Date()
         return groups.map { group in
             var mutable = group
             let myMemberID = mutable.currentUserMemberID ?? mutable.ownerMemberID
-
-            let myHabits = habits.filter {
-                mutable.sharedHabitIDs.contains($0.id) && $0.isScheduled(on: today)
-            }
-            let mySharedHabits = myHabits.map {
-                UISharedHabit(
-                    habitID: $0.id,
-                    habitTitle: $0.displayTitle,
-                    habitIconSystemName: $0.iconSystemName,
-                    completedToday: $0.completedToday,
-                    streak: $0.streak
-                )
-            }
-
+            let serverMember = mutable.members.first(where: { $0.id == myMemberID })
             let updatedMe = UIGroupMember(
                 id: myMemberID,
-                name: user.name ?? L10n.t("groups.you"),
-                avatarURL: user.avatarURL,
-                completedToday: myHabits.filter(\.completedToday).count,
-                totalSharedHabits: myHabits.count,
-                sharedHabits: mySharedHabits
+                name: user.name ?? serverMember?.name ?? L10n.t("groups.you"),
+                avatarURL: user.avatarURL ?? serverMember?.avatarURL,
+                completedToday: serverMember?.completedToday ?? 0,
+                totalSharedHabits: serverMember?.totalSharedHabits ?? 0,
+                sharedHabits: serverMember?.sharedHabits ?? []
             )
 
             if let index = mutable.members.firstIndex(where: { $0.id == myMemberID }) {
@@ -382,6 +391,10 @@ final class GroupsViewModel: ObservableObject {
         let knownGroupIDs = Set(groups.map(\.id))
         sharingPipelines = sharingPipelines.filter { knownGroupIDs.contains($0.key) }
         for group in groups {
+            if let current = sharingPipelines[group.id],
+               current.isInFlight || current.desiredHabitIDs != current.committedHabitIDs {
+                continue
+            }
             sharingPipelines[group.id] = SharingPipelineState(
                 desiredHabitIDs: group.sharedHabitIDs,
                 committedHabitIDs: group.sharedHabitIDs,
@@ -395,8 +408,8 @@ final class GroupsViewModel: ObservableObject {
             sharingPipelines.removeValue(forKey: groupID)
             return
         }
-        let current = sharingPipelines[groupID]
-        if current?.isInFlight == true {
+        if let current = sharingPipelines[groupID],
+           current.isInFlight || current.desiredHabitIDs != current.committedHabitIDs {
             return
         }
         sharingPipelines[groupID] = SharingPipelineState(
@@ -404,6 +417,16 @@ final class GroupsViewModel: ObservableObject {
             committedHabitIDs: group.sharedHabitIDs,
             isInFlight: false
         )
+    }
+
+    private func resolvedSharedHabitIDs(for groupID: UUID, fallback: Set<UUID>) -> Set<UUID> {
+        guard let pipeline = sharingPipelines[groupID] else {
+            return fallback
+        }
+        if pipeline.isInFlight || pipeline.desiredHabitIDs != pipeline.committedHabitIDs {
+            return pipeline.desiredHabitIDs
+        }
+        return fallback
     }
 
     private func flushSharingPipeline(groupID: UUID) async {
@@ -424,15 +447,45 @@ final class GroupsViewModel: ObservableObject {
 
         do {
             try await groupsRepository.updateSharing(groupID: groupID, habitIDs: targetHabitIDs)
+            let refreshedGroup = try await groupsRepository.refreshGroup(groupID: groupID)?.asUIGroup()
 
             var latest = sharingPipelines[groupID] ?? pipeline
-            latest.committedHabitIDs = targetHabitIDs
-            latest.isInFlight = false
+            let committedHabitIDs = refreshedGroup?.sharedHabitIDs ?? targetHabitIDs
+            let serverCorrectedSelection =
+                committedHabitIDs != targetHabitIDs && latest.desiredHabitIDs == targetHabitIDs
+
+            if serverCorrectedSelection {
+                latest = SharingPipelineState(
+                    desiredHabitIDs: committedHabitIDs,
+                    committedHabitIDs: committedHabitIDs,
+                    isInFlight: false
+                )
+            } else {
+                latest.committedHabitIDs = committedHabitIDs
+                latest.isInFlight = false
+            }
             sharingPipelines[groupID] = latest
 
-            let delta = targetHabitIDs.count - previousCommitted.count
+            if var refreshedGroup {
+                refreshedGroup.sharedHabitIDs = resolvedSharedHabitIDs(
+                    for: refreshedGroup.id,
+                    fallback: refreshedGroup.sharedHabitIDs
+                )
+                mergeOrAppend(refreshedGroup)
+                groups = refreshGroupProgress(for: groups)
+            } else {
+                applyOptimisticSharing(groupID: groupID, habitIDs: committedHabitIDs)
+            }
+
+            if serverCorrectedSelection {
+                applyOptimisticSharing(groupID: groupID, habitIDs: committedHabitIDs)
+                errorMessage = L10n.t("groups.errors.unsyncedHabits")
+                return
+            }
+
+            let delta = committedHabitIDs.count - previousCommitted.count
             if delta != 0 {
-                analytics.trackGroup(.sharingUpdated(delta: delta, totalShared: targetHabitIDs.count))
+                analytics.trackGroup(.sharingUpdated(delta: delta, totalShared: committedHabitIDs.count))
             }
 
             if latest.desiredHabitIDs != latest.committedHabitIDs {
@@ -449,9 +502,28 @@ final class GroupsViewModel: ObservableObject {
                 return
             }
 
-            errorMessage = error.localizedDescription
+            errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.sharing"))
             applyOptimisticSharing(groupID: groupID, habitIDs: latest.committedHabitIDs)
             logger.log(.storageFailure, metadata: ["scope": "groups_update_sharing", "error": error.localizedDescription])
         }
+    }
+
+    private func friendlyGroupError(_ error: Error, fallback: String) -> String {
+        let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else { return fallback }
+        let lower = message.lowercased()
+        if lower.contains("group_shared_habits_habit_id_fkey") {
+            return L10n.t("groups.errors.unsyncedHabits")
+        }
+        if lower.contains("invalid") && lower.contains("code") {
+            return L10n.t("groups.errors.invalidCode")
+        }
+        if lower.contains("locked") || lower.contains("closed") {
+            return L10n.t("groups.errors.locked")
+        }
+        if lower.contains("permission") || lower.contains("forbidden") {
+            return L10n.t("groups.errors.permissions")
+        }
+        return message
     }
 }

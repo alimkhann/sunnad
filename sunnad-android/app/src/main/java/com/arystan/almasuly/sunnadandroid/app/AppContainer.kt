@@ -85,7 +85,10 @@ class AppContainer(context: Context) {
         appContext,
         SunnadDatabase::class.java,
         "sunnad.db"
-    ).fallbackToDestructiveMigration().build()
+    )
+        .addMigrations(SunnadDatabase.MIGRATION_1_2)
+        .fallbackToDestructiveMigration()
+        .build()
 
     val localDataResetService = LocalDataResetService(
         habitDao = database.habitDao(),
@@ -113,6 +116,7 @@ class AppContainer(context: Context) {
             ownerScopeResolver = ownerScopeResolver,
             habitDao = database.habitDao(),
             completionDao = database.completionDao(),
+            quoteDao = database.quoteDao(),
             savedQuoteDao = database.savedQuoteDao(),
             groupDao = database.groupDao(),
             client = supabaseClient
@@ -137,12 +141,12 @@ class AppContainer(context: Context) {
 
             val now = Instant.now().toEpochMilli()
             val seed = listOf(
-                QuoteEntity(UUID.randomUUID().toString(), "en", "Consistency beats intensity.", "Sunnad", 0, true, now, now),
-                QuoteEntity(UUID.randomUUID().toString(), "en", "Small habits, steady hearts.", "Sunnad", 1, true, now, now),
-                QuoteEntity(UUID.randomUUID().toString(), "ru", "Постоянство важнее рывков.", "Sunnad", 0, true, now, now),
-                QuoteEntity(UUID.randomUUID().toString(), "ru", "Малые шаги каждый день дают силу.", "Sunnad", 1, true, now, now),
-                QuoteEntity(UUID.randomUUID().toString(), "kk", "Тұрақтылық екпіннен маңызды.", "Sunnad", 0, true, now, now),
-                QuoteEntity(UUID.randomUUID().toString(), "kk", "Күнделікті кіші қадам - үлкен нәтижеге жол.", "Sunnad", 1, true, now, now)
+                QuoteEntity(UUID.randomUUID().toString(), "en", "Consistency beats intensity.", "Adat", 0, true, now, now),
+                QuoteEntity(UUID.randomUUID().toString(), "en", "Small habits, steady hearts.", "Adat", 1, true, now, now),
+                QuoteEntity(UUID.randomUUID().toString(), "ru", "Постоянство важнее рывков.", "Adat", 0, true, now, now),
+                QuoteEntity(UUID.randomUUID().toString(), "ru", "Малые шаги каждый день дают силу.", "Adat", 1, true, now, now),
+                QuoteEntity(UUID.randomUUID().toString(), "kk", "Тұрақтылық екпіннен маңызды.", "Adat", 0, true, now, now),
+                QuoteEntity(UUID.randomUUID().toString(), "kk", "Күнделікті кіші қадам - үлкен нәтижеге жол.", "Adat", 1, true, now, now)
             )
             database.quoteDao().upsertAll(seed)
         }

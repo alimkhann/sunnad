@@ -169,6 +169,8 @@ enum HabitCategory: String, CaseIterable, Identifiable {
     case financial
     case learning
     case family
+    case work
+    case hobby
 
     var id: String { rawValue }
 
@@ -220,6 +222,7 @@ struct UIHabit: Identifiable, Hashable {
     var customTitle: String?
     var iconSystemName: String
     var category: HabitCategory
+    var categoryCustom: String?
     var completedToday: Bool
     var streak: Int
     var schedule: UIHabitSchedule
@@ -237,6 +240,7 @@ struct UIHabit: Identifiable, Hashable {
         customTitle: String? = nil,
         iconSystemName: String,
         category: HabitCategory,
+        categoryCustom: String? = nil,
         completedToday: Bool = false,
         streak: Int = 0,
         schedule: UIHabitSchedule = .daily,
@@ -259,6 +263,7 @@ struct UIHabit: Identifiable, Hashable {
         self.customTitle = customTitle
         self.iconSystemName = iconSystemName
         self.category = category
+        self.categoryCustom = categoryCustom
         self.completedToday = completedToday
         self.streak = streak
         self.schedule = schedule
@@ -370,6 +375,7 @@ struct UISharedHabit: Identifiable, Hashable {
     let habitIconSystemName: String
     let completedToday: Bool
     let streak: Int
+    let rollingCompletionPercent: Int?
 
     init(
         id: UUID = UUID(),
@@ -377,7 +383,8 @@ struct UISharedHabit: Identifiable, Hashable {
         habitTitle: String,
         habitIconSystemName: String,
         completedToday: Bool,
-        streak: Int
+        streak: Int,
+        rollingCompletionPercent: Int? = nil
     ) {
         self.id = id
         self.habitID = habitID
@@ -385,6 +392,7 @@ struct UISharedHabit: Identifiable, Hashable {
         self.habitIconSystemName = habitIconSystemName
         self.completedToday = completedToday
         self.streak = streak
+        self.rollingCompletionPercent = rollingCompletionPercent
     }
 }
 
@@ -422,6 +430,7 @@ struct UIGroup: Identifiable, Hashable {
     var sharedHabitIDs: Set<UUID>
     var ownerMemberID: UUID
     var currentUserMemberID: UUID?
+    var progressDisplayMode: GroupProgressDisplayMode
     var isPending: Bool
 
     init(
@@ -433,6 +442,7 @@ struct UIGroup: Identifiable, Hashable {
         sharedHabitIDs: Set<UUID>,
         ownerMemberID: UUID? = nil,
         currentUserMemberID: UUID? = nil,
+        progressDisplayMode: GroupProgressDisplayMode = .percent,
         isPending: Bool = false
     ) {
         self.id = id
@@ -443,6 +453,7 @@ struct UIGroup: Identifiable, Hashable {
         self.sharedHabitIDs = sharedHabitIDs
         self.ownerMemberID = ownerMemberID ?? members.first?.id ?? UUID()
         self.currentUserMemberID = currentUserMemberID
+        self.progressDisplayMode = progressDisplayMode
         self.isPending = isPending
     }
 }

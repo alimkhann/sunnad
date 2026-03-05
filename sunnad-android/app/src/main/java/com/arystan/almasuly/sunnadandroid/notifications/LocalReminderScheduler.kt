@@ -7,12 +7,16 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.room.Room
 import androidx.core.app.NotificationCompat
 import androidx.core.content.getSystemService
 import com.arystan.almasuly.sunnadandroid.R
 import com.arystan.almasuly.sunnadandroid.core.model.Habit
 import com.arystan.almasuly.sunnadandroid.core.model.HabitSchedule
 import com.arystan.almasuly.sunnadandroid.core.model.Weekday
+import com.arystan.almasuly.sunnadandroid.core.rules.QuoteDayKey
+import com.arystan.almasuly.sunnadandroid.data.local.db.SunnadDatabase
+import kotlinx.coroutines.runBlocking
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -38,6 +42,13 @@ class AlarmLocalReminderScheduler(
     private val appContext = context.applicationContext
     private val alarmManager: AlarmManager = appContext.getSystemService() ?: error("AlarmManager unavailable")
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val quoteDao by lazy {
+        Room.databaseBuilder(appContext, SunnadDatabase::class.java, "sunnad.db")
+            .addMigrations(SunnadDatabase.MIGRATION_1_2)
+            .fallbackToDestructiveMigration()
+            .build()
+            .quoteDao()
+    }
 
     override suspend fun syncHabitReminders(
         habits: List<Habit>,
@@ -116,7 +127,8 @@ class AlarmLocalReminderScheduler(
         }
 
         val triggerAt = nextQuoteTrigger(startDay)
-        scheduleQuoteAlarm(locale = locale, triggerAt = triggerAt)
+        val quotePayload = resolveQuoteReminderPayload(locale = locale, day = triggerAt.toLocalDate())
+        scheduleQuoteAlarm(locale = locale, triggerAt = triggerAt, quotePayload = quotePayload)
         prefs.edit()
             .putString(KEY_QUOTE_LOCALE, locale)
             .putBoolean(KEY_QUOTES_ENABLED, true)
@@ -148,12 +160,18 @@ class AlarmLocalReminderScheduler(
         setExact(triggerAt.toInstant(), pendingIntentForHabit(habit.id, intent))
     }
 
-    private fun scheduleQuoteAlarm(locale: String, triggerAt: ZonedDateTime) {
+    private fun scheduleQuoteAlarm(
+        locale: String,
+        triggerAt: ZonedDateTime,
+        quotePayload: QuoteReminderPayload?
+    ) {
         val intent = Intent(appContext, LocalReminderReceiver::class.java).apply {
             action = ACTION_QUOTE
             putExtra(EXTRA_QUOTE_LOCALE, locale)
             putExtra(EXTRA_HOUR, QUOTE_REMINDER_HOUR)
             putExtra(EXTRA_MINUTE, QUOTE_REMINDER_MINUTE)
+            putExtra(EXTRA_QUOTE_TITLE, quotePayload?.title.orEmpty())
+            putExtra(EXTRA_QUOTE_BODY, quotePayload?.body.orEmpty())
         }
         setExact(triggerAt.toInstant(), pendingIntentForQuote(locale, intent))
     }
@@ -262,6 +280,25 @@ class AlarmLocalReminderScheduler(
 
     private fun requestCode(raw: String): Int = abs(raw.hashCode())
 
+    private suspend fun resolveQuoteReminderPayload(locale: String, day: LocalDate): QuoteReminderPayload? {
+        val localized = quoteDao.fetchActiveByLocale(locale)
+        val pool = if (localized.isNotEmpty()) {
+            localized
+        } else {
+            quoteDao.fetchActiveByLocale("en")
+        }
+        if (pool.isEmpty()) return null
+
+        val dayKey = QuoteDayKey.value(day, locale)
+        val index = QuoteDayKey.deterministicIndex(dayKey, pool.size)
+        val quote = pool[index]
+        val body = quote.text.trim()
+        if (body.isEmpty()) return null
+        val title = quote.source?.trim().takeUnless { it.isNullOrEmpty() }
+            ?: appContext.getString(R.string.notification_quote_reminder_title)
+        return QuoteReminderPayload(title = title, body = body)
+    }
+
     companion object {
         private const val PREFS_NAME = "sunnad_local_reminders"
         private const val KEY_HABIT_IDS = "habit_ids"
@@ -281,6 +318,8 @@ class AlarmLocalReminderScheduler(
         const val EXTRA_HOUR = "hour"
         const val EXTRA_MINUTE = "minute"
         const val EXTRA_QUOTE_LOCALE = "quote_locale"
+        const val EXTRA_QUOTE_TITLE = "quote_title"
+        const val EXTRA_QUOTE_BODY = "quote_body"
 
         fun handleAlarm(context: Context, intent: Intent?) {
             if (intent == null) return
@@ -313,10 +352,20 @@ class AlarmLocalReminderScheduler(
                     val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                     if (!prefs.getBoolean(KEY_QUOTES_ENABLED, true)) return
                     val locale = intent.getStringExtra(EXTRA_QUOTE_LOCALE).orEmpty()
+                    val quoteTitle = intent.getStringExtra(EXTRA_QUOTE_TITLE).orEmpty()
+                    val quoteBody = intent.getStringExtra(EXTRA_QUOTE_BODY).orEmpty()
                     val notification = NotificationCompat.Builder(appContext, CHANNEL_QUOTES)
                         .setSmallIcon(R.mipmap.ic_launcher)
-                        .setContentTitle(appContext.getString(R.string.notification_quote_reminder_title))
-                        .setContentText(appContext.getString(R.string.notification_quote_reminder_body))
+                        .setContentTitle(
+                            quoteTitle.ifBlank {
+                                appContext.getString(R.string.notification_quote_reminder_title)
+                            }
+                        )
+                        .setContentText(
+                            quoteBody.ifBlank {
+                                appContext.getString(R.string.notification_quote_reminder_body)
+                            }
+                        )
                         .setAutoCancel(true)
                         .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                         .build()
@@ -372,11 +421,21 @@ class AlarmLocalReminderScheduler(
             while (!next.isAfter(now.plusSeconds(20))) {
                 next = next.plusDays(1)
             }
+            val quotePayload = runCatching {
+                runBlocking {
+                    scheduler.resolveQuoteReminderPayload(
+                        locale = locale,
+                        day = next.toLocalDate()
+                    )
+                }
+            }.getOrNull()
             val nextIntent = Intent(context, LocalReminderReceiver::class.java).apply {
                 action = ACTION_QUOTE
                 putExtra(EXTRA_QUOTE_LOCALE, locale)
                 putExtra(EXTRA_HOUR, hour)
                 putExtra(EXTRA_MINUTE, minute)
+                putExtra(EXTRA_QUOTE_TITLE, quotePayload?.title.orEmpty())
+                putExtra(EXTRA_QUOTE_BODY, quotePayload?.body.orEmpty())
             }
             scheduler.setExact(next.toInstant(), scheduler.pendingIntentForQuote(locale, nextIntent))
         }
@@ -419,3 +478,8 @@ class AlarmLocalReminderScheduler(
         private fun requestCode(raw: String): Int = abs(raw.hashCode())
     }
 }
+
+private data class QuoteReminderPayload(
+    val title: String,
+    val body: String
+)

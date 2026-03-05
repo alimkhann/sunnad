@@ -299,6 +299,11 @@ final class FakeGroupsRepository: GroupsRepository, @unchecked Sendable {
         groups[index].members.removeAll(where: { $0.id == memberUserID })
     }
 
+    func setProgressDisplayMode(groupID: UUID, mode: GroupProgressDisplayMode) async throws {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+        groups[index].progressDisplayMode = mode
+    }
+
     func refreshGroup(groupID: UUID) async throws -> Group? {
         groups.first(where: { $0.id == groupID })
     }
@@ -395,6 +400,11 @@ final class DelayedSharingGroupsRepository: GroupsRepository, @unchecked Sendabl
     func kickMember(groupID: UUID, memberUserID: UUID) async throws {
         guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
         groups[index].members.removeAll(where: { $0.id == memberUserID })
+    }
+
+    func setProgressDisplayMode(groupID: UUID, mode: GroupProgressDisplayMode) async throws {
+        guard let index = groups.firstIndex(where: { $0.id == groupID }) else { return }
+        groups[index].progressDisplayMode = mode
     }
 
     func refreshGroup(groupID: UUID) async throws -> Group? {

@@ -65,6 +65,7 @@ private enum class ScheduleMode {
 @Composable
 fun ScheduleScreen(
     habits: List<Habit>,
+    streakByHabitId: Map<UUID, Int> = emptyMap(),
     onClose: () -> Unit,
     onSelectHabit: (UUID) -> Unit,
     onReorderHabits: (List<UUID>) -> Unit
@@ -173,6 +174,7 @@ fun ScheduleScreen(
                                             filteredHabits.forEachIndexed { index, habit ->
                                                 ScheduleHabitRow(
                                                     habit = habit,
+                                                    streak = streakByHabitId[habit.id] ?: 0,
                                                     reorderMode = reorderMode,
                                                     onDragReorder = { deltaY ->
                                                         if (!reorderMode) return@ScheduleHabitRow
@@ -231,6 +233,7 @@ fun ScheduleScreen(
                                             due.forEachIndexed { index, habit ->
                                                 ScheduleHabitRow(
                                                     habit = habit,
+                                                    streak = null,
                                                     reorderMode = false,
                                                     onDragReorder = null,
                                                     onClick = { onSelectHabit(habit.id) }
@@ -481,6 +484,7 @@ private fun SegmentTabItem(
 @Composable
 private fun ScheduleHabitRow(
     habit: Habit,
+    streak: Int?,
     reorderMode: Boolean,
     onDragReorder: ((Float) -> Unit)?,
     onClick: () -> Unit
@@ -523,11 +527,22 @@ private fun ScheduleHabitRow(
             )
         }
 
-        Text(
-            text = habit.name,
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.weight(1f)
-        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = habit.name,
+                style = MaterialTheme.typography.titleLarge
+            )
+            streak?.let {
+                Text(
+                    text = stringResource(R.string.today_streak, it.coerceAtLeast(0)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
         if (reorderMode) {
             Text(

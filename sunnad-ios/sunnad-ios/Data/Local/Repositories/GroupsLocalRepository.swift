@@ -97,6 +97,12 @@ final class GroupsLocalRepository: GroupsRepository {
         }
     }
 
+    func setProgressDisplayMode(groupID: UUID, mode: GroupProgressDisplayMode) async throws {
+        try mutate(groupID: groupID) { group in
+            group.progressDisplayMode = mode
+        }
+    }
+
     func refreshGroup(groupID: UUID) async throws -> Group? {
         try await fetchGroups().first(where: { $0.id == groupID })
     }

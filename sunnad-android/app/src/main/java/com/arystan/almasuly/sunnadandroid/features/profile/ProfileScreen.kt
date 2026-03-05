@@ -21,16 +21,15 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +52,7 @@ import com.arystan.almasuly.sunnadandroid.services.AppLanguage
 import com.arystan.almasuly.sunnadandroid.ui.components.PrimaryPillButton
 import com.arystan.almasuly.sunnadandroid.ui.components.SecondaryPillButton
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadCard
+import com.arystan.almasuly.sunnadandroid.ui.components.SunnadCompactBackButton
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadListRow
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenPadding
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenSurface
@@ -93,7 +93,7 @@ fun ProfileScreen(
     var showSignOutDialog by remember { mutableStateOf(false) }
     var showDeleteDataDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
-    var showEditProfileDialog by remember { mutableStateOf(false) }
+    var showEditProfileScreen by remember { mutableStateOf(false) }
     var editUsername by remember { mutableStateOf("") }
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -112,13 +112,38 @@ fun ProfileScreen(
 
     LaunchedEffect(Unit) { onRefresh() }
 
+    if (showEditProfileScreen && user != null) {
+        EditProfileScreen(
+            user = user,
+            usernameDraft = editUsername,
+            onUsernameDraftChange = { editUsername = it.lowercase() },
+            onBack = { showEditProfileScreen = false },
+            onSave = {
+                showEditProfileScreen = false
+                onEditProfile(editUsername.trim())
+            },
+            onPickPhoto = {
+                pickAvatarLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            },
+            onRemovePhoto = onRemoveAvatar
+        )
+        return
+    }
+
     SunnadScreenSurface {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = SunnadScreenPadding),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+        PullToRefreshBox(
+            isRefreshing = state.isLoading,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxWidth()
         ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = SunnadScreenPadding),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             item {
                 Text(
                     text = stringResource(R.string.tab_profile),
@@ -157,7 +182,7 @@ fun ProfileScreen(
                                 .fillMaxWidth()
                                 .clickable {
                                     editUsername = user.username.orEmpty()
-                                    showEditProfileDialog = true
+                                    showEditProfileScreen = true
                                 }
                                 .padding(horizontal = 14.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -177,12 +202,6 @@ fun ProfileScreen(
                                     text = user.email ?: "",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = stringResource(R.string.profile_edit_profile),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(top = 2.dp)
                                 )
                             }
                             Icon(
@@ -407,7 +426,8 @@ fun ProfileScreen(
                 }
             }
 
-            item { Box(modifier = Modifier.height(96.dp)) }
+                item { Box(modifier = Modifier.height(96.dp)) }
+            }
         }
     }
 
@@ -514,74 +534,6 @@ fun ProfileScreen(
         FeedbackSheet(onDismiss = { showFeedbackSheet = false })
     }
 
-    if (showEditProfileDialog) {
-        ModalBottomSheet(onDismissRequest = { showEditProfileDialog = false }) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = SunnadScreenPadding, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.profile_edit_profile),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                SunnadCard(contentPadding = 0.dp) {
-                    TextField(
-                        value = editUsername,
-                        onValueChange = { editUsername = it.lowercase() },
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.auth_username)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            disabledIndicatorColor = Color.Transparent
-                        )
-                    )
-                    Text(
-                        text = stringResource(R.string.auth_username_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
-                SunnadCard {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        AvatarBadge(user = user, size = 72.dp)
-                    }
-                    PrimaryPillButton(
-                        title = stringResource(R.string.profile_change_photo),
-                        onClick = {
-                            pickAvatarLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        }
-                    )
-                    SecondaryPillButton(
-                        title = stringResource(R.string.profile_remove_photo),
-                        onClick = onRemoveAvatar
-                    )
-                }
-                PrimaryPillButton(
-                    title = stringResource(R.string.common_save),
-                    onClick = {
-                        showEditProfileDialog = false
-                        onEditProfile(editUsername.trim())
-                    }
-                )
-                Box(modifier = Modifier.height(8.dp))
-            }
-        }
-    }
-
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
@@ -643,6 +595,97 @@ fun ProfileScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun EditProfileScreen(
+    user: SessionUser,
+    usernameDraft: String,
+    onUsernameDraftChange: (String) -> Unit,
+    onBack: () -> Unit,
+    onSave: () -> Unit,
+    onPickPhoto: () -> Unit,
+    onRemovePhoto: () -> Unit
+) {
+    SunnadScreenSurface {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = SunnadScreenPadding),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    SunnadCompactBackButton(onClick = onBack)
+                    Text(
+                        text = stringResource(R.string.profile_edit_profile),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            item {
+                SunnadCard {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        AvatarBadge(user = user, size = 88.dp)
+                    }
+                    PrimaryPillButton(
+                        title = stringResource(R.string.profile_change_photo),
+                        onClick = onPickPhoto
+                    )
+                    SecondaryPillButton(
+                        title = stringResource(R.string.profile_remove_photo),
+                        onClick = onRemovePhoto
+                    )
+                }
+            }
+
+            item {
+                SunnadCard(contentPadding = 0.dp) {
+                    TextField(
+                        value = usernameDraft,
+                        onValueChange = onUsernameDraftChange,
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.auth_username)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent
+                        )
+                    )
+                    Text(
+                        text = stringResource(R.string.auth_username_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                    )
+                }
+            }
+
+            item {
+                PrimaryPillButton(
+                    title = stringResource(R.string.common_save),
+                    onClick = onSave
+                )
+            }
+
+            item { Box(modifier = Modifier.height(96.dp)) }
+        }
     }
 }
 

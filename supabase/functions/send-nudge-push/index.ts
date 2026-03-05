@@ -140,51 +140,88 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const tokensResult = await admin
     .from("device_tokens")
-    .select("onesignal_subscription_id")
-    .eq("user_id", to_user_id)
-    .not("onesignal_subscription_id", "is", null);
+    .select("onesignal_subscription_id,token")
+    .eq("user_id", to_user_id);
 
   if (tokensResult.error) {
     return json({ status: "error", error: tokensResult.error.message }, 500);
   }
 
+  const tokenRows = tokensResult.data ?? [];
+  if (tokenRows.length === 0) {
+    return json({ status: "sent", nudge_id: nudgeInsert.data.id, delivered: false }, 200);
+  }
+
   const subscriptionIDs = Array.from(
     new Set(
-      (tokensResult.data ?? [])
-        .map((row) => row.onesignal_subscription_id)
+      tokenRows
+        .map((row) => normalizeSubscriptionID(row.onesignal_subscription_id, row.token))
         .filter((value): value is string => typeof value === "string" && value.length > 0),
     ),
   );
 
+  const basePushPayload = {
+    app_id: oneSignalAppID,
+    headings: { en: "Adat" },
+    contents: { en: notificationBody },
+    data: {
+      type: "group_nudge",
+      group_id,
+      habit_id,
+    },
+  };
+
+  // Primary path: OneSignal User model via external_id alias targeting.
+  const aliasSend = await sendOneSignalNotification({
+    apiKey: oneSignalRESTAPIKey,
+    payload: {
+      ...basePushPayload,
+      include_aliases: {
+        external_id: [to_user_id],
+      },
+      target_channel: "push",
+    },
+  });
+
+  if (aliasSend.ok) {
+    const aliasRecipients = extractRecipientCount(aliasSend.jsonBody);
+    if (aliasRecipients > 0 || subscriptionIDs.length === 0) {
+      return json(
+        { status: "sent", nudge_id: nudgeInsert.data.id, delivered: aliasRecipients > 0 },
+        200,
+      );
+    }
+  }
+
+  // Legacy fallback during transition: subscription IDs from device_tokens table.
   if (subscriptionIDs.length === 0) {
     return json({ status: "sent", nudge_id: nudgeInsert.data.id, delivered: false }, 200);
   }
 
-  const pushResponse = await fetch("https://api.onesignal.com/notifications", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Basic ${oneSignalRESTAPIKey}`,
-    },
-    body: JSON.stringify({
-      app_id: oneSignalAppID,
+  const legacySend = await sendOneSignalNotification({
+    apiKey: oneSignalRESTAPIKey,
+    payload: {
+      ...basePushPayload,
       include_subscription_ids: subscriptionIDs,
-      headings: { en: "Sunnad" },
-      contents: { en: notificationBody },
-      data: {
-        type: "group_nudge",
-        group_id,
-        habit_id,
-      },
-    }),
+    },
   });
 
-  if (!pushResponse.ok) {
-    const message = await pushResponse.text();
-    return json({ status: "error", error: `Push send failed: ${message}` }, 502);
+  if (!legacySend.ok) {
+    const aliasError = aliasSend.ok ? "alias send accepted but recipients=0" : aliasSend.rawBody;
+    return json(
+      {
+        status: "error",
+        error: `Push send failed. alias=${aliasError}; legacy=${legacySend.rawBody}`,
+      },
+      502,
+    );
   }
 
-  return json({ status: "sent", nudge_id: nudgeInsert.data.id, delivered: true }, 200);
+  const legacyRecipients = extractRecipientCount(legacySend.jsonBody);
+  return json(
+    { status: "sent", nudge_id: nudgeInsert.data.id, delivered: legacyRecipients > 0 },
+    200,
+  );
 });
 
 function json(body: NudgeResponse, status: number): Response {
@@ -207,9 +244,9 @@ type NudgeMessageSeed = {
 function pickFriendlyNudgeBody(seed: NudgeMessageSeed): string {
   const safeHabitName = sanitizeHabitName(seed.habitName);
   const variants = [
-    `A gentle reminder from your Sunnad group: ${safeHabitName}.`,
+    `A gentle reminder from your Adat group: ${safeHabitName}.`,
     `Your group is cheering you on. Time for: ${safeHabitName}.`,
-    `Quick nudge from your Sunnad group: ${safeHabitName}.`,
+    `Quick nudge from your Adat group: ${safeHabitName}.`,
     `Kind reminder from a friend: ${safeHabitName}.`,
     `Small step, big barakah inshaAllah: ${safeHabitName}.`,
   ];
@@ -234,4 +271,82 @@ function stableIndex(seed: string, modulo: number): number {
     hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
   }
   return modulo > 0 ? hash % modulo : 0;
+}
+
+function normalizeSubscriptionID(
+  oneSignalSubscriptionID: unknown,
+  token: unknown,
+): string | null {
+  const direct = typeof oneSignalSubscriptionID === "string" ? oneSignalSubscriptionID.trim() : "";
+  if (direct.length > 0) {
+    return direct;
+  }
+
+  if (typeof token !== "string") {
+    return null;
+  }
+
+  const trimmedToken = token.trim();
+  if (!trimmedToken) {
+    return null;
+  }
+
+  const prefixed = "onesignal-subscription:";
+  if (trimmedToken.startsWith(prefixed)) {
+    const extracted = trimmedToken.slice(prefixed.length).trim();
+    return extracted.length > 0 ? extracted : null;
+  }
+
+  // Backward compatibility: allow raw token payloads already storing OneSignal subscription ids.
+  return trimmedToken;
+}
+
+type OneSignalSendArgs = {
+  apiKey: string;
+  payload: Record<string, unknown>;
+};
+
+type OneSignalSendResult = {
+  ok: boolean;
+  rawBody: string;
+  jsonBody: unknown;
+};
+
+async function sendOneSignalNotification(args: OneSignalSendArgs): Promise<OneSignalSendResult> {
+  const response = await fetch("https://api.onesignal.com/notifications", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Basic ${args.apiKey}`,
+    },
+    body: JSON.stringify(args.payload),
+  });
+
+  const rawBody = await response.text();
+  let jsonBody: unknown = null;
+  try {
+    jsonBody = rawBody.length > 0 ? JSON.parse(rawBody) : null;
+  } catch {
+    jsonBody = null;
+  }
+
+  return {
+    ok: response.ok,
+    rawBody,
+    jsonBody,
+  };
+}
+
+function extractRecipientCount(payload: unknown): number {
+  if (!payload || typeof payload !== "object") return 0;
+  const candidates = payload as Record<string, unknown>;
+  const recipients = candidates["recipients"];
+  if (typeof recipients === "number" && Number.isFinite(recipients)) {
+    return Math.max(0, Math.trunc(recipients));
+  }
+  const total = candidates["total_count"];
+  if (typeof total === "number" && Number.isFinite(total)) {
+    return Math.max(0, Math.trunc(total));
+  }
+  return 0;
 }

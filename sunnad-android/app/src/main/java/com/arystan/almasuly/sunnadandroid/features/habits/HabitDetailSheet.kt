@@ -87,6 +87,8 @@ fun HabitDetailSheet(
     var name by rememberSaveable(habit.id) { mutableStateOf(habit.name) }
     var iconName by rememberSaveable(habit.id) { mutableStateOf(habit.icon) }
     var category by rememberSaveable(habit.id) { mutableStateOf(habit.category) }
+    var categoryCustomText by rememberSaveable(habit.id) { mutableStateOf(habit.categoryCustom.orEmpty()) }
+    var useCustomCategory by rememberSaveable(habit.id) { mutableStateOf(!habit.categoryCustom.isNullOrBlank()) }
     var weeklySchedule by rememberSaveable(habit.id) { mutableStateOf(habit.schedule is HabitSchedule.Weekly) }
     var selectedWeekdays by rememberSaveable(habit.id) {
         mutableStateOf((habit.schedule as? HabitSchedule.Weekly)?.weekdays ?: mondayFirstWeekdays.toSet())
@@ -117,6 +119,7 @@ fun HabitDetailSheet(
                 name = name.trim().ifBlank { habit.name },
                 icon = iconName,
                 category = category,
+                categoryCustom = if (useCustomCategory) categoryCustomText.trim().takeIf { it.isNotEmpty() } else null,
                 schedule = if (weeklySchedule) {
                     HabitSchedule.Weekly(selectedWeekdays.ifEmpty { setOf(Weekday.MONDAY) })
                 } else {
@@ -271,7 +274,11 @@ fun HabitDetailSheet(
                             )
                             Spacer(modifier = Modifier.weight(1f))
                             Text(
-                                text = stringResource(categoryTitleRes(category)),
+                                text = if (useCustomCategory) {
+                                    categoryCustomText.trim().ifBlank { stringResource(R.string.habit_category_custom_option) }
+                                } else {
+                                    stringResource(categoryTitleRes(category))
+                                },
                                 color = MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.SemiBold
@@ -286,10 +293,38 @@ fun HabitDetailSheet(
                                     text = { Text(stringResource(categoryTitleRes(option))) },
                                     onClick = {
                                         category = option
+                                        useCustomCategory = false
                                         categoryMenuExpanded = false
                                     }
                                 )
                             }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.habit_category_custom_option)) },
+                                onClick = {
+                                    useCustomCategory = true
+                                    categoryMenuExpanded = false
+                                }
+                            )
+                        }
+                        if (useCustomCategory) {
+                            DividerLine()
+                            TextField(
+                                value = categoryCustomText,
+                                onValueChange = { categoryCustomText = it },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = {
+                                    Text(stringResource(R.string.habit_category_custom_placeholder))
+                                },
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    disabledContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    disabledIndicatorColor = Color.Transparent
+                                )
+                            )
                         }
                     }
                 }

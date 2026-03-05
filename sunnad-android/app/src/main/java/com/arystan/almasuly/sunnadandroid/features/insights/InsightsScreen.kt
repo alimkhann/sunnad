@@ -2,6 +2,7 @@ package com.arystan.almasuly.sunnadandroid.features.insights
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.arystan.almasuly.sunnadandroid.R
+import com.arystan.almasuly.sunnadandroid.core.model.HabitCategoryValue
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadCard
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadCompactBackButton
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenPadding
@@ -217,6 +219,57 @@ fun InsightsScreen(
                         }
                     }
                 }
+
+                if (state.categoryPerformance.isNotEmpty()) {
+                    SunnadSectionHeader(title = stringResource(R.string.insights_category_analytics))
+                    SunnadCard(contentPadding = 0.dp) {
+                        Column {
+                            state.categoryPerformance.forEachIndexed { index, item ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = categoryDisplayTitle(item),
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            text = stringResource(
+                                                R.string.insights_category_completed_ratio,
+                                                item.completed,
+                                                item.total
+                                            ),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        CategoryCompletionBar(percentage = item.percentage)
+                                    }
+                                    Text(
+                                        text = "${item.percentage}%",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                if (index < state.categoryPerformance.lastIndex) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(1.dp)
+                                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             state.errorMessage?.let { message ->
@@ -229,6 +282,51 @@ fun InsightsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CategoryCompletionBar(percentage: Int) {
+    val clamped = percentage.coerceIn(0, 100) / 100f
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(7.dp)
+            .background(
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                shape = RoundedCornerShape(999.dp)
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(clamped)
+                .height(7.dp)
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary,
+                            Color(0xFFF4C430)
+                        )
+                    ),
+                    shape = RoundedCornerShape(999.dp)
+                )
+        )
+    }
+}
+
+@Composable
+private fun categoryDisplayTitle(item: CategoryPerformanceUi): String {
+    val custom = item.customLabel?.trim().orEmpty()
+    if (custom.isNotEmpty()) return custom
+    return when (item.category ?: HabitCategoryValue.SPIRITUAL) {
+        HabitCategoryValue.SPIRITUAL -> stringResource(R.string.onboarding_category_spiritual)
+        HabitCategoryValue.PHYSICAL -> stringResource(R.string.onboarding_category_physical)
+        HabitCategoryValue.SOCIAL -> stringResource(R.string.onboarding_category_social)
+        HabitCategoryValue.FINANCIAL -> stringResource(R.string.onboarding_category_financial)
+        HabitCategoryValue.LEARNING -> stringResource(R.string.onboarding_category_learning)
+        HabitCategoryValue.FAMILY -> stringResource(R.string.onboarding_category_family)
+        HabitCategoryValue.WORK -> stringResource(R.string.onboarding_category_work)
+        HabitCategoryValue.HOBBY -> stringResource(R.string.onboarding_category_hobby)
     }
 }
 
@@ -507,15 +605,19 @@ private fun Habit40DayGrid(days: List<HabitDayUi>) {
                     val cell = days.getOrNull(index)
                     val color = when {
                         cell == null -> Color.Transparent
-                        !cell.scheduled -> MaterialTheme.colorScheme.surfaceContainer
+                        !cell.scheduled -> MaterialTheme.colorScheme.surfaceContainerHigh
                         cell.completed -> MaterialTheme.colorScheme.primary
-                        else -> Color(0xFFF4C430)
+                        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.95f)
                     }
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(10.dp)
+                            .size(12.dp)
                             .background(color, RoundedCornerShape(3.dp))
+                            .border(
+                                width = 0.5.dp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(3.dp)
+                            )
                     )
                 }
             }

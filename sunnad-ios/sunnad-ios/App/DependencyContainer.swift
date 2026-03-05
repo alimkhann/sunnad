@@ -303,9 +303,10 @@ final class DependencyContainer {
                 let startOfDay = calendar.startOfDay(for: Date())
                 let dayFormatter = Self.quoteDayFormatter(calendar: calendar, timeZone: timeZone)
                 var plans: [QuoteReminderPlan] = []
-                plans.reserveCapacity(7)
+                let reminderHorizonDays = 40
+                plans.reserveCapacity(reminderHorizonDays)
 
-                for offset in 0 ..< 7 {
+                for offset in 0 ..< reminderHorizonDays {
                     guard let day = calendar.date(byAdding: .day, value: offset, to: startOfDay) else {
                         continue
                     }

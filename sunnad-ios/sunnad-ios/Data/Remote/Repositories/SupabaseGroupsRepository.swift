@@ -8,6 +8,11 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         let name: String
         let code: String
         let joinLocked: Bool?
+        let createdAtRaw: String?
+
+        var createdAt: Date? {
+            createdAtRaw.flatMap(SupabaseGroupsRepository.timestamp(from:))
+        }
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -15,16 +20,19 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             case name
             case code
             case joinLocked = "join_locked"
+            case createdAtRaw = "created_at"
         }
     }
 
     private struct GroupMemberRow: Decodable {
         let groupID: UUID
         let userID: UUID
+        let progressDisplayMode: GroupProgressDisplayMode?
 
         enum CodingKeys: String, CodingKey {
             case groupID = "group_id"
             case userID = "user_id"
+            case progressDisplayMode = "progress_display_mode"
         }
     }
 
@@ -47,7 +55,10 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         let userID: UUID
         let name: String
         let icon: String
+        let iconKey: String?
         let type: String
+        let presetCategory: HabitCategoryValue?
+        let categoryCustom: String?
         let targetCount: Int?
         let schedule: String?
         let weekdays: [Int]?
@@ -58,7 +69,10 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             case userID = "user_id"
             case name
             case icon
+            case iconKey = "icon_key"
             case type
+            case presetCategory = "preset_category"
+            case categoryCustom = "category_custom"
             case targetCount = "target_count"
             case schedule
             case weekdays
@@ -152,6 +166,9 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
     private let client: SupabaseClient
     private let logger: AnalyticsLogging
     private let decoder = JSONDecoder()
+    private var supportsProgressDisplayModeColumn: Bool?
+    private var supportsProgressDisplayModeRPC: Bool?
+    private var supportsHabitContractColumns: Bool?
 
     init(client: SupabaseClient, logger: AnalyticsLogging) {
         self.client = client
@@ -161,6 +178,8 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
     func fetchGroups() async throws -> [Group] {
         let currentUserID = try await requireCurrentUserID()
         let groupRows = try await fetchGroupRows()
+        let metricsCalendar = Self.utcCalendar()
+        let metricsTimeZone = Self.utcTimeZone
 
         var profilesByUserID: [UUID: ResolvedProfile] = [:]
         var habitsByID: [UUID: HabitRow] = [:]
@@ -188,42 +207,64 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
 
                 for member in members {
                     let memberID = member.userID
-                    let profile = try await resolveProfile(for: memberID, cache: &profilesByUserID)
+                    let profile = (try? await resolveProfile(for: memberID, cache: &profilesByUserID))
+                        ?? ResolvedProfile(name: "Member", avatarURL: nil)
                     let memberSharedRows = sharedForGroup.filter { $0.userID == memberID }
 
                     var memberSharedHabits: [SharedHabit] = []
                     memberSharedHabits.reserveCapacity(memberSharedRows.count)
+                    var completedTodayDueCount = 0
+                    var totalDueCount = 0
 
                     for shared in memberSharedRows {
-                        guard let habit = try await resolveHabit(shared.habitID, cache: &habitsByID) else {
-                            continue
-                        }
-                        let domainHabit = makeDomainHabit(from: habit)
-                        guard domainHabit.isDue(on: Date(), calendar: .current, timeZone: .current) else {
-                            continue
-                        }
+                        if let habit = try await resolveHabit(shared.habitID, cache: &habitsByID) {
+                            let domainHabit = makeDomainHabit(from: habit)
+                            let completedToday = (try? await resolveCompletion(
+                                for: habit,
+                                userID: memberID,
+                                dayDate: todayDate,
+                                cache: &completionCache
+                            )) ?? false
+                            let streak = (try? await resolveStreak(
+                                for: habit,
+                                userID: memberID,
+                                cache: &completionHistoryCache
+                            )) ?? 0
+                            let rollingCompletionPercent = (try? await resolveRollingCompletionPercent(
+                                for: habit,
+                                userID: memberID,
+                                groupCreatedAt: groupRow.createdAt,
+                                cache: &completionHistoryCache
+                            )) ?? 0
+                            if domainHabit.schedule.isDue(on: Date(), calendar: metricsCalendar, timeZone: metricsTimeZone) {
+                                totalDueCount += 1
+                                if completedToday {
+                                    completedTodayDueCount += 1
+                                }
+                            }
 
-                        let completedToday = try await resolveCompletion(
-                            for: habit,
-                            userID: memberID,
-                            dayDate: todayDate,
-                            cache: &completionCache
-                        )
-                        let streak = try await resolveStreak(
-                            for: habit,
-                            userID: memberID,
-                            cache: &completionHistoryCache
-                        )
-
-                        memberSharedHabits.append(
-                            SharedHabit(
-                                habitID: habit.id,
-                                title: habit.name,
-                                icon: habit.icon,
-                                completedToday: completedToday,
-                                streak: streak
+                            memberSharedHabits.append(
+                                SharedHabit(
+                                    habitID: habit.id,
+                                    title: habit.name,
+                                    icon: habit.icon,
+                                    completedToday: completedToday,
+                                    streak: streak,
+                                    rollingCompletionPercent: rollingCompletionPercent
+                                )
                             )
-                        )
+                        } else {
+                            memberSharedHabits.append(
+                                SharedHabit(
+                                    habitID: shared.habitID,
+                                    title: "Shared habit",
+                                    icon: "star.fill",
+                                    completedToday: false,
+                                    streak: 0,
+                                    rollingCompletionPercent: 0
+                                )
+                            )
+                        }
                     }
 
                     domainMembers.append(
@@ -231,8 +272,8 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                             id: memberID,
                             name: profile.name,
                             avatarURL: profile.avatarURL,
-                            completedToday: memberSharedHabits.filter(\.completedToday).count,
-                            totalSharedHabits: memberSharedHabits.count,
+                            completedToday: completedTodayDueCount,
+                            totalSharedHabits: totalDueCount,
                             sharedHabits: memberSharedHabits
                         )
                     )
@@ -247,7 +288,8 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                         members: domainMembers,
                         sharedHabitIDs: currentUserSharedIDs,
                         ownerMemberID: groupRow.ownerID,
-                        currentUserMemberID: currentUserID
+                        currentUserMemberID: currentUserID,
+                        progressDisplayMode: members.first(where: { $0.userID == currentUserID })?.progressDisplayMode ?? .percent
                     )
                 )
             } catch {
@@ -259,7 +301,11 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                         "error": error.localizedDescription
                     ]
                 )
-                groups.append(minimalGroup(from: groupRow, currentUserID: currentUserID))
+                if let fallback = await resilientFallbackGroup(from: groupRow, currentUserID: currentUserID) {
+                    groups.append(fallback)
+                } else {
+                    groups.append(minimalGroup(from: groupRow, currentUserID: currentUserID))
+                }
             }
         }
 
@@ -344,6 +390,29 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
 
     func updateSharing(groupID: UUID, habitIDs: Set<UUID>) async throws {
         let currentUserID = try await requireCurrentUserID()
+        let validHabitRowsResponse = try await client
+            .from("habits")
+            .select("id, user_id, name, icon, icon_key, preset_category, category_custom, type, target_count, schedule, weekdays, archived")
+            .eq("user_id", value: currentUserID)
+            .execute()
+        let validHabitRows = try decoder.decode([HabitRow].self, from: validHabitRowsResponse.data)
+        let validHabitIDs = Set(
+            validHabitRows
+                .filter { !($0.archived ?? false) }
+                .map(\.id)
+        )
+        let sanitizedHabitIDs = habitIDs.intersection(validHabitIDs)
+        if sanitizedHabitIDs.count != habitIDs.count {
+            logger.log(
+                .storageFailure,
+                metadata: [
+                    "scope": "groups_update_sharing_filtered",
+                    "group_id": groupID.uuidString,
+                    "requested_count": "\(habitIDs.count)",
+                    "valid_count": "\(sanitizedHabitIDs.count)"
+                ]
+            )
+        }
 
         try await client
             .from("group_shared_habits")
@@ -352,11 +421,11 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             .eq("user_id", value: currentUserID)
             .execute()
 
-        guard !habitIDs.isEmpty else {
+        guard !sanitizedHabitIDs.isEmpty else {
             return
         }
 
-        let rows = habitIDs.map {
+        let rows = sanitizedHabitIDs.map {
             GroupMutationRow(groupID: groupID, userID: currentUserID, habitID: $0, shared: true)
         }
 
@@ -391,6 +460,37 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             .eq("group_id", value: groupID)
             .eq("user_id", value: memberUserID)
             .execute()
+    }
+
+    func setProgressDisplayMode(groupID: UUID, mode: GroupProgressDisplayMode) async throws {
+        if supportsProgressDisplayModeRPC == false {
+            return
+        }
+        do {
+            _ = try await client
+                .rpc(
+                    "set_group_progress_display_mode",
+                    params: [
+                        "p_group_id": AnyJSON.string(groupID.uuidString),
+                        "p_mode": AnyJSON.string(mode.rawValue)
+                    ]
+                )
+                .execute()
+            supportsProgressDisplayModeRPC = true
+        } catch {
+            guard Self.isMissingProgressDisplayModeRPCFunctionError(error) else {
+                throw error
+            }
+            supportsProgressDisplayModeRPC = false
+            logger.log(
+                .storageFailure,
+                metadata: [
+                    "scope": "groups_set_progress_mode_rpc_fallback",
+                    "group_id": groupID.uuidString,
+                    "error": error.localizedDescription
+                ]
+            )
+        }
     }
 
     func refreshGroup(groupID: UUID) async throws -> Group? {
@@ -460,7 +560,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         do {
             let response = try await client
                 .from("groups")
-                .select("id, owner_id, name, code, join_locked")
+                .select("id, owner_id, name, code, join_locked, created_at")
                 .order("created_at", ascending: true)
                 .execute()
             return try decoder.decode([GroupRow].self, from: response.data)
@@ -479,7 +579,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
 
             let fallbackResponse = try await client
                 .from("groups")
-                .select("id, owner_id, name, code")
+                .select("id, owner_id, name, code, created_at")
                 .order("created_at", ascending: true)
                 .execute()
             return try decoder.decode([GroupRow].self, from: fallbackResponse.data)
@@ -487,12 +587,45 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
     }
 
     private func fetchGroupMembers(groupID: UUID) async throws -> [GroupMemberRow] {
-        let response = try await client
-            .from("group_members")
-            .select("group_id, user_id")
-            .eq("group_id", value: groupID)
-            .execute()
-        return try decoder.decode([GroupMemberRow].self, from: response.data)
+        if supportsProgressDisplayModeColumn == false {
+            let fallbackResponse = try await client
+                .from("group_members")
+                .select("group_id, user_id")
+                .eq("group_id", value: groupID)
+                .execute()
+            return try decoder.decode([GroupMemberRow].self, from: fallbackResponse.data)
+        }
+
+        do {
+            let response = try await client
+                .from("group_members")
+                .select("group_id, user_id, progress_display_mode")
+                .eq("group_id", value: groupID)
+                .execute()
+            supportsProgressDisplayModeColumn = true
+            return try decoder.decode([GroupMemberRow].self, from: response.data)
+        } catch {
+            guard Self.isMissingProgressDisplayModeColumnError(error) else {
+                throw error
+            }
+            supportsProgressDisplayModeColumn = false
+
+            logger.log(
+                .storageFailure,
+                metadata: [
+                    "scope": "groups_fetch_members_progress_mode_fallback",
+                    "group_id": groupID.uuidString,
+                    "error": error.localizedDescription
+                ]
+            )
+
+            let fallbackResponse = try await client
+                .from("group_members")
+                .select("group_id, user_id")
+                .eq("group_id", value: groupID)
+                .execute()
+            return try decoder.decode([GroupMemberRow].self, from: fallbackResponse.data)
+        }
     }
 
     private func fetchSharedHabits(groupID: UUID) async throws -> [GroupSharedHabitRow] {
@@ -558,12 +691,51 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             return cached
         }
 
-        let response = try await client
-            .from("habits")
-            .select("id, user_id, name, icon, type, target_count, schedule, weekdays, archived")
-            .eq("id", value: habitID)
-            .limit(1)
-            .execute()
+        if supportsHabitContractColumns == false {
+            let fallbackResponse = try await client
+                .from("habits")
+                .select("id, user_id, name, icon, type, target_count, schedule, weekdays, archived")
+                .eq("id", value: habitID)
+                .limit(1)
+                .execute()
+            let fallbackRow = try decoder.decode([HabitRow].self, from: fallbackResponse.data).first
+            if let fallbackRow {
+                cache[habitID] = fallbackRow
+            }
+            return fallbackRow
+        }
+
+        let response: PostgrestResponse<Void>
+        do {
+            response = try await client
+                .from("habits")
+                .select("id, user_id, name, icon, icon_key, preset_category, category_custom, type, target_count, schedule, weekdays, archived")
+                .eq("id", value: habitID)
+                .limit(1)
+                .execute()
+            supportsHabitContractColumns = true
+        } catch {
+            guard Self.isMissingHabitContractColumnError(error) else {
+                throw error
+            }
+            supportsHabitContractColumns = false
+
+            logger.log(
+                .storageFailure,
+                metadata: [
+                    "scope": "groups_resolve_habit_contract_fallback",
+                    "habit_id": habitID.uuidString,
+                    "error": error.localizedDescription
+                ]
+            )
+
+            response = try await client
+                .from("habits")
+                .select("id, user_id, name, icon, type, target_count, schedule, weekdays, archived")
+                .eq("id", value: habitID)
+                .limit(1)
+                .execute()
+        }
 
         let row = try decoder.decode([HabitRow].self, from: response.data).first
         if let row {
@@ -611,32 +783,52 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         userID: UUID,
         cache: inout [String: [HabitCompletion]]
     ) async throws -> Int {
-        let cacheKey = "\(habit.id.uuidString)-\(userID.uuidString)"
-        let completions: [HabitCompletion]
-        if let cached = cache[cacheKey] {
-            completions = cached
-        } else {
-            let loaded = try await fetchCompletionHistory(for: habit.id, userID: userID)
-            cache[cacheKey] = loaded
-            completions = loaded
-        }
-
+        let completions = try await completionHistory(for: habit.id, userID: userID, cache: &cache)
         let domainHabit = makeDomainHabit(from: habit)
-        let now = Date()
-        let calendar = Calendar.current
-        let timeZone = TimeZone.current
         return StreakCalculator.streak(
             for: domainHabit,
             completions: completions,
-            asOf: now,
-            calendar: calendar,
-            timeZone: timeZone
+            asOf: Date(),
+            calendar: Self.utcCalendar(),
+            timeZone: Self.utcTimeZone
         )
     }
 
+    private func resolveRollingCompletionPercent(
+        for habit: HabitRow,
+        userID: UUID,
+        groupCreatedAt: Date?,
+        cache: inout [String: [HabitCompletion]]
+    ) async throws -> Int {
+        let completions = try await completionHistory(for: habit.id, userID: userID, cache: &cache)
+        let domainHabit = makeDomainHabit(from: habit)
+        return Self.rollingCompletionPercent(
+            for: domainHabit,
+            completions: completions,
+            groupCreatedAt: groupCreatedAt,
+            asOf: Date(),
+            calendar: Self.utcCalendar(),
+            timeZone: Self.utcTimeZone
+        )
+    }
+
+    private func completionHistory(
+        for habitID: UUID,
+        userID: UUID,
+        cache: inout [String: [HabitCompletion]]
+    ) async throws -> [HabitCompletion] {
+        let cacheKey = "\(habitID.uuidString)-\(userID.uuidString)"
+        if let cached = cache[cacheKey] {
+            return cached
+        }
+        let loaded = try await fetchCompletionHistory(for: habitID, userID: userID)
+        cache[cacheKey] = loaded
+        return loaded
+    }
+
     private func fetchCompletionHistory(for habitID: UUID, userID: UUID) async throws -> [HabitCompletion] {
-        let calendar = Calendar.current
-        let timeZone = TimeZone.current
+        let calendar = Self.utcCalendar()
+        let timeZone = Self.utcTimeZone
         let windowStart = Self.syncDayDateString(
             for: Date().addingTimeInterval(-40 * 24 * 60 * 60),
             calendar: calendar,
@@ -666,6 +858,57 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         }
     }
 
+    private static func rollingCompletionPercent(
+        for habit: Habit,
+        completions: [HabitCompletion],
+        groupCreatedAt: Date?,
+        asOf: Date,
+        calendar: Calendar,
+        timeZone: TimeZone
+    ) -> Int {
+        var normalizedCalendar = calendar
+        normalizedCalendar.timeZone = timeZone
+        let today = normalizedCalendar.startOfDay(for: asOf)
+        let createdDay = normalizedCalendar.startOfDay(for: groupCreatedAt ?? today)
+        let inclusiveAge = max((normalizedCalendar.dateComponents([.day], from: createdDay, to: today).day ?? 0) + 1, 1)
+        let windowDays = min(inclusiveAge, 40)
+        let windowStart = normalizedCalendar.date(byAdding: .day, value: -(windowDays - 1), to: today) ?? today
+
+        var completionsByDay: [Date: HabitCompletion] = [:]
+        for completion in completions {
+            let day = normalizedCalendar.startOfDay(for: completion.dayDate)
+            guard day >= windowStart, day <= today else { continue }
+            if let existing = completionsByDay[day] {
+                if completion.updatedAt >= existing.updatedAt {
+                    completionsByDay[day] = completion
+                }
+            } else {
+                completionsByDay[day] = completion
+            }
+        }
+
+        var scheduledDays = 0
+        var completedScheduledDays = 0
+
+        for offset in 0..<windowDays {
+            guard let day = normalizedCalendar.date(byAdding: .day, value: offset, to: windowStart) else {
+                continue
+            }
+            guard habit.schedule.isDue(on: day, calendar: normalizedCalendar, timeZone: timeZone) else {
+                continue
+            }
+            scheduledDays += 1
+            if let completion = completionsByDay[normalizedCalendar.startOfDay(for: day)],
+               completion.isCompleted(for: habit) {
+                completedScheduledDays += 1
+            }
+        }
+
+        guard scheduledDays > 0 else { return 0 }
+        let percent = (Double(completedScheduledDays) / Double(scheduledDays)) * 100.0
+        return Int(percent.rounded())
+    }
+
     private func makeDomainHabit(from row: HabitRow) -> Habit {
         let habitType = HabitType(rawValue: row.type) ?? .binary
         let scheduleValue: HabitSchedule
@@ -680,6 +923,9 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             id: row.id,
             name: row.name,
             icon: row.icon,
+            iconKey: row.iconKey ?? row.icon,
+            category: row.presetCategory ?? .spiritual,
+            categoryCustom: row.categoryCustom,
             type: habitType,
             targetCount: row.targetCount,
             schedule: scheduleValue,
@@ -699,10 +945,18 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         ])
     }
 
+    private static let utcTimeZone = TimeZone(secondsFromGMT: 0) ?? .current
+
+    private static func utcCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = utcTimeZone
+        return calendar
+    }
+
     private static func utcDayDateString(for date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.calendar = utcCalendar()
+        formatter.timeZone = utcTimeZone
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
     }
@@ -836,6 +1090,54 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         return nil
     }
 
+    private func resilientFallbackGroup(from row: GroupRow, currentUserID: UUID) async -> Group? {
+        let members = (try? await fetchGroupMembers(groupID: row.id)) ?? []
+        if members.isEmpty {
+            return nil
+        }
+
+        let sharedRows = ((try? await fetchSharedHabits(groupID: row.id)) ?? []).filter(\.shared)
+        let currentUserSharedHabitIDs = Set(
+            sharedRows
+                .filter { $0.userID == currentUserID }
+                .map(\.habitID)
+        )
+        let sharedCountByMemberID = Dictionary(
+            sharedRows.map { ($0.userID, 1) },
+            uniquingKeysWith: +
+        )
+
+        var profilesByUserID: [UUID: ResolvedProfile] = [:]
+        var mappedMembers: [GroupMember] = []
+        mappedMembers.reserveCapacity(members.count)
+        for member in members {
+            let profile = (try? await resolveProfile(for: member.userID, cache: &profilesByUserID))
+                ?? ResolvedProfile(name: "Member", avatarURL: nil)
+            mappedMembers.append(
+                GroupMember(
+                    id: member.userID,
+                    name: profile.name,
+                    avatarURL: profile.avatarURL,
+                    completedToday: 0,
+                    totalSharedHabits: sharedCountByMemberID[member.userID] ?? 0,
+                    sharedHabits: []
+                )
+            )
+        }
+
+        return Group(
+            id: row.id,
+            name: row.name,
+            code: row.code,
+            joinLocked: row.joinLocked ?? false,
+            members: mappedMembers,
+            sharedHabitIDs: currentUserSharedHabitIDs,
+            ownerMemberID: row.ownerID,
+            currentUserMemberID: currentUserID,
+            progressDisplayMode: members.first(where: { $0.userID == currentUserID })?.progressDisplayMode ?? .percent
+        )
+    }
+
     private func minimalGroup(from row: GroupRow, currentUserID: UUID) -> Group {
         Group(
             id: row.id,
@@ -874,6 +1176,36 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             && (message.contains("does not exist")
                 || message.contains("undefined column")
                 || message.contains("42703"))
+    }
+
+    private static func isMissingProgressDisplayModeColumnError(_ error: Error) -> Bool {
+        let message = error.localizedDescription.lowercased()
+        return message.contains("progress_display_mode")
+            && (message.contains("does not exist")
+                || message.contains("undefined column")
+                || message.contains("42703"))
+    }
+
+    private static func isMissingProgressDisplayModeRPCFunctionError(_ error: Error) -> Bool {
+        let message = error.localizedDescription.lowercased()
+        return message.contains("set_group_progress_display_mode")
+            && (message.contains("pgrst202")
+                || message.contains("schema cache")
+                || message.contains("no matches were found")
+                || message.contains("does not exist")
+                || message.contains("undefined function")
+                || message.contains("42883"))
+    }
+
+    private static func isMissingHabitContractColumnError(_ error: Error) -> Bool {
+        let message = error.localizedDescription.lowercased()
+        let hasMissingColumnCode = message.contains("does not exist")
+            || message.contains("undefined column")
+            || message.contains("42703")
+        guard hasMissingColumnCode else { return false }
+        return message.contains("icon_key")
+            || message.contains("preset_category")
+            || message.contains("category_custom")
     }
 
 }

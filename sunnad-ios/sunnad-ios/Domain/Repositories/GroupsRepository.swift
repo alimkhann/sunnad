@@ -11,6 +11,7 @@ protocol GroupsRepository: Sendable {
     func leaveGroup(groupID: UUID) async throws
     func deleteGroup(groupID: UUID) async throws
     func kickMember(groupID: UUID, memberUserID: UUID) async throws
+    func setProgressDisplayMode(groupID: UUID, mode: GroupProgressDisplayMode) async throws
     func refreshGroup(groupID: UUID) async throws -> Group?
     func sendNudge(groupID: UUID, toUserID: UUID, habitID: UUID) async throws -> GroupNudgeStatus
 }

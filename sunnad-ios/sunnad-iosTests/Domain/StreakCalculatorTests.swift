@@ -42,6 +42,32 @@ struct StreakCalculatorTests {
     }
 
     @Test
+    func currentDayPendingCompletionCarriesPreviousStreak() {
+        let calendar = Calendar(identifier: .gregorian)
+        let tz = TimeZone(secondsFromGMT: 0)!
+        let today = makeDate(year: 2026, month: 2, day: 19, timeZone: tz)
+
+        let habit = Habit(name: "Read", icon: "book", type: .binary, schedule: .daily)
+        let completions = [1, 2].map {
+            HabitCompletion(
+                habitID: habit.id,
+                dayDate: calendar.date(byAdding: .day, value: -$0, to: today)!,
+                value: 1
+            )
+        }
+
+        let streak = StreakCalculator.streak(
+            for: habit,
+            completions: completions,
+            asOf: today,
+            calendar: calendar,
+            timeZone: tz,
+            referenceDate: today
+        )
+        #expect(streak == 2)
+    }
+
+    @Test
     func weeklyStreakSkipsNonDueDays() {
         let calendar = Calendar(identifier: .gregorian)
         let tz = TimeZone(secondsFromGMT: 0)!

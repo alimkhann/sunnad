@@ -8,6 +8,11 @@ enum GroupNudgeStatus: String, Codable, Hashable, Sendable {
     case error
 }
 
+enum GroupProgressDisplayMode: String, Codable, Hashable, Sendable {
+    case percent
+    case streak
+}
+
 struct SharedHabit: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     var habitID: UUID
@@ -15,6 +20,7 @@ struct SharedHabit: Identifiable, Codable, Hashable, Sendable {
     var icon: String
     var completedToday: Bool
     var streak: Int
+    var rollingCompletionPercent: Int?
 
     init(
         id: UUID = UUID(),
@@ -22,7 +28,8 @@ struct SharedHabit: Identifiable, Codable, Hashable, Sendable {
         title: String,
         icon: String,
         completedToday: Bool,
-        streak: Int
+        streak: Int,
+        rollingCompletionPercent: Int? = nil
     ) {
         self.id = id
         self.habitID = habitID
@@ -30,6 +37,7 @@ struct SharedHabit: Identifiable, Codable, Hashable, Sendable {
         self.icon = icon
         self.completedToday = completedToday
         self.streak = streak
+        self.rollingCompletionPercent = rollingCompletionPercent
     }
 }
 
@@ -67,6 +75,7 @@ struct Group: Identifiable, Codable, Hashable, Sendable {
     var sharedHabitIDs: Set<UUID>
     var ownerMemberID: UUID
     var currentUserMemberID: UUID?
+    var progressDisplayMode: GroupProgressDisplayMode
 
     init(
         id: UUID = UUID(),
@@ -76,7 +85,8 @@ struct Group: Identifiable, Codable, Hashable, Sendable {
         members: [GroupMember],
         sharedHabitIDs: Set<UUID>,
         ownerMemberID: UUID? = nil,
-        currentUserMemberID: UUID? = nil
+        currentUserMemberID: UUID? = nil,
+        progressDisplayMode: GroupProgressDisplayMode = .percent
     ) {
         self.id = id
         self.name = name
@@ -86,6 +96,7 @@ struct Group: Identifiable, Codable, Hashable, Sendable {
         self.sharedHabitIDs = sharedHabitIDs
         self.ownerMemberID = ownerMemberID ?? members.first?.id ?? UUID()
         self.currentUserMemberID = currentUserMemberID
+        self.progressDisplayMode = progressDisplayMode
     }
 }
 

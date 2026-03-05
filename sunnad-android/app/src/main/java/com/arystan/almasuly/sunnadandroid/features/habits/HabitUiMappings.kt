@@ -27,6 +27,7 @@ object HabitIconKey {
     const val MONEY = "banknote.fill"
     const val STAR = "star.fill"
     const val SPA = "sparkles"
+    const val PRAYER = "building.columns.fill"
 }
 
 fun canonicalHabitIconKey(iconName: String, title: String = ""): String {
@@ -36,29 +37,83 @@ fun canonicalHabitIconKey(iconName: String, title: String = ""): String {
         source in setOf("sun", "sunrise", "sunrise.fill", "sun.max.fill", "wb_sunny", "wbsunny") ||
             titleLower.contains("morning") -> HabitIconKey.SUN
 
-        source in setOf("moon", "moon.fill", "moon.stars.fill", "bedtime") ||
+        source in setOf("moon", "moon.fill", "moon.stars.fill", "bedtime", "bed.double.fill") ||
             titleLower.contains("evening") -> HabitIconKey.MOON
 
-        source in setOf("book", "book.fill", "book.closed.fill", "menu_book") ||
+        source in setOf(
+            "book",
+            "book.fill",
+            "book.closed.fill",
+            "text.book.closed.fill",
+            "bookmark.fill",
+            "menu_book",
+            "graduationcap.fill"
+        ) ||
             titleLower.contains("quran") ||
             titleLower.contains("surah") -> HabitIconKey.BOOK
 
-        source in setOf("run", "figure.run", "fitness_center", "runner") ||
+        source in setOf("run", "figure.run", "figure.walk", "fitness_center", "runner", "dumbbell.fill") ||
             source.contains("run") ||
             source.contains("fitness") ||
             titleLower.contains("exercise") -> HabitIconKey.RUN
 
-        source in setOf("group", "groups", "person.2.fill", "person.3.fill", "person.2") ||
+        source in setOf(
+            "group",
+            "groups",
+            "person.2.fill",
+            "person.3.fill",
+            "person.2",
+            "figure.2.and.child.holdinghands",
+            "phone.fill",
+            "message.fill"
+        ) ||
             source.contains("person") ||
             source.contains("group") -> HabitIconKey.GROUP
 
-        source in setOf("money", "banknote.fill", "creditcard.fill", "credit", "monetization_on") ||
+        source in setOf(
+            "money",
+            "banknote.fill",
+            "creditcard.fill",
+            "credit",
+            "monetization_on",
+            "cart.fill",
+            "chart.bar.fill",
+            "briefcase.fill"
+        ) ||
             source.contains("money") ||
             source.contains("credit") -> HabitIconKey.MONEY
 
-        source in setOf("star", "star.fill") -> HabitIconKey.STAR
+        source in setOf(
+            "star",
+            "star.fill",
+            "target",
+            "alarm.fill",
+            "clock.fill",
+            "calendar",
+            "checkmark.circle.fill",
+            "bolt.fill",
+            "music.note",
+            "globe"
+        ) -> HabitIconKey.STAR
         source in setOf("heart", "heart.fill", "favorite") -> HabitIconKey.HEART
-        source in setOf("dhikr", "sparkles", "spa", "self_improvement") || titleLower.contains("dhikr") -> HabitIconKey.SPA
+        source in setOf("building.columns.fill", "building.columns", "mosque") ||
+            source.contains("prayer") ||
+            titleLower.contains("prayer") ||
+            titleLower.contains("намаз") -> HabitIconKey.PRAYER
+        source in setOf(
+            "dhikr",
+            "sparkles",
+            "hands.sparkles.fill",
+            "flame.fill",
+            "drop.fill",
+            "leaf.fill",
+            "spa",
+            "self_improvement",
+            "brain.head.profile",
+            "cup.and.saucer.fill",
+            "fork.knife",
+            "paintpalette.fill"
+        ) || titleLower.contains("dhikr") -> HabitIconKey.SPA
         else -> HabitIconKey.STAR
     }
 }
@@ -72,6 +127,7 @@ fun iconForHabitKey(key: String): ImageVector = when (canonicalHabitIconKey(key)
     HabitIconKey.MONEY -> Icons.Rounded.MonetizationOn
     HabitIconKey.STAR -> Icons.Rounded.Star
     HabitIconKey.SPA -> Icons.Rounded.Spa
+    HabitIconKey.PRAYER -> Icons.Rounded.SelfImprovement
     else -> Icons.Rounded.SelfImprovement
 }
 
@@ -85,6 +141,8 @@ fun categoryTitleRes(category: HabitCategoryValue): Int = when (category) {
     HabitCategoryValue.FINANCIAL -> R.string.onboarding_category_financial
     HabitCategoryValue.LEARNING -> R.string.onboarding_category_learning
     HabitCategoryValue.FAMILY -> R.string.onboarding_category_family
+    HabitCategoryValue.WORK -> R.string.onboarding_category_work
+    HabitCategoryValue.HOBBY -> R.string.onboarding_category_hobby
 }
 
 val mondayFirstWeekdays = listOf(
@@ -111,7 +169,15 @@ fun defaultTemplates(): List<TemplateSeed> = listOf(
     TemplateSeed("avoid_debt", R.string.onboarding_template_avoid_debt, HabitCategoryValue.FINANCIAL, HabitIconKey.MONEY, false, 33),
     TemplateSeed("care_parents", R.string.onboarding_template_care_parents, HabitCategoryValue.FAMILY, HabitIconKey.GROUP, false, 33),
     TemplateSeed("attention_spouse", R.string.onboarding_template_attention_spouse, HabitCategoryValue.SOCIAL, HabitIconKey.GROUP, false, 33),
-    TemplateSeed("time_children", R.string.onboarding_template_time_children, HabitCategoryValue.FAMILY, HabitIconKey.GROUP, false, 33)
+    TemplateSeed("time_children", R.string.onboarding_template_time_children, HabitCategoryValue.FAMILY, HabitIconKey.GROUP, false, 33),
+    TemplateSeed("work_focus", R.string.onboarding_template_work_focus, HabitCategoryValue.WORK, HabitIconKey.STAR, false, 33),
+    TemplateSeed("hobby_practice", R.string.onboarding_template_hobby_practice, HabitCategoryValue.HOBBY, HabitIconKey.STAR, false, 33),
+    TemplateSeed("five_times_prayer", R.string.onboarding_template_five_times_prayer, HabitCategoryValue.SPIRITUAL, HabitIconKey.PRAYER, false, 33),
+    TemplateSeed("fajr_prayer", R.string.onboarding_template_fajr, HabitCategoryValue.SPIRITUAL, HabitIconKey.PRAYER, false, 33),
+    TemplateSeed("dhuhr_prayer", R.string.onboarding_template_dhuhr, HabitCategoryValue.SPIRITUAL, HabitIconKey.PRAYER, false, 33),
+    TemplateSeed("asr_prayer", R.string.onboarding_template_asr, HabitCategoryValue.SPIRITUAL, HabitIconKey.PRAYER, false, 33),
+    TemplateSeed("maghrib_prayer", R.string.onboarding_template_maghrib, HabitCategoryValue.SPIRITUAL, HabitIconKey.PRAYER, false, 33),
+    TemplateSeed("isha_prayer", R.string.onboarding_template_isha, HabitCategoryValue.SPIRITUAL, HabitIconKey.PRAYER, false, 33)
 )
 
 data class TemplateSeed(

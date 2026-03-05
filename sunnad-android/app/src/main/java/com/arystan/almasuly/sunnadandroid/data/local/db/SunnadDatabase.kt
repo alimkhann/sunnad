@@ -2,6 +2,8 @@ package com.arystan.almasuly.sunnadandroid.data.local.db
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.arystan.almasuly.sunnadandroid.data.local.dao.CompletionDao
 import com.arystan.almasuly.sunnadandroid.data.local.dao.GroupDao
 import com.arystan.almasuly.sunnadandroid.data.local.dao.HabitDao
@@ -31,7 +33,7 @@ import com.arystan.almasuly.sunnadandroid.data.local.entity.SyncCursorEntity
         OutboxEventEntity::class,
         SyncCursorEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class SunnadDatabase : RoomDatabase() {
@@ -42,4 +44,29 @@ abstract class SunnadDatabase : RoomDatabase() {
     abstract fun groupDao(): GroupDao
     abstract fun outboxDao(): OutboxDao
     abstract fun syncCursorDao(): SyncCursorDao
+
+    companion object {
+        val MIGRATION_1_2: Migration = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!db.hasColumn("habits", "iconKey")) {
+                    db.execSQL("ALTER TABLE habits ADD COLUMN iconKey TEXT")
+                }
+                if (!db.hasColumn("habits", "categoryCustom")) {
+                    db.execSQL("ALTER TABLE habits ADD COLUMN categoryCustom TEXT")
+                }
+            }
+        }
+    }
+}
+
+private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: String): Boolean {
+    query("PRAGMA table_info(`$tableName`)").use { cursor ->
+        val nameIndex = cursor.getColumnIndex("name")
+        while (cursor.moveToNext()) {
+            if (nameIndex >= 0 && cursor.getString(nameIndex) == columnName) {
+                return true
+            }
+        }
+    }
+    return false
 }

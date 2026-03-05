@@ -12,6 +12,8 @@ enum HabitCategoryValue: String, Codable, Hashable, Sendable {
     case financial
     case learning
     case family
+    case work
+    case hobby
 }
 
 struct HabitReminder: Codable, Hashable, Sendable {
@@ -42,7 +44,9 @@ struct Habit: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     var name: String
     var icon: String
+    var iconKey: String?
     var category: HabitCategoryValue
+    var categoryCustom: String?
     var type: HabitType
     var targetCount: Int?
     var schedule: HabitSchedule
@@ -58,7 +62,9 @@ struct Habit: Identifiable, Codable, Hashable, Sendable {
         id: UUID = UUID(),
         name: String,
         icon: String,
+        iconKey: String? = nil,
         category: HabitCategoryValue = .spiritual,
+        categoryCustom: String? = nil,
         type: HabitType,
         targetCount: Int? = nil,
         schedule: HabitSchedule = .daily,
@@ -76,7 +82,9 @@ struct Habit: Identifiable, Codable, Hashable, Sendable {
         self.id = id
         self.name = name
         self.icon = icon
+        self.iconKey = iconKey
         self.category = category
+        self.categoryCustom = categoryCustom
         self.type = type
         self.targetCount = targetCount
         self.schedule = schedule

@@ -9,6 +9,9 @@ data class HabitRowDto(
     @SerialName("user_id") val userId: String,
     val name: String,
     val icon: String?,
+    @SerialName("icon_key") val iconKey: String? = null,
+    @SerialName("preset_category") val presetCategory: String? = null,
+    @SerialName("category_custom") val categoryCustom: String? = null,
     val type: String,
     @SerialName("target_count") val targetCount: Int? = null,
     val schedule: String,
@@ -37,7 +40,8 @@ data class GroupRowDto(
     @SerialName("owner_id") val ownerId: String,
     val name: String,
     val code: String,
-    @SerialName("join_locked") val joinLocked: Boolean = false
+    @SerialName("join_locked") val joinLocked: Boolean = false,
+    @SerialName("created_at") val createdAt: String? = null
 )
 
 @Serializable
@@ -45,6 +49,7 @@ data class GroupMemberRowDto(
     @SerialName("group_id") val groupId: String,
     @SerialName("user_id") val userId: String,
     val role: String,
+    @SerialName("progress_display_mode") val progressDisplayMode: String? = null,
     @SerialName("updated_at") val updatedAt: String
 )
 

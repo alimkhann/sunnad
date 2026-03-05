@@ -168,6 +168,10 @@ final class SyncingGroupsRepository: GroupsRepository {
         try await base.kickMember(groupID: groupID, memberUserID: memberUserID)
     }
 
+    func setProgressDisplayMode(groupID: UUID, mode: GroupProgressDisplayMode) async throws {
+        try await base.setProgressDisplayMode(groupID: groupID, mode: mode)
+    }
+
     func refreshGroup(groupID: UUID) async throws -> Group? {
         try await base.refreshGroup(groupID: groupID)
     }

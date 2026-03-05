@@ -2,6 +2,7 @@ package com.arystan.almasuly.sunnadandroid.domain.repository
 
 import com.arystan.almasuly.sunnadandroid.core.model.Group
 import com.arystan.almasuly.sunnadandroid.core.model.GroupNudgeStatus
+import com.arystan.almasuly.sunnadandroid.core.model.GroupProgressDisplayMode
 import java.util.UUID
 
 interface GroupsRepository {
@@ -15,6 +16,7 @@ interface GroupsRepository {
     suspend fun leaveGroup(groupId: UUID)
     suspend fun deleteGroup(groupId: UUID)
     suspend fun kickMember(groupId: UUID, memberUserId: UUID)
+    suspend fun setProgressDisplayMode(groupId: UUID, mode: GroupProgressDisplayMode)
     suspend fun refreshGroup(groupId: UUID): Group?
     suspend fun sendNudge(groupId: UUID, toUserId: UUID, habitId: UUID): GroupNudgeStatus
 }

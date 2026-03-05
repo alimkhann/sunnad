@@ -42,7 +42,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const resendAPIKey = Deno.env.get("RESEND_API_KEY");
-  const fromEmail = Deno.env.get("FROM_EMAIL") ?? "Sunnad <noreply@sunnad.com>";
+  const fromEmail = Deno.env.get("FROM_EMAIL") ?? "Adat <noreply@sunnad.com>";
 
   if (!supabaseURL || !serviceRoleKey || !supabaseAnonKey || !resendAPIKey) {
     return json({ error: "Function is not configured" }, 500);

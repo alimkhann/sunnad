@@ -133,6 +133,9 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         let userID: UUID
         let name: String
         let icon: String
+        let iconKey: String?
+        let presetCategory: String
+        let categoryCustom: String?
         let type: String
         let targetCount: Int?
         let schedule: String
@@ -149,6 +152,81 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             case userID = "user_id"
             case name
             case icon
+            case iconKey = "icon_key"
+            case presetCategory = "preset_category"
+            case categoryCustom = "category_custom"
+            case type
+            case targetCount = "target_count"
+            case schedule
+            case weekdays
+            case reminderEnabled = "reminder_enabled"
+            case reminderTime = "reminder_time"
+            case sortOrder = "sort_order"
+            case archived
+            case createdAt = "created_at"
+            case updatedAt = "updated_at"
+        }
+    }
+
+    private struct HabitPushLegacyRow: Encodable {
+        let id: UUID
+        let userID: UUID
+        let name: String
+        let icon: String
+        let type: String
+        let targetCount: Int?
+        let schedule: String
+        let weekdays: [Int]
+        let reminderEnabled: Bool
+        let reminderTime: String?
+        let sortOrder: Int
+        let archived: Bool
+        let createdAt: String
+        let updatedAt: String
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case userID = "user_id"
+            case name
+            case icon
+            case type
+            case targetCount = "target_count"
+            case schedule
+            case weekdays
+            case reminderEnabled = "reminder_enabled"
+            case reminderTime = "reminder_time"
+            case sortOrder = "sort_order"
+            case archived
+            case createdAt = "created_at"
+            case updatedAt = "updated_at"
+        }
+    }
+
+    private struct HabitPushNoIconKeyRow: Encodable {
+        let id: UUID
+        let userID: UUID
+        let name: String
+        let icon: String
+        let presetCategory: String
+        let categoryCustom: String?
+        let type: String
+        let targetCount: Int?
+        let schedule: String
+        let weekdays: [Int]
+        let reminderEnabled: Bool
+        let reminderTime: String?
+        let sortOrder: Int
+        let archived: Bool
+        let createdAt: String
+        let updatedAt: String
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case userID = "user_id"
+            case name
+            case icon
+            case presetCategory = "preset_category"
+            case categoryCustom = "category_custom"
             case type
             case targetCount = "target_count"
             case schedule
@@ -212,6 +290,44 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         let id: UUID
         let name: String
         let icon: String?
+        let iconKey: String?
+        let presetCategory: String?
+        let categoryCustom: String?
+        let type: String
+        let targetCount: Int?
+        let schedule: String
+        let weekdays: [Int]?
+        let reminderEnabled: Bool
+        let reminderTime: String?
+        let sortOrder: Int?
+        let archived: Bool?
+        let createdAt: String?
+        let updatedAt: String
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case name
+            case icon
+            case iconKey = "icon_key"
+            case presetCategory = "preset_category"
+            case categoryCustom = "category_custom"
+            case type
+            case targetCount = "target_count"
+            case schedule
+            case weekdays
+            case reminderEnabled = "reminder_enabled"
+            case reminderTime = "reminder_time"
+            case sortOrder = "sort_order"
+            case archived
+            case createdAt = "created_at"
+            case updatedAt = "updated_at"
+        }
+    }
+
+    private struct HabitPullLegacyRow: Decodable {
+        let id: UUID
+        let name: String
+        let icon: String?
         let type: String
         let targetCount: Int?
         let schedule: String
@@ -237,6 +353,27 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             case archived
             case createdAt = "created_at"
             case updatedAt = "updated_at"
+        }
+
+        func asContractRow() -> HabitPullRow {
+            HabitPullRow(
+                id: id,
+                name: name,
+                icon: icon,
+                iconKey: nil,
+                presetCategory: nil,
+                categoryCustom: nil,
+                type: type,
+                targetCount: targetCount,
+                schedule: schedule,
+                weekdays: weekdays,
+                reminderEnabled: reminderEnabled,
+                reminderTime: reminderTime,
+                sortOrder: sortOrder,
+                archived: archived,
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
         }
     }
 
@@ -395,7 +532,9 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                     existing.ownerScope = userScope
                     existing.name = guestHabit.name
                     existing.icon = guestHabit.icon
+                    existing.iconKey = guestHabit.iconKey
                     existing.categoryRaw = guestHabit.categoryRaw
+                    existing.categoryCustom = guestHabit.categoryCustom
                     existing.typeRaw = guestHabit.typeRaw
                     existing.targetCount = guestHabit.targetCount
                     existing.scheduleFrequency = guestHabit.scheduleFrequency
@@ -416,7 +555,9 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                     ownerScope: userScope,
                     name: guestHabit.name,
                     icon: guestHabit.icon,
+                    iconKey: guestHabit.iconKey,
                     categoryRaw: guestHabit.categoryRaw,
+                    categoryCustom: guestHabit.categoryCustom,
                     typeRaw: guestHabit.typeRaw,
                     targetCount: guestHabit.targetCount,
                     scheduleFrequency: guestHabit.scheduleFrequency,
@@ -758,6 +899,9 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             userID: activeUserID,
             name: local.name,
             icon: local.icon,
+            iconKey: local.iconKey ?? local.icon,
+            presetCategory: local.categoryRaw.lowercased(),
+            categoryCustom: local.categoryCustom,
             type: local.typeRaw,
             targetCount: local.targetCount,
             schedule: local.scheduleFrequency,
@@ -770,10 +914,83 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             updatedAt: Self.timestampString(local.updatedAt)
         )
 
-        try await client
-            .from("habits")
-            .upsert(row, onConflict: "id")
-            .execute()
+        do {
+            try await client
+                .from("habits")
+                .upsert(row, onConflict: "id")
+                .execute()
+        } catch {
+            if !Self.requiresIconKeyFallback(error) {
+                throw error
+            }
+            logger.log(
+                .storageFailure,
+                metadata: [
+                    "scope": "sync_push_habit_contract_fallback",
+                    "habit_id": local.id.uuidString,
+                    "error": error.localizedDescription
+                ]
+            )
+
+            let noIconKeyRow = HabitPushNoIconKeyRow(
+                id: local.id,
+                userID: activeUserID,
+                name: local.name,
+                icon: local.icon,
+                presetCategory: local.categoryRaw.lowercased(),
+                categoryCustom: local.categoryCustom,
+                type: local.typeRaw,
+                targetCount: local.targetCount,
+                schedule: local.scheduleFrequency,
+                weekdays: Self.isoWeekdays(from: local.weekdaysISO),
+                reminderEnabled: local.reminderHour != nil && local.reminderMinute != nil,
+                reminderTime: Self.timeString(hour: local.reminderHour, minute: local.reminderMinute),
+                sortOrder: local.sortOrder,
+                archived: local.archived,
+                createdAt: Self.timestampString(local.createdAt),
+                updatedAt: Self.timestampString(local.updatedAt)
+            )
+            do {
+                try await client
+                    .from("habits")
+                    .upsert(noIconKeyRow, onConflict: "id")
+                    .execute()
+            } catch {
+                if !Self.requiresCategoryContractFallback(error) {
+                    throw error
+                }
+                logger.log(
+                    .storageFailure,
+                    metadata: [
+                        "scope": "sync_push_habit_legacy_minimal_fallback",
+                        "habit_id": local.id.uuidString,
+                        "error": error.localizedDescription
+                    ]
+                )
+
+                let legacyRow = HabitPushLegacyRow(
+                    id: local.id,
+                    userID: activeUserID,
+                    name: local.name,
+                    icon: local.icon,
+                    type: local.typeRaw,
+                    targetCount: local.targetCount,
+                    schedule: local.scheduleFrequency,
+                    weekdays: Self.isoWeekdays(from: local.weekdaysISO),
+                    reminderEnabled: local.reminderHour != nil && local.reminderMinute != nil,
+                    reminderTime: Self.timeString(hour: local.reminderHour, minute: local.reminderMinute),
+                    sortOrder: local.sortOrder,
+                    archived: local.archived,
+                    createdAt: Self.timestampString(local.createdAt),
+                    updatedAt: Self.timestampString(local.updatedAt)
+                )
+
+                try await client
+                    .from("habits")
+                    .upsert(legacyRow, onConflict: "id")
+                    .execute()
+            }
+        }
     }
 
     private func pushCompletion(payload: CompletionPayload, activeUserID: UUID) async throws {
@@ -846,15 +1063,60 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
     }
 
     private func pullHabits(activeUserID: UUID, cursorString: String) async throws -> Int {
-        let response = try await client
-            .from("habits")
-            .select("id,name,icon,type,target_count,schedule,weekdays,reminder_enabled,reminder_time,sort_order,archived,created_at,updated_at")
-            .eq("user_id", value: activeUserID)
-            .gt("updated_at", value: cursorString)
-            .order("updated_at", ascending: true)
-            .execute()
+        let rows: [HabitPullRow]
+        do {
+            let response = try await client
+                .from("habits")
+                .select("id,name,icon,icon_key,preset_category,category_custom,type,target_count,schedule,weekdays,reminder_enabled,reminder_time,sort_order,archived,created_at,updated_at")
+                .eq("user_id", value: activeUserID)
+                .gt("updated_at", value: cursorString)
+                .order("updated_at", ascending: true)
+                .execute()
+            rows = try decoder.decode([HabitPullRow].self, from: response.data)
+        } catch {
+            if !Self.requiresIconKeyFallback(error) {
+                throw error
+            }
+            logger.log(
+                .storageFailure,
+                metadata: [
+                    "scope": "sync_pull_habits_contract_fallback",
+                    "error": error.localizedDescription
+                ]
+            )
 
-        let rows = try decoder.decode([HabitPullRow].self, from: response.data)
+            do {
+                let compatibilityResponse = try await client
+                    .from("habits")
+                    .select("id,name,icon,preset_category,category_custom,type,target_count,schedule,weekdays,reminder_enabled,reminder_time,sort_order,archived,created_at,updated_at")
+                    .eq("user_id", value: activeUserID)
+                    .gt("updated_at", value: cursorString)
+                    .order("updated_at", ascending: true)
+                    .execute()
+                rows = try decoder.decode([HabitPullRow].self, from: compatibilityResponse.data)
+            } catch {
+                if !Self.requiresCategoryContractFallback(error) {
+                    throw error
+                }
+                logger.log(
+                    .storageFailure,
+                    metadata: [
+                        "scope": "sync_pull_habits_legacy_minimal_fallback",
+                        "error": error.localizedDescription
+                    ]
+                )
+                let legacyResponse = try await client
+                    .from("habits")
+                    .select("id,name,icon,type,target_count,schedule,weekdays,reminder_enabled,reminder_time,sort_order,archived,created_at,updated_at")
+                    .eq("user_id", value: activeUserID)
+                    .gt("updated_at", value: cursorString)
+                    .order("updated_at", ascending: true)
+                    .execute()
+                let legacyRows = try decoder.decode([HabitPullLegacyRow].self, from: legacyResponse.data)
+                rows = legacyRows.map { $0.asContractRow() }
+            }
+        }
+
         for row in rows {
             try mergeHabit(row)
         }
@@ -881,7 +1143,10 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         if let existing = try modelContext.fetch(descriptor).first {
             guard updatedAt >= existing.updatedAt else { return }
             existing.name = row.name
-            existing.icon = row.icon ?? "checkmark.circle"
+            existing.icon = row.icon ?? row.iconKey ?? "checkmark.circle"
+            existing.iconKey = row.iconKey ?? row.icon
+            existing.categoryRaw = row.presetCategory ?? HabitCategoryValue.spiritual.rawValue
+            existing.categoryCustom = row.categoryCustom
             existing.typeRaw = row.type
             existing.targetCount = row.targetCount
             existing.scheduleFrequency = row.schedule
@@ -900,8 +1165,10 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 id: row.id,
                 ownerScope: ownerScope,
                 name: row.name,
-                icon: row.icon ?? "checkmark.circle",
-                categoryRaw: HabitCategoryValue.spiritual.rawValue,
+                icon: row.icon ?? row.iconKey ?? "checkmark.circle",
+                iconKey: row.iconKey ?? row.icon,
+                categoryRaw: row.presetCategory ?? HabitCategoryValue.spiritual.rawValue,
+                categoryCustom: row.categoryCustom,
                 typeRaw: row.type,
                 targetCount: row.targetCount,
                 scheduleFrequency: row.schedule,
@@ -1345,6 +1612,32 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             && (message.contains("does not exist")
                 || message.contains("undefined column")
                 || message.contains("42703"))
+    }
+
+    private static func requiresIconKeyFallback(_ error: Error) -> Bool {
+        let message = error.localizedDescription.lowercased()
+        guard message.contains("does not exist")
+            || message.contains("undefined column")
+            || message.contains("42703")
+        else {
+            return false
+        }
+
+        return message.contains("habits.icon_key")
+    }
+
+    private static func requiresCategoryContractFallback(_ error: Error) -> Bool {
+        let message = error.localizedDescription.lowercased()
+        guard message.contains("does not exist")
+            || message.contains("undefined column")
+            || message.contains("42703")
+        else {
+            return false
+        }
+
+        return message.contains("habits.preset_category")
+            || message.contains("habits.category_custom")
+            || message.contains("habits.category")
     }
 
     private static func savedQuoteMatchKey(_ quoteID: UUID?) -> String {

@@ -6,7 +6,8 @@ enum StreakCalculator {
         completions: [HabitCompletion],
         asOf date: Date,
         calendar: Calendar = .current,
-        timeZone: TimeZone = .current
+        timeZone: TimeZone = .current,
+        referenceDate: Date = Date()
     ) -> Int {
         var calendar = calendar
         calendar.timeZone = timeZone
@@ -33,6 +34,25 @@ enum StreakCalculator {
                 return 0
             }
             cursor = previous
+        }
+
+        let referenceDay = calendar.startOfDay(for: referenceDate)
+
+        if habit.isDue(on: cursor, calendar: calendar, timeZone: timeZone) {
+            let isCompleted = normalized[cursor]?.isCompleted(for: habit) ?? false
+            if !isCompleted {
+                if cursor == referenceDay,
+                   let previous = previousDueDate(
+                       for: habit,
+                       before: cursor,
+                       calendar: calendar,
+                       timeZone: timeZone
+                   ) {
+                    cursor = previous
+                } else {
+                    return 0
+                }
+            }
         }
 
         while true {

@@ -62,14 +62,16 @@
     <string name="groups_create">Топ құру</string>
     <string name="groups_join_code">Шақыру коды</string>
     <string name="groups_join">Қосылу</string>
+    <string name="groups_join_with_code">Кодпен қосылу</string>
     <string name="groups_code">Код: %1$s</string>
-    <string name="groups_members_count">Қатысушылар: %1$d</string>
+    <string name="groups_members_count">%1$d қатысушы</string>
     <string name="groups_members_section">ҚАТЫСУШЫЛАР</string>
     <string name="groups_members_and_code">%1$d қатысушы • %2$s</string>
     <string name="groups_unlock">Қосылуды ашу</string>
     <string name="groups_lock">Қосылуды жабу</string>
     <string name="groups_rotate_code">Кодты жаңарту</string>
     <string name="groups_nudge">Еске салу</string>
+    <string name="groups_nudge_confirm_message">%1$s үшін «%2$s» әдетіне еске салу жіберілсін бе?</string>
     <string name="groups_leave">Шығу</string>
     <string name="groups_rename">Топ атауын өзгерту</string>
     <string name="groups_sign_in_required_title">Кіру қажет</string>
@@ -77,10 +79,12 @@
     <string name="groups_empty_title">Топтар әлі жоқ</string>
     <string name="groups_empty_subtitle">Топ құрыңыз немесе шақыру коды арқылы қосылыңыз.</string>
     <string name="groups_sharing_title">Бөлісу</string>
+    <string name="groups_sharing_summary">%1$d әдет бөлісілген</string>
     <string name="groups_nudge_sent">Еске салу жіберілді.</string>
     <string name="groups_nudge_duplicate">Еске салу жақында жіберілген.</string>
     <string name="groups_nudge_forbidden">Еске салу жіберуге рұқсат жоқ.</string>
     <string name="groups_nudge_error">Еске салу жіберілмеді.</string>
+    <string name="groups_member_today_progress">Бүгін %1$d/%2$d</string>
     <string name="groups_kick_member">Қатысушыны шығару</string>
     <string name="groups_leave_confirm">Осы топтан шығасыз ба?</string>
     <string name="groups_delete_confirm">Осы топты барлық қатысушы үшін жоясыз ба?</string>
@@ -190,7 +194,7 @@
 
     <string name="onboarding_welcome_title">Өмір теңгерімі</string>
     <string name="onboarding_welcome_subtitle">Рухани, дене, әлеуметтік және жеке даму салаларында тұрақты әдеттер құрыңыз.</string>
-    <string name="onboarding_welcome_body">Sunnad Today экранын жинақы ұстайды, офлайн жұмыс істейді және тыныш тәжірибе береді.</string>
+    <string name="onboarding_welcome_body">Adat Today экранын жинақы ұстайды, офлайн жұмыс істейді және тыныш тәжірибе береді.</string>
     <string name="onboarding_welcome_quote">Есепке тартылмай тұрып өздеріңді есепке тартыңдар.\nАмалдарың таразыланбай тұрып, өз амалдарыңды таразылаңдар\n- Омар ибн әл-Хаттаб р.а.</string>
     <string name="onboarding_get_started">Бастау</string>
     <string name="onboarding_continue">Жалғастыру</string>
@@ -211,12 +215,22 @@
     <string name="onboarding_template_avoid_debt">Қарыздан аулақ болу</string>
     <string name="onboarding_template_attention_spouse">Жұбайға көңіл бөлу</string>
     <string name="onboarding_template_time_children">Балалармен уақыт</string>
+    <string name="onboarding_template_work_focus">Терең жұмыс сессиясы</string>
+    <string name="onboarding_template_hobby_practice">Хоббимен айналысу</string>
+    <string name="onboarding_template_five_times_prayer">Бес уақыт намаз</string>
+    <string name="onboarding_template_fajr">Таң намазы (Фәжр)</string>
+    <string name="onboarding_template_dhuhr">Бесін намазы (Зухр)</string>
+    <string name="onboarding_template_asr">Екінті намазы (Аср)</string>
+    <string name="onboarding_template_maghrib">Ақшам намазы (Мағриб)</string>
+    <string name="onboarding_template_isha">Құптан намазы (Иша)</string>
     <string name="onboarding_category_spiritual">Рухани</string>
     <string name="onboarding_category_social">Әлеуметтік</string>
     <string name="onboarding_category_physical">Дене</string>
     <string name="onboarding_category_learning">Оқу</string>
     <string name="onboarding_category_financial">Қаржы</string>
     <string name="onboarding_category_family">Отбасы</string>
+    <string name="onboarding_category_work">Жұмыс</string>
+    <string name="onboarding_category_hobby">Хобби</string>
     <string name="onboarding_notifications_title">Ырғақты сақтаңыз</string>
     <string name="onboarding_notifications_subtitle">Күнделікті әдеттерден қалмау үшін еске салғыштарды қосыңыз.</string>
     <string name="onboarding_notifications_toggle">Жергілікті еске салғыштарды қосу</string>
@@ -235,7 +249,7 @@
     <string name="notification_habit_reminder_title">Әдет еске салғышы</string>
     <string name="notification_habit_reminder_body">Орындау уақыты: %1$s</string>
     <string name="notification_quote_reminder_title">Күн дәйексөзі</string>
-    <string name="notification_quote_reminder_body">Бүгінгі дәйексөз бен чеклист үшін Sunnad ашыңыз.</string>
+    <string name="notification_quote_reminder_body">Бүгінгі дәйексөз бен чеклист үшін Adat ашыңыз.</string>
 
     <string name="language_english">English</string>
     <string name="language_russian">Русский</string>
@@ -258,6 +272,8 @@
     <string name="habit_add_templates">Үлгілерден таңдау</string>
     <string name="habit_add_custom">Жеке әдет құру</string>
     <string name="habit_custom_name_placeholder">Әдет атауы</string>
+    <string name="habit_category_custom_option">Жеке санат</string>
+    <string name="habit_category_custom_placeholder">Жеке санат атауын енгізіңіз</string>
     <string name="habit_details">Детальдар</string>
     <string name="habit_last_7_days">Соңғы 7 күн</string>
     <string name="habit_category">Санат</string>
@@ -277,6 +293,8 @@
     <string name="insights_last_40_days">Соңғы 40 күн</string>
     <string name="insights_missed_habits">Өткізіп алған әдеттер</string>
     <string name="insights_none_missed">Өткізілген әдеттер жоқ</string>
+    <string name="insights_category_analytics">Санат аналитикасы</string>
+    <string name="insights_category_completed_ratio">%1$d/%2$d орындалды</string>
     <string name="schedule_title">Кесте</string>
     <string name="schedule_mode_all">Барлығы</string>
     <string name="schedule_mode_upcoming">Жақында</string>
@@ -292,6 +310,9 @@
     <string name="feedback_sending">Жіберілуде…</string>
     <string name="feedback_sent">Пікір жіберілді</string>
     <string name="feedback_failed">Пікір жіберілмеді</string>
+    <string name="groups_progress_mode_title">Қатысушы прогресін көрсету</string>
+    <string name="groups_progress_mode_percent">Пайыз</string>
+    <string name="groups_progress_mode_streak">Серия</string>
     <string name="dhikr_choice_subhanallah">СубханАллаh</string>
     <string name="dhikr_choice_alhamdulillah">Әлхамдулилләh</string>
     <string name="dhikr_choice_allahu_akbar">Аллаhу Әкбар</string>

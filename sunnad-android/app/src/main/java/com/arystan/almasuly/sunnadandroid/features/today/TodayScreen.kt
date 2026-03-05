@@ -69,6 +69,7 @@ fun TodayScreen(
         name: String,
         icon: String,
         category: com.arystan.almasuly.sunnadandroid.core.model.HabitCategoryValue,
+        categoryCustom: String?,
         schedule: com.arystan.almasuly.sunnadandroid.core.model.HabitSchedule,
         isDhikr: Boolean,
         targetCount: Int,
@@ -209,7 +210,8 @@ fun TodayScreen(
                                 HabitRow(
                                     habit = habit,
                                     onToggleHabit = onToggleHabit,
-                                    onSelectHabit = onSelectHabit
+                                    onSelectHabit = onSelectHabit,
+                                    isTogglePending = state.pendingHabitToggleIds.contains(habit.id)
                                 )
                                 if (index < pendingHabits.lastIndex) {
                                     Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
@@ -248,7 +250,8 @@ fun TodayScreen(
                                         habit = habit,
                                         onToggleHabit = onToggleHabit,
                                         onSelectHabit = onSelectHabit,
-                                        isDimmed = true
+                                        isDimmed = true,
+                                        isTogglePending = state.pendingHabitToggleIds.contains(habit.id)
                                     )
                                     if (index < completedHabits.lastIndex) {
                                         Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
@@ -274,11 +277,12 @@ fun TodayScreen(
                 onAddTemplates(templates)
                 showAddHabitSheet = false
             },
-            onAddCustomHabit = { name, icon, category, schedule, isDhikr, targetCount, reminderHour, reminderMinute ->
+            onAddCustomHabit = { name, icon, category, categoryCustom, schedule, isDhikr, targetCount, reminderHour, reminderMinute ->
                 onAddHabit(
                     name,
                     icon,
                     category,
+                    categoryCustom,
                     schedule,
                     isDhikr,
                     targetCount,
@@ -379,13 +383,14 @@ private fun HabitRow(
     habit: TodayHabitUiModel,
     onToggleHabit: (java.util.UUID) -> Unit,
     onSelectHabit: (java.util.UUID?) -> Unit,
-    isDimmed: Boolean = false
+    isDimmed: Boolean = false,
+    isTogglePending: Boolean = false
 ) {
     val completedFill = MaterialTheme.colorScheme.primary
     val incompleteFill = MaterialTheme.colorScheme.surfaceContainerHighest
     SunnadListRow(
         title = habit.title,
-        subtitle = null,
+        subtitle = stringResource(R.string.today_streak, habit.streak),
         leading = {
             Icon(
                 imageVector = iconForHabitName(habit.icon, habit.title),
@@ -412,7 +417,7 @@ private fun HabitRow(
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
                             shape = CircleShape
                         )
-                        .clickable { onToggleHabit(habit.id) },
+                        .clickable(enabled = !isTogglePending) { onToggleHabit(habit.id) },
                     contentAlignment = Alignment.Center
                 ) {
                     if (habit.completedToday) {
@@ -433,6 +438,10 @@ private fun HabitRow(
         verticalPadding = 4.dp,
         horizontalPadding = 16.dp,
         minHeight = 42.dp,
-        rowAlpha = if (isDimmed) 0.64f else 1f
+        rowAlpha = when {
+            isDimmed -> 0.64f
+            isTogglePending -> 0.74f
+            else -> 1f
+        }
     )
 }
