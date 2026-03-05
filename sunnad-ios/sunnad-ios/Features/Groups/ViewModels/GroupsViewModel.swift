@@ -333,13 +333,35 @@ final class GroupsViewModel: ObservableObject {
             var mutable = group
             let myMemberID = mutable.currentUserMemberID ?? mutable.ownerMemberID
             let serverMember = mutable.members.first(where: { $0.id == myMemberID })
+            let today = Date()
+            let localSharedHabits = habits.filter { mutable.sharedHabitIDs.contains($0.id) }
+            let localDueSharedHabits = localSharedHabits
+                .filter { $0.isScheduled(on: today) }
+                .sorted { $0.displayTitle.localizedCaseInsensitiveCompare($1.displayTitle) == .orderedAscending }
+                .map {
+                    UISharedHabit(
+                        habitID: $0.id,
+                        habitTitle: $0.displayTitle,
+                        habitIconSystemName: $0.iconSystemName,
+                        completedToday: $0.completedToday,
+                        dueToday: true,
+                        streak: $0.streak,
+                        rollingCompletionPercent: nil
+                    )
+                }
+            let resolvedSharedHabits: [UISharedHabit]
+            if !localSharedHabits.isEmpty || mutable.sharedHabitIDs.isEmpty {
+                resolvedSharedHabits = localDueSharedHabits
+            } else {
+                resolvedSharedHabits = serverMember?.sharedHabits.filter(\.dueToday) ?? []
+            }
             let updatedMe = UIGroupMember(
                 id: myMemberID,
                 name: user.name ?? serverMember?.name ?? L10n.t("groups.you"),
                 avatarURL: user.avatarURL ?? serverMember?.avatarURL,
-                completedToday: serverMember?.completedToday ?? 0,
-                totalSharedHabits: serverMember?.totalSharedHabits ?? 0,
-                sharedHabits: serverMember?.sharedHabits ?? []
+                completedToday: resolvedSharedHabits.count { $0.completedToday },
+                totalSharedHabits: resolvedSharedHabits.count,
+                sharedHabits: resolvedSharedHabits
             )
 
             if let index = mutable.members.firstIndex(where: { $0.id == myMemberID }) {

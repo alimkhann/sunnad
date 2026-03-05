@@ -26,4 +26,15 @@ struct UIModelDomainMapperTests {
         let mappedBack = domain.asUIHabit(completedToday: false, streak: 0)
         #expect(mappedBack.weekdays == Set([0, 2, 6]))
     }
+
+    @Test
+    func habitIconCatalogCanonicalizesLegacyValuesIntoCuratedRange() {
+        #expect(HabitIconCatalog.canonicalKeys.count >= 30)
+        #expect(HabitIconCatalog.canonicalKeys.count <= 50)
+        #expect(HabitIconCatalog.canonicalKey(for: "wb_sunny") == "sunrise.fill")
+        #expect(HabitIconCatalog.canonicalKey(for: "bedtime") == "moon.fill")
+        #expect(HabitIconCatalog.canonicalKey(for: "menu_book") == "book.closed.fill")
+        #expect(HabitIconCatalog.canonicalKey(for: "mosque") == "building.columns.fill")
+        #expect(HabitIconCatalog.canonicalKey(for: "unknown", title: "Morning dhikr") == "sunrise.fill")
+    }
 }
