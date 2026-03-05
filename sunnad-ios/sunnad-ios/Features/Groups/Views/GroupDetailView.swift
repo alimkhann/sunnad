@@ -624,24 +624,48 @@ struct GroupDetailView: View {
     }
 
     private func displayedSharedHabits(for member: UIGroupMember, isCurrentUser: Bool) -> [UISharedHabit] {
+        let dueRemoteSharedHabits = member.sharedHabits.filter(\.dueToday)
         if isCurrentUser {
             let today = Date()
-            let remoteByHabitID = Dictionary(uniqueKeysWithValues: member.sharedHabits.map { ($0.habitID, $0) })
-            return habits
-                .filter { sharedHabitIDs.contains($0.id) && $0.isScheduled(on: today) }
-                .map {
+            let localDueByHabitID = Dictionary(
+                uniqueKeysWithValues: habits
+                    .filter { sharedHabitIDs.contains($0.id) && $0.isScheduled(on: today) }
+                    .map { ($0.id, $0) }
+            )
+            if dueRemoteSharedHabits.isEmpty {
+                let localDueHabits: [UIHabit] = localDueByHabitID.values.map { $0 }
+                return localDueHabits.sorted { (lhs: UIHabit, rhs: UIHabit) in
+                    lhs.displayTitle.localizedCaseInsensitiveCompare(rhs.displayTitle) == .orderedAscending
+                }.map { local in
                     UISharedHabit(
-                        habitID: $0.id,
-                        habitTitle: $0.displayTitle,
-                        habitIconSystemName: $0.iconSystemName,
-                        completedToday: ownCompletionOverrides[$0.id] ?? $0.completedToday,
-                        streak: $0.streak,
-                        rollingCompletionPercent: remoteByHabitID[$0.id]?.rollingCompletionPercent
+                        habitID: local.id,
+                        habitTitle: local.displayTitle,
+                        habitIconSystemName: local.iconSystemName,
+                        completedToday: ownCompletionOverrides[local.id] ?? local.completedToday,
+                        dueToday: true,
+                        streak: local.streak,
+                        rollingCompletionPercent: nil
                     )
                 }
+            }
+            return dueRemoteSharedHabits.map { remote in
+                guard let local = localDueByHabitID[remote.habitID] else {
+                    return remote
+                }
+                return UISharedHabit(
+                    id: remote.id,
+                    habitID: remote.habitID,
+                    habitTitle: local.displayTitle,
+                    habitIconSystemName: local.iconSystemName,
+                    completedToday: ownCompletionOverrides[remote.habitID] ?? local.completedToday,
+                    dueToday: true,
+                    streak: local.streak,
+                    rollingCompletionPercent: remote.rollingCompletionPercent
+                )
+            }
         }
 
-        return member.sharedHabits
+        return dueRemoteSharedHabits
     }
 
     private func reconcileOwnCompletionOverrides() {
@@ -654,8 +678,11 @@ struct GroupDetailView: View {
         }
     }
 
-    private func memberProgress(for member: UIGroupMember, isCurrentUser _: Bool) -> (completed: Int, total: Int) {
-        (member.completedToday, member.totalSharedHabits)
+    private func memberProgress(for member: UIGroupMember, isCurrentUser: Bool) -> (completed: Int, total: Int) {
+        let visibleHabits = displayedSharedHabits(for: member, isCurrentUser: isCurrentUser)
+        let total = visibleHabits.count
+        let completed = visibleHabits.count { $0.completedToday }
+        return (completed, total)
     }
 
     private func progressSubtitle(completed: Int, total: Int) -> String {

@@ -374,6 +374,7 @@ struct UISharedHabit: Identifiable, Hashable {
     let habitTitle: String
     let habitIconSystemName: String
     let completedToday: Bool
+    let dueToday: Bool
     let streak: Int
     let rollingCompletionPercent: Int?
 
@@ -383,6 +384,7 @@ struct UISharedHabit: Identifiable, Hashable {
         habitTitle: String,
         habitIconSystemName: String,
         completedToday: Bool,
+        dueToday: Bool = true,
         streak: Int,
         rollingCompletionPercent: Int? = nil
     ) {
@@ -391,6 +393,7 @@ struct UISharedHabit: Identifiable, Hashable {
         self.habitTitle = habitTitle
         self.habitIconSystemName = habitIconSystemName
         self.completedToday = completedToday
+        self.dueToday = dueToday
         self.streak = streak
         self.rollingCompletionPercent = rollingCompletionPercent
     }

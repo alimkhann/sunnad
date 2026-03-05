@@ -7,8 +7,8 @@ extension UIHabit {
         return Habit(
             id: id,
             name: displayTitle,
-            icon: iconSystemName,
-            iconKey: iconSystemName,
+            icon: HabitIconCatalog.canonicalKey(for: iconSystemName, title: displayTitle),
+            iconKey: HabitIconCatalog.canonicalKey(for: iconSystemName, title: displayTitle),
             category: HabitCategoryValue(rawValue: category.rawValue) ?? .spiritual,
             categoryCustom: categoryCustom,
             type: isDhikr ? .dhikr : .binary,
@@ -55,7 +55,7 @@ extension Habit {
         return UIHabit(
             id: id,
             customTitle: name,
-            iconSystemName: iconKey ?? icon,
+            iconSystemName: HabitIconCatalog.canonicalKey(for: iconKey ?? icon, title: name),
             category: HabitCategory(rawValue: category.rawValue) ?? .spiritual,
             categoryCustom: categoryCustom,
             completedToday: completedToday,
@@ -122,6 +122,7 @@ extension UISharedHabit {
             title: habitTitle,
             icon: habitIconSystemName,
             completedToday: completedToday,
+            dueToday: dueToday,
             streak: streak,
             rollingCompletionPercent: rollingCompletionPercent
         )
@@ -136,6 +137,7 @@ extension SharedHabit {
             habitTitle: title,
             habitIconSystemName: icon,
             completedToday: completedToday,
+            dueToday: dueToday,
             streak: streak,
             rollingCompletionPercent: rollingCompletionPercent
         )

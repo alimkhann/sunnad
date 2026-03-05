@@ -22,6 +22,7 @@ data class SharedHabit(
     val title: String,
     val icon: String,
     val completedToday: Boolean,
+    val dueToday: Boolean = true,
     val streak: Int,
     val rollingCompletionPercent: Int? = null
 )

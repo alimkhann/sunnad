@@ -249,6 +249,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                                     title: habit.name,
                                     icon: habit.icon,
                                     completedToday: completedToday,
+                                    dueToday: domainHabit.schedule.isDue(on: Date(), calendar: metricsCalendar, timeZone: metricsTimeZone),
                                     streak: streak,
                                     rollingCompletionPercent: rollingCompletionPercent
                                 )
@@ -260,6 +261,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                                     title: "Shared habit",
                                     icon: "star.fill",
                                     completedToday: false,
+                                    dueToday: false,
                                     streak: 0,
                                     rollingCompletionPercent: 0
                                 )

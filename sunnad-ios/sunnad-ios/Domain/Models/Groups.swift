@@ -19,6 +19,7 @@ struct SharedHabit: Identifiable, Codable, Hashable, Sendable {
     var title: String
     var icon: String
     var completedToday: Bool
+    var dueToday: Bool
     var streak: Int
     var rollingCompletionPercent: Int?
 
@@ -28,6 +29,7 @@ struct SharedHabit: Identifiable, Codable, Hashable, Sendable {
         title: String,
         icon: String,
         completedToday: Bool,
+        dueToday: Bool = true,
         streak: Int,
         rollingCompletionPercent: Int? = nil
     ) {
@@ -36,6 +38,7 @@ struct SharedHabit: Identifiable, Codable, Hashable, Sendable {
         self.title = title
         self.icon = icon
         self.completedToday = completedToday
+        self.dueToday = dueToday
         self.streak = streak
         self.rollingCompletionPercent = rollingCompletionPercent
     }

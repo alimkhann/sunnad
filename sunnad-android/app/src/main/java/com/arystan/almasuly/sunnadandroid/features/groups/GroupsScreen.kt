@@ -539,6 +539,9 @@ private fun GroupDetailScreen(
             it
         }
     }
+    val ownSharedHabitsById = remember(ownSharedHabits) {
+        ownSharedHabits.associateBy { it.id }
+    }
 
     SunnadScreenSurface {
         PullToRefreshBox(
@@ -708,24 +711,43 @@ private fun GroupDetailScreen(
                     group.members.forEachIndexed { index, member ->
                         val isCurrentUser = member.id == currentUserMemberId
                         val memberHabits: List<SharedHabit> = if (isCurrentUser) {
-                            ownSharedHabits.map {
-                                SharedHabit(
-                                    habitId = it.id,
-                                    title = it.title,
-                                    icon = it.icon,
-                                    completedToday = it.completedToday,
-                                    streak = it.streak,
-                                    rollingCompletionPercent = member.sharedHabits
-                                        .firstOrNull { shared -> shared.habitId == it.id }
-                                        ?.rollingCompletionPercent
-                                )
+                            val dueRemoteHabits = member.sharedHabits
+                                .filter { it.dueToday }
+                            if (dueRemoteHabits.isEmpty()) {
+                                ownSharedHabits.map { local ->
+                                    SharedHabit(
+                                        habitId = local.id,
+                                        title = local.title,
+                                        icon = local.icon,
+                                        completedToday = ownCompletionOverrides[local.id] ?: local.completedToday,
+                                        dueToday = true,
+                                        streak = local.streak,
+                                        rollingCompletionPercent = null
+                                    )
+                                }
+                            } else {
+                                dueRemoteHabits
+                                .map { remote ->
+                                    val local = ownSharedHabitsById[remote.habitId]
+                                    SharedHabit(
+                                        habitId = remote.habitId,
+                                        title = local?.title ?: remote.title,
+                                        icon = local?.icon ?: remote.icon,
+                                        completedToday = ownCompletionOverrides[remote.habitId]
+                                            ?: local?.completedToday
+                                            ?: remote.completedToday,
+                                        dueToday = true,
+                                        streak = local?.streak ?: remote.streak,
+                                        rollingCompletionPercent = remote.rollingCompletionPercent
+                                    )
+                                }
                             }
                         } else {
-                            member.sharedHabits
+                            member.sharedHabits.filter { it.dueToday }
                         }
 
-                        val completedCount = member.completedToday
-                        val totalCount = member.totalSharedHabits
+                        val completedCount = memberHabits.count { it.completedToday }
+                        val totalCount = memberHabits.size
 
                         Column {
                             SunnadListRow(

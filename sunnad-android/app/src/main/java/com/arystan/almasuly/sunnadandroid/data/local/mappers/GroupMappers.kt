@@ -18,6 +18,7 @@ fun GroupEntity.toDomain(members: List<GroupMemberEntity>, shared: List<GroupSha
                 title = it.title,
                 icon = it.icon,
                 completedToday = it.completedToday,
+                dueToday = true,
                 streak = it.streak
             )
         }

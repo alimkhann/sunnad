@@ -133,6 +133,7 @@ class SupabaseGroupsRepository(
                             title = "Shared habit",
                             icon = "star.fill",
                             completedToday = false,
+                            dueToday = false,
                             streak = 0,
                             rollingCompletionPercent = 0
                         ) to false
@@ -152,6 +153,7 @@ class SupabaseGroupsRepository(
                         title = habit.name,
                         icon = habit.iconKey ?: habit.icon,
                         completedToday = completedToday,
+                        dueToday = habit.isDue(today),
                         streak = streak,
                         rollingCompletionPercent = rollingPercent
                     )
