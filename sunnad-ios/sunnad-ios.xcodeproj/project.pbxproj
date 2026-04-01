@@ -11,7 +11,6 @@
 		A31E9D142F70000100A7A101 /* OneSignalExtension in Frameworks */ = {isa = PBXBuildFile; productRef = A31E9D232F70000100A7A101 /* OneSignalExtension */; };
 		A31E9D152F70000100A7A101 /* sunnad-iosNotificationServiceExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A31E9D172F70000100A7A101 /* sunnad-iosNotificationServiceExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		47A6918B2F47B88900BC3F31 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A1D9E801D7D14B9A8A5E1001 /* Supabase */; };
-		47A69F1F2F4DE15800BC3F31 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = 47A69F1E2F4DE15800BC3F31 /* PostHog */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -104,8 +103,7 @@
 			files = (
 				A31E9D112F70000100A7A101 /* OneSignalFramework in Frameworks */,
 				47A6918B2F47B88900BC3F31 /* Supabase in Frameworks */,
-				47A69F1F2F4DE15800BC3F31 /* PostHog in Frameworks */,
-			);
+);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		47C8D7252F44B4DD006F8DF3 /* Frameworks */ = {
@@ -179,8 +177,7 @@
 				packageProductDependencies = (
 					A31E9D122F70000100A7A101 /* OneSignalFramework */,
 					A1D9E801D7D14B9A8A5E1001 /* Supabase */,
-					47A69F1E2F4DE15800BC3F31 /* PostHog */,
-				);
+);
 			productName = "sunnad-ios";
 			productReference = 47C8D7192F44B4DC006F8DF3 /* sunnad-ios.app */;
 			productType = "com.apple.product-type.application";
@@ -292,8 +289,7 @@
 				packageReferences = (
 					A31E9D132F70000100A7A101 /* XCRemoteSwiftPackageReference "OneSignal-iOS-SDK" */,
 					A1D9E801D7D14B9A8A5E2001 /* XCRemoteSwiftPackageReference "supabase-swift" */,
-					47A69F1D2F4DE15800BC3F31 /* XCRemoteSwiftPackageReference "posthog-ios" */,
-				);
+);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 47C8D71A2F44B4DC006F8DF3 /* Products */;
 			projectDirPath = "";
@@ -961,14 +957,6 @@
 				minimumVersion = 5.2.16;
 			};
 		};
-		47A69F1D2F4DE15800BC3F31 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 3.41.2;
-			};
-		};
 		A1D9E801D7D14B9A8A5E2001 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/supabase/supabase-swift.git";
@@ -989,11 +977,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A31E9D132F70000100A7A101 /* XCRemoteSwiftPackageReference "OneSignal-iOS-SDK" */;
 			productName = OneSignalExtension;
-		};
-		47A69F1E2F4DE15800BC3F31 /* PostHog */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47A69F1D2F4DE15800BC3F31 /* XCRemoteSwiftPackageReference "posthog-ios" */;
-			productName = PostHog;
 		};
 		A1D9E801D7D14B9A8A5E1001 /* Supabase */ = {
 			isa = XCSwiftPackageProductDependency;

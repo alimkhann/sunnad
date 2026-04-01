@@ -82,8 +82,6 @@ final class DependencyContainer {
         analyticsLogger = logger
         if let analytics {
             self.analytics = analytics
-        } else if let posthogClient = PostHogAnalyticsClient(environment: resolvedEnvironment) {
-            self.analytics = posthogClient
         } else {
             self.analytics = NoopAnalyticsClient()
         }

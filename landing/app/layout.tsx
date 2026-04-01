@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
-import { PostHogProvider } from "@/app/providers";
+import { Providers } from "@/app/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -43,7 +43,7 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <PostHogProvider>{children}</PostHogProvider>
+        <Providers>{children}</Providers>
         <Analytics />
       </body>
     </html>
