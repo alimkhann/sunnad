@@ -29,8 +29,11 @@ enum StreakCalculator {
         var cursor = calendar.startOfDay(for: date)
 
         // If current day is not due for this habit, evaluate from the latest previous due day.
+        // Bounded to 14 days to prevent infinite loop if habit has no valid due days (e.g. weekly with empty weekdays).
+        var seekLimit = 14
         while !habit.isDue(on: cursor, calendar: calendar, timeZone: timeZone) {
-            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else {
+            seekLimit -= 1
+            guard seekLimit > 0, let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else {
                 return 0
             }
             cursor = previous

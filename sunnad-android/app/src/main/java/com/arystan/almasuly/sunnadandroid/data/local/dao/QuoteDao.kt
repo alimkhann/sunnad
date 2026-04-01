@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.arystan.almasuly.sunnadandroid.data.local.entity.QuoteEntity
 
 @Dao
@@ -16,4 +17,10 @@ interface QuoteDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<QuoteEntity>)
+
+    @Transaction
+    suspend fun replaceAll(entities: List<QuoteEntity>) {
+        deleteAll()
+        upsertAll(entities)
+    }
 }

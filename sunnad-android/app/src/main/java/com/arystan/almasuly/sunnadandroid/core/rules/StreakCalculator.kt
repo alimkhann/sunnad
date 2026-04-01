@@ -17,7 +17,11 @@ object StreakCalculator {
         var streak = 0
         var cursor = asOf
 
+        // Bounded to 14 days to prevent infinite loop if habit has no valid due days.
+        var seekLimit = 14
         while (!habit.isDue(cursor)) {
+            seekLimit--
+            if (seekLimit <= 0) return 0
             cursor = cursor.minusDays(1)
         }
 

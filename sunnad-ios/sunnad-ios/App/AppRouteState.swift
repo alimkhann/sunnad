@@ -182,6 +182,7 @@ final class AppRouteState: ObservableObject {
     private var pendingTodayDataReload = false
     private var pendingHabitToggleIDs = Set<UUID>()
     private var currentSessionUserID: UUID?
+    private var postDeleteHabitSnapshot: [UIHabit]?
     private var streakByHabitID: [UUID: Int] = [:]
     private let sessionTracker: AppSessionAnalyticsTracker
     private let connectivityMonitor = NWPathMonitor()
@@ -771,12 +772,12 @@ final class AppRouteState: ObservableObject {
                     mimeType: compressed.mimeType
                 )
                 user = sessionUser.asUIUserState
+                authErrorMessage = nil
+                authSuccessMessage = L10n.t("profile.edit.avatar.updated")
                 await AvatarImageCache.shared.invalidate(url: previousAvatarURL)
                 Task {
                     await AvatarImageCache.shared.preload(url: self.user.avatarURL)
                 }
-                authErrorMessage = nil
-                authSuccessMessage = L10n.t("profile.edit.avatar.updated")
                 await refreshProfileFromRemote(showErrors: false)
             } catch {
                 authSuccessMessage = nil
@@ -795,9 +796,9 @@ final class AppRouteState: ObservableObject {
                 let previousAvatarURL = user.avatarURL
                 let sessionUser = try await dependencies.authService.removeAvatar()
                 user = sessionUser.asUIUserState
-                await AvatarImageCache.shared.invalidate(url: previousAvatarURL)
                 authErrorMessage = nil
                 authSuccessMessage = L10n.t("profile.edit.avatar.removed")
+                await AvatarImageCache.shared.invalidate(url: previousAvatarURL)
                 await refreshProfileFromRemote(showErrors: false)
             } catch {
                 authSuccessMessage = nil
@@ -940,15 +941,6 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                let promotionMode = resolvePromotionModeForAuthCallback(
-                    url: url,
-                    shouldOpenRecoveryPassword: shouldOpenRecoveryPassword
-                )
-                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: promotionMode)
-                clearPendingOAuthIntent()
-                markOnboardingCompleted()
-                activeTab = .today
-
                 if shouldOpenRecoveryPassword {
                     userDefaults.set(false, forKey: LocalStateKeys.pendingPasswordRecovery)
                     pendingPasswordResetEmail = sessionUser.email ?? pendingPasswordResetEmail
@@ -957,6 +949,14 @@ final class AppRouteState: ObservableObject {
                 } else {
                     fullScreen = nil
                 }
+                let promotionMode = resolvePromotionModeForAuthCallback(
+                    url: url,
+                    shouldOpenRecoveryPassword: shouldOpenRecoveryPassword
+                )
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: promotionMode)
+                clearPendingOAuthIntent()
+                markOnboardingCompleted()
+                activeTab = .today
             } catch {
                 clearPendingOAuthIntent()
                 authSuccessMessage = nil
@@ -1090,6 +1090,7 @@ final class AppRouteState: ObservableObject {
 
     func deleteData() {
         Task {
+            postDeleteHabitSnapshot = nil
             cancelAllPersistTasks()
             if case .habitDetail = rootSheet {
                 rootSheet = nil
@@ -1103,7 +1104,13 @@ final class AppRouteState: ObservableObject {
     }
 
     func deleteAccount() {
+        let preservedHabits = habits
+        let preservedTodayHabits = todayHabitsData
         Task {
+            postDeleteHabitSnapshot = preservedHabits
+            todayReloadTask?.cancel()
+            pendingTodayDataReload = false
+            currentSessionUserID = nil
             do {
                 try await dependencies.authService.deleteAccount()
                 try? await dependencies.authService.signOut()
@@ -1128,10 +1135,12 @@ final class AppRouteState: ObservableObject {
             markOnboardingCompleted()
             rootSheet = nil
             fullScreen = nil
-            activeTab = .profile
             await dependencies.syncCoordinator.setSignedInUserID(nil)
             await profileViewModel.load()
-            await loadTodayData()
+            habits = preservedHabits
+            todayHabitsData = preservedTodayHabits
+            trackStreakTransitions(using: preservedTodayHabits)
+            activeTab = .profile
         }
     }
 
@@ -1617,8 +1626,12 @@ final class AppRouteState: ObservableObject {
             }
         }
 
-        await reloadAllHabitsFromStorage()
-        await todayViewModel.loadToday()
+        let preloadedHistories = await reloadAllHabitsFromStorage()
+        if user.isGuest, habits.isEmpty, let snapshot = postDeleteHabitSnapshot, !snapshot.isEmpty {
+            habits = snapshot
+            todayHabitsData = snapshot
+        }
+        await todayViewModel.loadToday(preloadedHistories: preloadedHistories)
         trackStreakTransitions(using: todayViewModel.habits)
         await profileViewModel.load()
         dependencies.syncHabitReminders(enabled: notificationPreferences.habitReminders)
@@ -1632,12 +1645,14 @@ final class AppRouteState: ObservableObject {
         await refreshDebugReminderCountIfNeeded()
     }
 
-    private func reloadAllHabitsFromStorage() async {
+    @discardableResult
+    private func reloadAllHabitsFromStorage() async -> [UUID: [HabitCompletion]]? {
         do {
             let today = Date()
             let domainHabits = try await dependencies.habitsRepository.fetchHabits(includeArchived: false)
             var mapped: [UIHabit] = []
             var marksByHabit: [UUID: [Bool]] = [:]
+            var historiesByHabitID: [UUID: [HabitCompletion]] = [:]
             mapped.reserveCapacity(domainHabits.count)
 
             for habit in domainHabits {
@@ -1649,6 +1664,7 @@ final class AppRouteState: ObservableObject {
                 ) ?? HabitCompletion(habitID: habit.id, dayDate: today, value: 0)
 
                 let history = try await dependencies.completionsRepository.fetchCompletions(for: habit.id)
+                historiesByHabitID[habit.id] = history
                 let streak = StreakCalculator.streak(for: habit, completions: history, asOf: today, referenceDate: today)
                 marksByHabit[habit.id] = Self.lastSevenMarks(
                     for: habit,
@@ -1669,8 +1685,10 @@ final class AppRouteState: ObservableObject {
 
             habits = mapped
             completionMarksByHabit = marksByHabit
+            return historiesByHabitID
         } catch {
             dependencies.analyticsLogger.log(.storageFailure, metadata: ["scope": "reload_habits", "error": error.localizedDescription])
+            return nil
         }
     }
 
@@ -1879,31 +1897,44 @@ final class AppRouteState: ObservableObject {
         trigger: SyncTrigger,
         promotionMode: GuestPromotionMode
     ) async {
+        postDeleteHabitSnapshot = nil
+        let activeSessionUserID = sessionUser.id
         if promotionMode == .signup {
             await settleLocalHabitPersistenceBeforePromotion()
-            await dependencies.syncCoordinator.promoteGuestDataIfNeeded(to: sessionUser.id)
+            await dependencies.syncCoordinator.promoteGuestDataIfNeeded(to: activeSessionUserID)
         }
-        currentSessionUserID = sessionUser.id
-        await OneSignalBridge.shared.configure(
-            appID: dependencies.environment.oneSignalAppID,
-            appGroupID: dependencies.environment.oneSignalAppGroupID
-        )
-        await OneSignalBridge.shared.login(externalID: sessionUser.id.uuidString)
+        currentSessionUserID = activeSessionUserID
+        let oneSignalAppID = dependencies.environment.oneSignalAppID
+        let oneSignalAppGroupID = dependencies.environment.oneSignalAppGroupID
+        Task { [weak self] in
+            guard let self else { return }
+            await OneSignalBridge.shared.configure(
+                appID: oneSignalAppID,
+                appGroupID: oneSignalAppGroupID
+            )
+            await OneSignalBridge.shared.login(externalID: activeSessionUserID.uuidString)
+            guard self.currentSessionUserID == activeSessionUserID else { return }
+            await self.syncGroupReminderPreferenceIfNeeded()
+        }
+        await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: activeSessionUserID)
         await dependencies.deviceTokenSyncService.setGroupRemindersEnabled(
             notificationPreferences.groupReminders,
-            for: sessionUser.id
+            for: activeSessionUserID
         )
-        await dependencies.syncCoordinator.setSignedInUserID(sessionUser.id)
+        await dependencies.syncCoordinator.setSignedInUserID(activeSessionUserID)
         await dependencies.syncCoordinator.promoteLocalDataIfNeeded()
         await dependencies.syncCoordinator.runSyncCycle(trigger: trigger)
-        await reloadAllHabitsFromStorage()
-        await todayViewModel.loadToday()
+        guard currentSessionUserID == activeSessionUserID else { return }
+        let histories = await reloadAllHabitsFromStorage()
+        await todayViewModel.loadToday(preloadedHistories: histories)
+        guard currentSessionUserID == activeSessionUserID else { return }
         trackStreakTransitions(using: todayViewModel.habits)
         await profileViewModel.load()
         await groupsViewModel.refresh()
         Task {
             await AvatarImageCache.shared.preload(url: self.user.avatarURL)
         }
+        guard currentSessionUserID == activeSessionUserID else { return }
         identifySignedInUser(sessionUser)
     }
 
@@ -2095,7 +2126,7 @@ final class AppRouteState: ObservableObject {
     private func replaceLocalHabits(with habits: [UIHabit]) {
         replaceLocalHabitsTask?.cancel()
         replaceLocalHabitsTask = Task {
-            cancelAllPersistTasks()
+            cancelAllPersistTasks(cancelReplaceTask: false)
             do {
                 let existing = try await dependencies.habitsRepository.fetchHabits(includeArchived: true)
                 for habit in existing {
@@ -2133,12 +2164,18 @@ final class AppRouteState: ObservableObject {
     }
 
     private func cancelAllPersistTasks() {
+        cancelAllPersistTasks(cancelReplaceTask: true)
+    }
+
+    private func cancelAllPersistTasks(cancelReplaceTask: Bool) {
         for task in persistTasks.values {
             task.cancel()
         }
         persistTasks.removeAll()
-        replaceLocalHabitsTask?.cancel()
-        replaceLocalHabitsTask = nil
+        if cancelReplaceTask {
+            replaceLocalHabitsTask?.cancel()
+            replaceLocalHabitsTask = nil
+        }
     }
 
     private func refreshDebugReminderCountIfNeeded() async {

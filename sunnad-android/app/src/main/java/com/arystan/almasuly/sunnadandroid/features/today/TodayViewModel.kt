@@ -82,7 +82,7 @@ class TodayViewModel(
                 val streakById = mutableMapOf<UUID, Int>()
                 val completionHistory = mutableMapOf<UUID, List<HabitCompletion>>()
 
-                allHabits.forEach { habit ->
+                dueHabits.forEach { habit ->
                     val history = completionsRepository.fetchCompletions(habit.id)
                     completionHistory[habit.id] = history
                     streakById[habit.id] = StreakCalculator.streak(habit, history, today)

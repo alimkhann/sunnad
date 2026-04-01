@@ -348,6 +348,11 @@ class SupabaseSyncCoordinator(
             }
             .decodeList<RemoteHabitRow>()
         habits.forEach { remote ->
+            val remoteUpdatedAt = remote.updatedAt.toEpochMillisSafe()
+            val local = habitDao.findById(ownerScope, remote.id)
+            // Last-write-wins: skip if local version is newer than remote
+            if (local != null && local.updatedAtEpochMillis > remoteUpdatedAt) return@forEach
+
             val reminder = remote.reminderTime?.let { parseReminder(it) }
             habitDao.upsert(
                 com.arystan.almasuly.sunnadandroid.data.local.entity.HabitEntity(
@@ -364,12 +369,12 @@ class SupabaseSyncCoordinator(
                     weekdaysIsoCsv = remote.weekdays.joinToString(","),
                     reminderHour = reminder?.first,
                     reminderMinute = reminder?.second,
-                    selectedDhikrKey = com.arystan.almasuly.sunnadandroid.core.model.Habit.DEFAULT_DHIKR_KEY,
-                    dhikrCountsJson = "{}",
+                    selectedDhikrKey = local?.selectedDhikrKey ?: com.arystan.almasuly.sunnadandroid.core.model.Habit.DEFAULT_DHIKR_KEY,
+                    dhikrCountsJson = local?.dhikrCountsJson ?: "{}",
                     sortOrder = remote.sortOrder,
                     archived = remote.archived,
                     createdAtEpochMillis = remote.createdAt.toEpochMillisSafe(),
-                    updatedAtEpochMillis = remote.updatedAt.toEpochMillisSafe()
+                    updatedAtEpochMillis = remoteUpdatedAt
                 )
             )
         }
@@ -380,7 +385,12 @@ class SupabaseSyncCoordinator(
             }
             .decodeList<RemoteCompletionRow>()
         completions.forEach { remote ->
+            val remoteUpdatedAt = remote.updatedAt.toEpochMillisSafe()
             val id = completionStorageKey(ownerScope, UUID.fromString(remote.habitId), remote.dayDate)
+            val local = completionDao.findById(id)
+            // Last-write-wins: skip if local version is newer than remote
+            if (local != null && local.updatedAtEpochMillis > remoteUpdatedAt) return@forEach
+
             completionDao.upsert(
                 com.arystan.almasuly.sunnadandroid.data.local.entity.CompletionEntity(
                     id = id,
@@ -389,7 +399,7 @@ class SupabaseSyncCoordinator(
                     dayDateIso = remote.dayDate,
                     value = remote.value,
                     completedAtEpochMillis = remote.completedAt?.toEpochMillisSafe(),
-                    updatedAtEpochMillis = remote.updatedAt.toEpochMillisSafe()
+                    updatedAtEpochMillis = remoteUpdatedAt
                 )
             )
         }
@@ -400,8 +410,7 @@ class SupabaseSyncCoordinator(
             }
             .decodeList<RemoteQuoteRow>()
         if (remoteQuotes.isNotEmpty()) {
-            quoteDao.deleteAll()
-            quoteDao.upsertAll(
+            quoteDao.replaceAll(
                 remoteQuotes.mapIndexed { index, remote ->
                     QuoteEntity(
                         id = remote.id,

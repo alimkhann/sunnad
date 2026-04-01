@@ -54,7 +54,7 @@ final class TodayViewModel: ObservableObject {
         self.localeCode = localeCode
     }
 
-    func loadToday() async {
+    func loadToday(preloadedHistories: [UUID: [HabitCompletion]]? = nil) async {
         isLoading = true
         errorMessage = nil
 
@@ -72,7 +72,12 @@ final class TodayViewModel: ObservableObject {
 
             for habit in habits {
                 let completion = completionByHabitID[habit.id] ?? HabitCompletion(habitID: habit.id, dayDate: today, value: 0)
-                let history = try await completionsRepository.fetchCompletions(for: habit.id)
+                let history: [HabitCompletion]
+                if let preloaded = preloadedHistories?[habit.id] {
+                    history = preloaded
+                } else {
+                    history = try await completionsRepository.fetchCompletions(for: habit.id)
+                }
                 historyByHabitID[habit.id] = history
                 let streak = StreakCalculator.streak(
                     for: habit,

@@ -28,11 +28,17 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         let groupID: UUID
         let userID: UUID
         let progressDisplayMode: GroupProgressDisplayMode?
+        let joinedAtRaw: String?
+
+        var joinedAt: Date? {
+            joinedAtRaw.flatMap(SupabaseGroupsRepository.timestamp(from:))
+        }
 
         enum CodingKeys: String, CodingKey {
             case groupID = "group_id"
             case userID = "user_id"
             case progressDisplayMode = "progress_display_mode"
+            case joinedAtRaw = "joined_at"
         }
     }
 
@@ -230,10 +236,11 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                                 userID: memberID,
                                 cache: &completionHistoryCache
                             )) ?? 0
+                            let memberWindowStart = Self.laterDate(groupRow.createdAt, member.joinedAt)
                             let rollingCompletionPercent = (try? await resolveRollingCompletionPercent(
                                 for: habit,
                                 userID: memberID,
-                                groupCreatedAt: groupRow.createdAt,
+                                groupCreatedAt: memberWindowStart,
                                 cache: &completionHistoryCache
                             )) ?? 0
                             if domainHabit.schedule.isDue(on: Date(), calendar: metricsCalendar, timeZone: metricsTimeZone) {
@@ -592,7 +599,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         if supportsProgressDisplayModeColumn == false {
             let fallbackResponse = try await client
                 .from("group_members")
-                .select("group_id, user_id")
+                .select("group_id, user_id, joined_at")
                 .eq("group_id", value: groupID)
                 .execute()
             return try decoder.decode([GroupMemberRow].self, from: fallbackResponse.data)
@@ -601,7 +608,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         do {
             let response = try await client
                 .from("group_members")
-                .select("group_id, user_id, progress_display_mode")
+                .select("group_id, user_id, progress_display_mode, joined_at")
                 .eq("group_id", value: groupID)
                 .execute()
             supportsProgressDisplayModeColumn = true
@@ -948,6 +955,15 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
     }
 
     private static let utcTimeZone = TimeZone(secondsFromGMT: 0) ?? .current
+
+    private static func laterDate(_ a: Date?, _ b: Date?) -> Date? {
+        switch (a, b) {
+        case let (a?, b?): return max(a, b)
+        case let (a?, nil): return a
+        case let (nil, b?): return b
+        case (nil, nil): return nil
+        }
+    }
 
     private static func utcCalendar() -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
