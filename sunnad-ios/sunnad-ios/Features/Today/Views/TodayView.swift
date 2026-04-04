@@ -1,8 +1,10 @@
 import SwiftUI
+import UserNotifications
 
 struct TodayView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var showsCompleted = false
+    @State private var didCheckNotificationPermission = false
 
     let habits: [UIHabit]
     let quote: UIQuote
@@ -11,6 +13,7 @@ struct TodayView: View {
     let onManage: () -> Void
     let onAddHabit: () -> Void
     let onOpenQuote: () -> Void
+    var onRequestNotificationPermission: (() -> Void)?
 
     private var completedCount: Int {
         habits.filter(\.completedToday).count
@@ -119,6 +122,14 @@ struct TodayView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .task {
+            guard !didCheckNotificationPermission else { return }
+            didCheckNotificationPermission = true
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            if settings.authorizationStatus == .notDetermined {
+                onRequestNotificationPermission?()
+            }
+        }
         .sunnadSolidBars()
         .background(alignment: .top) {
             if colorScheme == .dark {

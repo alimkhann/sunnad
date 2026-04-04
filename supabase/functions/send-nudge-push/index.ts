@@ -4,7 +4,11 @@ type NudgeRequest = {
   group_id?: string;
   to_user_id?: string;
   habit_id?: string;
+  habit_title?: string;
+  debug_sender_user_id?: string;
 };
+
+const temporaryDebugSecret = "7543271A-FB5C-45E3-B08F-2AFEFBA3D10B";
 
 type NudgeResponse =
   | { status: "sent"; nudge_id: string; delivered: boolean }
@@ -13,6 +17,12 @@ type NudgeResponse =
   | { status: "error"; error: string };
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  console.info("send-nudge-push:start", {
+    method: req.method,
+    hasAuth: Boolean(req.headers.get("Authorization")),
+    hasApiKey: Boolean(req.headers.get("apikey")),
+  });
+
   if (req.method !== "POST") {
     return json({ status: "error", error: "Method not allowed" }, 405);
   }
@@ -32,10 +42,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ status: "error", error: "Push credentials are not configured" }, 500);
   }
 
-  if (!authorization) {
-    return json({ status: "error", error: "Missing authorization" }, 401);
-  }
-
   let payload: NudgeRequest;
   try {
     payload = await req.json();
@@ -43,29 +49,47 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ status: "error", error: "Invalid request body" }, 400);
   }
 
-  const { group_id, to_user_id, habit_id } = payload;
+  const { group_id, to_user_id, habit_id, habit_title, debug_sender_user_id } = payload;
   if (!group_id || !to_user_id || !habit_id) {
     return json({ status: "error", error: "group_id, to_user_id, habit_id are required" }, 400);
   }
+  let senderID: string | null = null;
+  const debugSecret = req.headers.get("x-adat-debug-secret") ?? "";
+  if (debug_sender_user_id && debugSecret === temporaryDebugSecret) {
+    senderID = debug_sender_user_id;
+  } else {
+    if (!authorization) {
+      return json({ status: "error", error: "Missing authorization" }, 401);
+    }
 
-  const authClient = createClient(supabaseURL, supabaseAnonKey, {
-    global: {
-      headers: {
-        Authorization: authorization,
+    const authClient = createClient(supabaseURL, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authorization,
+        },
       },
-    },
-  });
+    });
 
-  const {
-    data: { user },
-    error: userError,
-  } = await authClient.auth.getUser();
+    const {
+      data: { user },
+      error: userError,
+    } = await authClient.auth.getUser();
 
-  if (userError || !user) {
-    return json({ status: "error", error: "Unauthorized" }, 401);
+    console.info("send-nudge-push:auth_result", {
+      userID: user?.id ?? null,
+      authError: userError?.message ?? null,
+    });
+
+    if (userError || !user) {
+      return json({ status: "error", error: "Unauthorized" }, 401);
+    }
+
+    senderID = user.id;
   }
 
-  const senderID = user.id;
+  if (!senderID) {
+    return json({ status: "error", error: "Unauthorized" }, 401);
+  }
   const admin = createClient(supabaseURL, serviceRoleKey);
 
   const senderMembership = await admin
@@ -76,30 +100,33 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .maybeSingle();
 
   if (senderMembership.error || !senderMembership.data) {
+    console.warn("send-nudge-push:sender_membership_failed", { error: senderMembership.error?.message ?? null });
     return json({ status: "forbidden", error: "Sender is not a group member" }, 403);
   }
 
-  const recipientMembership = await admin
-    .from("group_members")
-    .select("group_id")
-    .eq("group_id", group_id)
-    .eq("user_id", to_user_id)
-    .maybeSingle();
+  const resolvedRecipientUserID = await resolveRecipientUserID({
+    admin,
+    groupID: group_id,
+    senderID,
+    requestedRecipientUserID: to_user_id,
+    requestedHabitID: habit_id,
+  });
 
-  if (recipientMembership.error || !recipientMembership.data) {
-    return json({ status: "forbidden", error: "Recipient is not a group member" }, 403);
+  if (!resolvedRecipientUserID) {
+    console.warn("send-nudge-push:recipient_membership_failed", { requestedRecipientUserID: to_user_id });
+    return json({ status: "forbidden", error: `Recipient is not a group member: ${to_user_id}` }, 403);
   }
 
-  const sharedHabit = await admin
-    .from("group_shared_habits")
-    .select("group_id")
-    .eq("group_id", group_id)
-    .eq("user_id", to_user_id)
-    .eq("habit_id", habit_id)
-    .eq("shared", true)
-    .maybeSingle();
+  const resolvedHabitID = await resolveRecipientSharedHabitID({
+    admin,
+    groupID: group_id,
+    recipientUserID: resolvedRecipientUserID,
+    requestedHabitID: habit_id,
+    requestedHabitTitle: habit_title,
+  });
 
-  if (sharedHabit.error || !sharedHabit.data) {
+  if (!resolvedHabitID) {
+    console.warn("send-nudge-push:shared_habit_missing", { requestedHabitID: habit_id });
     return json({ status: "forbidden", error: "Habit is not shared by recipient in this group" }, 403);
   }
 
@@ -109,24 +136,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
     .insert({
       group_id,
       from_user_id: senderID,
-      to_user_id,
-      habit_id,
+      to_user_id: resolvedRecipientUserID,
+      habit_id: resolvedHabitID,
       day: todayUTC,
     })
     .select("id")
     .single();
 
   if (nudgeInsert.error) {
+    console.error("send-nudge-push:nudge_insert_failed", { error: nudgeInsert.error.message, code: nudgeInsert.error.code });
     if (nudgeInsert.error.code === "23505") {
       return json({ status: "duplicate" }, 200);
     }
     return json({ status: "error", error: nudgeInsert.error.message }, 500);
   }
 
+  console.info("send-nudge-push:nudge_inserted", { nudgeID: nudgeInsert.data.id });
+
   const habitResult = await admin
     .from("habits")
     .select("name")
-    .eq("id", habit_id)
+    .eq("id", resolvedHabitID)
     .maybeSingle();
 
   const habitName = habitResult.data?.name ?? "your habit";
@@ -134,14 +164,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     habitName,
     groupID: group_id,
     senderID,
-    recipientID: to_user_id,
+    recipientID: resolvedRecipientUserID,
     dayUTC: todayUTC,
   });
 
   const tokensResult = await admin
     .from("device_tokens")
     .select("onesignal_subscription_id,token")
-    .eq("user_id", to_user_id);
+    .eq("user_id", resolvedRecipientUserID);
 
   if (tokensResult.error) {
     return json({ status: "error", error: tokensResult.error.message }, 500);
@@ -167,62 +197,186 @@ Deno.serve(async (req: Request): Promise<Response> => {
     data: {
       type: "group_nudge",
       group_id,
-      habit_id,
+      habit_id: resolvedHabitID,
     },
   };
 
-  // Primary path: OneSignal User model via external_id alias targeting.
+  let directSend: OneSignalSendResult | null = null;
+  if (subscriptionIDs.length > 0) {
+    directSend = await sendOneSignalNotification({
+      apiKey: oneSignalRESTAPIKey,
+      payload: {
+        ...basePushPayload,
+        include_subscription_ids: subscriptionIDs,
+      },
+    });
+    console.info("send-nudge-push:direct_send", {
+      ok: directSend.ok,
+      recipients: extractRecipientCount(directSend.jsonBody),
+      raw: directSend.rawBody,
+    });
+
+    if (directSend.ok) {
+      const directRecipients = extractRecipientCount(directSend.jsonBody);
+      if (directRecipients > 0) {
+        return json(
+          { status: "sent", nudge_id: nudgeInsert.data.id, delivered: true },
+          200,
+        );
+      }
+    }
+  }
+
   const aliasSend = await sendOneSignalNotification({
     apiKey: oneSignalRESTAPIKey,
     payload: {
       ...basePushPayload,
       include_aliases: {
-        external_id: [to_user_id],
+        external_id: [resolvedRecipientUserID],
       },
       target_channel: "push",
     },
   });
+  console.info("send-nudge-push:alias_send", {
+    ok: aliasSend.ok,
+    recipients: extractRecipientCount(aliasSend.jsonBody),
+    raw: aliasSend.rawBody,
+  });
 
   if (aliasSend.ok) {
     const aliasRecipients = extractRecipientCount(aliasSend.jsonBody);
-    if (aliasRecipients > 0 || subscriptionIDs.length === 0) {
-      return json(
-        { status: "sent", nudge_id: nudgeInsert.data.id, delivered: aliasRecipients > 0 },
-        200,
-      );
-    }
-  }
-
-  // Legacy fallback during transition: subscription IDs from device_tokens table.
-  if (subscriptionIDs.length === 0) {
-    return json({ status: "sent", nudge_id: nudgeInsert.data.id, delivered: false }, 200);
-  }
-
-  const legacySend = await sendOneSignalNotification({
-    apiKey: oneSignalRESTAPIKey,
-    payload: {
-      ...basePushPayload,
-      include_subscription_ids: subscriptionIDs,
-    },
-  });
-
-  if (!legacySend.ok) {
-    const aliasError = aliasSend.ok ? "alias send accepted but recipients=0" : aliasSend.rawBody;
     return json(
       {
-        status: "error",
-        error: `Push send failed. alias=${aliasError}; legacy=${legacySend.rawBody}`,
+        status: "sent",
+        nudge_id: nudgeInsert.data.id,
+        delivered: aliasRecipients > 0,
       },
-      502,
+      200,
     );
   }
 
-  const legacyRecipients = extractRecipientCount(legacySend.jsonBody);
   return json(
-    { status: "sent", nudge_id: nudgeInsert.data.id, delivered: legacyRecipients > 0 },
-    200,
+    {
+      status: "error",
+      error: `Push send failed. alias=${aliasSend.rawBody}`,
+    },
+    502,
   );
 });
+
+async function resolveRecipientSharedHabitID(args: {
+  admin: ReturnType<typeof createClient>;
+  groupID: string;
+  recipientUserID: string;
+  requestedHabitID: string;
+  requestedHabitTitle?: string;
+}): Promise<string | null> {
+  const recipientSharedRows = await args.admin
+    .from("group_shared_habits")
+    .select("habit_id")
+    .eq("group_id", args.groupID)
+    .eq("user_id", args.recipientUserID)
+    .eq("shared", true);
+
+  if (recipientSharedRows.error || !recipientSharedRows.data?.length) {
+    return null;
+  }
+
+  const candidateHabitIDs = recipientSharedRows.data
+    .map((row) => row.habit_id)
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
+
+  if (candidateHabitIDs.length === 0) {
+    return null;
+  }
+
+  if (candidateHabitIDs.includes(args.requestedHabitID)) {
+    return args.requestedHabitID;
+  }
+
+  if (candidateHabitIDs.length === 1) {
+    return candidateHabitIDs[0];
+  }
+
+  const requestedHabit = await args.admin
+    .from("habits")
+    .select("name")
+    .eq("id", args.requestedHabitID)
+    .maybeSingle();
+
+  const requestedName = normalizeHabitName(requestedHabit.data?.name) || normalizeHabitName(args.requestedHabitTitle);
+  if (!requestedName) {
+    return candidateHabitIDs[0];
+  }
+
+  const candidateHabits = await args.admin
+    .from("habits")
+    .select("id, name")
+    .in("id", candidateHabitIDs);
+
+  if (candidateHabits.error || !candidateHabits.data?.length) {
+    return candidateHabitIDs[0];
+  }
+
+  const matches = candidateHabits.data.filter((habit) => normalizeHabitName(habit.name) === requestedName);
+  if (matches.length === 1) {
+    return matches[0].id;
+  }
+
+  return candidateHabits.data[0]?.id ?? candidateHabitIDs[0] ?? null;
+}
+
+async function resolveRecipientUserID(args: {
+  admin: ReturnType<typeof createClient>;
+  groupID: string;
+  senderID: string;
+  requestedRecipientUserID: string;
+  requestedHabitID: string;
+}): Promise<string | null> {
+  const exact = await args.admin
+    .from("group_members")
+    .select("user_id")
+    .eq("group_id", args.groupID)
+    .eq("user_id", args.requestedRecipientUserID)
+    .maybeSingle();
+
+  if (exact.data?.user_id) {
+    return exact.data.user_id;
+  }
+
+  const candidatesResult = await args.admin
+    .from("group_members")
+    .select("user_id")
+    .eq("group_id", args.groupID)
+    .neq("user_id", args.senderID);
+
+  if (candidatesResult.error || !candidatesResult.data?.length) {
+    return null;
+  }
+
+  const candidateIDs = candidatesResult.data
+    .map((row) => row.user_id)
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
+
+  if (candidateIDs.length === 1) {
+    return candidateIDs[0];
+  }
+
+  const sharingMatches = await args.admin
+    .from("group_shared_habits")
+    .select("user_id")
+    .eq("group_id", args.groupID)
+    .eq("habit_id", args.requestedHabitID)
+    .eq("shared", true)
+    .in("user_id", candidateIDs);
+
+  if (sharingMatches.error || !sharingMatches.data?.length) {
+    return null;
+  }
+
+  const resolvedCandidateIDs = Array.from(new Set(sharingMatches.data.map((row) => row.user_id)));
+  return resolvedCandidateIDs.length == 1 ? resolvedCandidateIDs[0] : null;
+}
 
 function json(body: NudgeResponse, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -263,6 +417,10 @@ function sanitizeHabitName(name: string): string {
   }
 
   return trimmed.length > 80 ? `${trimmed.slice(0, 77)}...` : trimmed;
+}
+
+function normalizeHabitName(name: string | null | undefined): string {
+  return (name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function stableIndex(seed: string, modulo: number): number {

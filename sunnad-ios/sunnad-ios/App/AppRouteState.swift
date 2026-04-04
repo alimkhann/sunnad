@@ -358,6 +358,10 @@ final class AppRouteState: ObservableObject {
         onboardingStep = .joinGroups
     }
 
+    func requestNotificationPermissionIfNeeded() {
+        dependencies.requestLocalNotificationPermission()
+    }
+
     func completeAsGuest() {
         dependencies.analytics.trackOnboardingStepCompleted(.joinGroups)
         user = .guest
@@ -1233,7 +1237,11 @@ final class AppRouteState: ObservableObject {
     }
 
     func sendGroupNudge(groupID: UUID, memberID: UUID, habitID: UUID) async -> GroupNudgeStatus {
-        let status = await groupsViewModel.sendNudge(groupID: groupID, memberID: memberID, habitID: habitID)
+        let status = await groupsViewModel.sendNudge(
+            groupID: groupID,
+            memberID: memberID,
+            habitID: habitID
+        )
         if status == .sent {
             dependencies.interactionFeedback.groupNudgeSent(hapticsEnabled: feedbackPreferences.hapticsEnabled)
         }
@@ -1912,8 +1920,10 @@ final class AppRouteState: ObservableObject {
                 appID: oneSignalAppID,
                 appGroupID: oneSignalAppGroupID
             )
-            await OneSignalBridge.shared.login(externalID: activeSessionUserID.uuidString)
+            await OneSignalBridge.shared.login(externalID: activeSessionUserID.uuidString.lowercased())
+            await OneSignalBridge.shared.requestPermissionIfNeeded()
             guard self.currentSessionUserID == activeSessionUserID else { return }
+            await self.dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: activeSessionUserID)
             await self.syncGroupReminderPreferenceIfNeeded()
         }
         await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: activeSessionUserID)
@@ -2316,11 +2326,16 @@ final class AppRouteState: ObservableObject {
     private func startConnectivityMonitoring() {
         connectivityMonitor.pathUpdateHandler = { [weak self] path in
             let isOnline = path.status == .satisfied
-            DispatchQueue.main.async {
-                self?.sessionTracker.updateConnectivity(isOnline: isOnline)
+            Task { [weak self] in
+                await self?.updateConnectivity(isOnline: isOnline)
             }
         }
         connectivityMonitor.start(queue: connectivityMonitorQueue)
+    }
+
+    @MainActor
+    private func updateConnectivity(isOnline: Bool) {
+        sessionTracker.updateConnectivity(isOnline: isOnline)
     }
 
     #if DEBUG
@@ -2483,6 +2498,20 @@ actor OneSignalBridge {
 
         #if canImport(OneSignalFramework)
         OneSignal.login(externalID)
+        #endif
+        await refreshSubscriptionID()
+    }
+
+    func requestPermissionIfNeeded() async {
+        #if canImport(OneSignalFramework)
+        guard configuredAppID != nil else { return }
+        guard OneSignal.Notifications.canRequestPermission else { return }
+
+        await withCheckedContinuation { continuation in
+            OneSignal.Notifications.requestPermission({ _ in
+                continuation.resume()
+            }, fallbackToSettings: true)
+        }
         #endif
         await refreshSubscriptionID()
     }

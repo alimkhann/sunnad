@@ -11,6 +11,9 @@ struct NotificationsOnboardingView: View {
                 HStack {
                     CompactBackButton(action: onBack)
                     Spacer()
+                    Button(L10n.t("onboarding.welcome.skip"), action: onSkip)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
                 }
 
                 Spacer(minLength: 66)
@@ -35,13 +38,7 @@ struct NotificationsOnboardingView: View {
             }
             .frame(maxWidth: .infinity)
         } footer: {
-            VStack(spacing: 12) {
-                PrimaryButton(title: L10n.t("onboarding.notifications.enable"), action: onContinue)
-                Button(L10n.t("onboarding.notifications.skip"), action: onSkip)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .foregroundStyle(SunnadTheme.primary)
-            }
+            PrimaryButton(title: L10n.t("onboarding.notifications.enable"), action: onContinue)
         }
     }
 }

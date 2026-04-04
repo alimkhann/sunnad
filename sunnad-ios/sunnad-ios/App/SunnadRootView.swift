@@ -78,7 +78,8 @@ struct SunnadRootView: View {
                     onSelectHabit: { state.rootSheet = .habitDetail($0.id) },
                     onManage: { state.fullScreen = .schedule },
                     onAddHabit: { state.rootSheet = .addHabit },
-                    onOpenQuote: state.openQuoteOfDay
+                    onOpenQuote: state.openQuoteOfDay,
+                    onRequestNotificationPermission: state.requestNotificationPermissionIfNeeded
                 )
             }
             .sunnadSolidBars()

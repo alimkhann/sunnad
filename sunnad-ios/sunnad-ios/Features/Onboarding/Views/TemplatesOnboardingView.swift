@@ -5,6 +5,7 @@ struct TemplatesOnboardingView: View {
 
     let onBack: () -> Void
     let onContinue: () -> Void
+    let onSkip: () -> Void
 
     @State private var searchText = ""
 
@@ -27,6 +28,10 @@ struct TemplatesOnboardingView: View {
                     .font(.title.weight(.bold))
 
                 Spacer(minLength: 0)
+
+                Button(L10n.t("onboarding.welcome.skip"), action: onSkip)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
             }
 
             ForEach(HabitCategory.allCases) { category in

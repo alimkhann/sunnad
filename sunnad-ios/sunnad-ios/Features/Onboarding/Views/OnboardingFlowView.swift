@@ -40,7 +40,8 @@ struct OnboardingFlowView: View {
             TemplatesOnboardingView(
                 selectedIDs: $selectedTemplateIDs,
                 onBack: { step = .welcome },
-                onContinue: onCompleteTemplateSelection
+                onContinue: onCompleteTemplateSelection,
+                onSkip: { step = .joinGroups }
             )
         case .notifications:
             NotificationsOnboardingView(
