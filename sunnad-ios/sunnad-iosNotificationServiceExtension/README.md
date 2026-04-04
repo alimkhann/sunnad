@@ -1,9 +1,10 @@
-# OneSignal Notification Service Extension Scaffold
+# OneSignal Notification Service Extension
 
-This folder is prewired to speed up APNs production setup.
+This target is already present in the Xcode project.
 
-Pending Xcode steps when paid Apple Developer push certificates are ready:
-1. Add a new Notification Service Extension target pointing to this folder.
-2. Link `OneSignalExtension` package product to the extension target.
-3. Enable App Groups on app + extension with `SunnadOneSignalAppGroupID` value.
-4. Set extension bundle id and provisioning profile.
+Before shipping remote pushes, verify:
+
+1. The extension target still links `OneSignalExtension`.
+2. App Groups are enabled on app + extension using `SunnadOneSignalAppGroupID`.
+3. The extension bundle ID and provisioning profile match the selected environment.
+4. Push Notifications and App Groups are enabled in Apple Developer for the parent app.

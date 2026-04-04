@@ -60,11 +60,19 @@ final class TodayViewModel: ObservableObject {
 
         do {
             let today = now()
-            let habits = try await habitsRepository.fetchDueHabits(on: today, calendar: calendar, timeZone: timeZone)
-            let completions = try await completionsRepository.fetchCompletions(on: today, calendar: calendar, timeZone: timeZone)
-            let completionByHabitID = Dictionary(uniqueKeysWithValues: completions.map { ($0.habitID, $0) })
+            let habits = Self.deduplicatedHabits(
+                try await habitsRepository.fetchDueHabits(on: today, calendar: calendar, timeZone: timeZone)
+            )
+            let completions = Self.deduplicatedCompletions(
+                try await completionsRepository.fetchCompletions(on: today, calendar: calendar, timeZone: timeZone)
+            )
+            let completionByHabitID = completions.reduce(into: [UUID: HabitCompletion]()) { partialResult, completion in
+                partialResult[completion.habitID] = completion
+            }
 
-            domainHabitsByID = Dictionary(uniqueKeysWithValues: habits.map { ($0.id, $0) })
+            domainHabitsByID = habits.reduce(into: [UUID: Habit]()) { partialResult, habit in
+                partialResult[habit.id] = habit
+            }
 
             var uiHabits: [UIHabit] = []
             uiHabits.reserveCapacity(habits.count)
@@ -121,6 +129,36 @@ final class TodayViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    private static func deduplicatedHabits(_ habits: [Habit]) -> [Habit] {
+        var seen = Set<UUID>()
+        var result: [Habit] = []
+        result.reserveCapacity(habits.count)
+
+        for habit in habits {
+            guard seen.insert(habit.id).inserted else {
+                continue
+            }
+            result.append(habit)
+        }
+
+        return result
+    }
+
+    private static func deduplicatedCompletions(_ completions: [HabitCompletion]) -> [HabitCompletion] {
+        var seen = Set<UUID>()
+        var result: [HabitCompletion] = []
+        result.reserveCapacity(completions.count)
+
+        for completion in completions {
+            guard seen.insert(completion.habitID).inserted else {
+                continue
+            }
+            result.append(completion)
+        }
+
+        return result
     }
 
     func beginHabitToggle(_ habitID: UUID) -> HabitToggleTransaction? {

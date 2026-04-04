@@ -153,20 +153,9 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         }
     }
 
-    private struct NudgeFunctionPayload: Encodable {
-        let groupID: UUID
-        let toUserID: UUID
-        let habitID: UUID
-
-        enum CodingKeys: String, CodingKey {
-            case groupID = "group_id"
-            case toUserID = "to_user_id"
-            case habitID = "habit_id"
-        }
-    }
-
     private struct NudgeFunctionResponse: Decodable {
         let status: GroupNudgeStatus
+        let error: String?
     }
 
     private let client: SupabaseClient
@@ -512,39 +501,21 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             let response = try await invokeNudgeFunction(
                 groupID: groupID,
                 toUserID: toUserID,
-                habitID: habitID,
-                forceRefresh: false
+                habitID: habitID
             )
-            logger.log(.syncFinished, metadata: ["scope": "groups_send_nudge", "status": response.status.rawValue])
             return response.status
         } catch FunctionsError.httpError(let code, _) where code == 401 {
             do {
+                _ = try await client.auth.refreshSession()
                 let response = try await invokeNudgeFunction(
                     groupID: groupID,
                     toUserID: toUserID,
-                    habitID: habitID,
-                    forceRefresh: true
-                )
-                logger.log(
-                    .syncFinished,
-                    metadata: [
-                        "scope": "groups_send_nudge",
-                        "status": response.status.rawValue,
-                        "retry": "refresh_session"
-                    ]
+                    habitID: habitID
                 )
                 return response.status
             } catch FunctionsError.httpError(_, let retryData) {
-                if let status = decodeNudgeStatus(fromErrorData: retryData) {
-                    logger.log(
-                        .syncFinished,
-                        metadata: [
-                            "scope": "groups_send_nudge",
-                            "status": status.rawValue,
-                            "retry": "refresh_session"
-                        ]
-                    )
-                    return status
+                if let response = decodeNudgeResponse(fromErrorData: retryData) {
+                    return response.status
                 }
                 throw NSError(
                     domain: "SupabaseGroupsRepository",
@@ -553,9 +524,8 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                 )
             }
         } catch FunctionsError.httpError(_, let data) {
-            if let status = decodeNudgeStatus(fromErrorData: data) {
-                logger.log(.syncFinished, metadata: ["scope": "groups_send_nudge", "status": status.rawValue])
-                return status
+            if let response = decodeNudgeResponse(fromErrorData: data) {
+                return response.status
             }
             throw NSError(
                 domain: "SupabaseGroupsRepository",
@@ -1007,7 +977,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         return normalizedCalendar.startOfDay(for: materialized)
     }
 
-    private static func timestamp(from value: String) -> Date? {
+    nonisolated private static func timestamp(from value: String) -> Date? {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = fractional.date(from: value) {
@@ -1060,38 +1030,23 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
     private func invokeNudgeFunction(
         groupID: UUID,
         toUserID: UUID,
-        habitID: UUID,
-        forceRefresh: Bool
+        habitID: UUID
     ) async throws -> NudgeFunctionResponse {
-        let accessToken = try await resolveAccessToken(forceRefresh: forceRefresh)
-        return try await client.functions.invoke(
+        try await client.functions.invoke(
             "send-nudge-push",
             options: FunctionInvokeOptions(
                 method: .post,
-                headers: ["Authorization": "Bearer \(accessToken)"],
-                body: NudgeFunctionPayload(groupID: groupID, toUserID: toUserID, habitID: habitID)
+                body: [
+                    "group_id": groupID.uuidString.lowercased(),
+                    "to_user_id": toUserID.uuidString.lowercased(),
+                    "habit_id": habitID.uuidString.lowercased()
+                ]
             )
         )
     }
 
-    private func resolveAccessToken(forceRefresh: Bool) async throws -> String {
-        if forceRefresh {
-            return try await client.auth.refreshSession().accessToken
-        }
-
-        if let token = client.auth.currentSession?.accessToken, !token.isEmpty {
-            return token
-        }
-
-        let session = try await client.auth.session
-        return session.accessToken
-    }
-
-    private func decodeNudgeStatus(fromErrorData data: Data) -> GroupNudgeStatus? {
-        guard let response = try? decoder.decode(NudgeFunctionResponse.self, from: data) else {
-            return nil
-        }
-        return response.status
+    private func decodeNudgeResponse(fromErrorData data: Data) -> NudgeFunctionResponse? {
+        try? decoder.decode(NudgeFunctionResponse.self, from: data)
     }
 
     private func refreshGroupWithRetry(groupID: UUID, maxAttempts: Int = 6) async throws -> Group? {

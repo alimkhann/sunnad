@@ -290,7 +290,11 @@ final class GroupsViewModel: ObservableObject {
     func sendNudge(groupID: UUID, memberID: UUID, habitID: UUID) async -> GroupNudgeStatus {
         let habitType = habits.first(where: { $0.id == habitID })?.isDhikr == true ? "dhikr" : "binary"
         do {
-            let status = try await groupsRepository.sendNudge(groupID: groupID, toUserID: memberID, habitID: habitID)
+            let status = try await groupsRepository.sendNudge(
+                groupID: groupID,
+                toUserID: memberID,
+                habitID: habitID
+            )
             let statusValue: String
             switch status {
             case .sent:
@@ -357,6 +361,7 @@ final class GroupsViewModel: ObservableObject {
             }
             let updatedMe = UIGroupMember(
                 id: myMemberID,
+                userID: myMemberID,
                 name: user.name ?? serverMember?.name ?? L10n.t("groups.you"),
                 avatarURL: user.avatarURL ?? serverMember?.avatarURL,
                 completedToday: resolvedSharedHabits.count { $0.completedToday },

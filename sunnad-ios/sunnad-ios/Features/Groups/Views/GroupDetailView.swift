@@ -582,11 +582,11 @@ struct GroupDetailView: View {
                 .font(.title3)
                 .foregroundStyle(SunnadTheme.primary)
         } else {
-            let requestID = reminderRequestID(memberID: member.id, habitID: sharedHabit.habitID)
+            let requestID = reminderRequestID(memberID: member.userID, habitID: sharedHabit.habitID)
             let isPendingReminder = pendingReminderRequestIDs.contains(requestID)
             Button {
                 reminderTarget = ReminderTarget(
-                    memberID: member.id,
+                    memberID: member.userID,
                     memberName: member.name,
                     habitID: sharedHabit.habitID,
                     habitTitle: sharedHabit.habitTitle

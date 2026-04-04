@@ -161,6 +161,7 @@ extension GroupMember {
     func asUIGroupMember() -> UIGroupMember {
         UIGroupMember(
             id: id,
+            userID: id,
             name: name,
             avatarURL: avatarURL,
             completedToday: completedToday,

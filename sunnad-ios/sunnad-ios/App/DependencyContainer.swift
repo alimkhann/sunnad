@@ -260,14 +260,18 @@ final class DependencyContainer {
     func syncHabitReminders(enabled: Bool) {
         Task { @MainActor in
             do {
-                let habits = try await habitsRepository.fetchHabits(includeArchived: false)
+                let habits = Self.deduplicatedHabits(
+                    try await habitsRepository.fetchHabits(includeArchived: false)
+                )
                 let today = Date()
                 let completions = try await completionsRepository.fetchCompletions(
                     on: today,
                     calendar: .current,
                     timeZone: .current
                 )
-                let habitsByID = Dictionary(uniqueKeysWithValues: habits.map { ($0.id, $0) })
+                let habitsByID = habits.reduce(into: [UUID: Habit]()) { partialResult, habit in
+                    partialResult[habit.id] = habit
+                }
                 let completedHabitIDs: Set<UUID> = Set(
                     completions.compactMap { completion in
                         guard let habit = habitsByID[completion.habitID], completion.isCompleted(for: habit) else {
@@ -286,6 +290,21 @@ final class DependencyContainer {
                 analyticsLogger.log(.storageFailure, metadata: ["scope": "reminder_sync", "error": error.localizedDescription])
             }
         }
+    }
+
+    static func deduplicatedHabits(_ habits: [Habit]) -> [Habit] {
+        var seen = Set<UUID>()
+        var result: [Habit] = []
+        result.reserveCapacity(habits.count)
+
+        for habit in habits {
+            guard seen.insert(habit.id).inserted else {
+                continue
+            }
+            result.append(habit)
+        }
+
+        return result
     }
 
     func syncQuoteReminders(enabled: Bool, locale: String) {
@@ -351,6 +370,7 @@ final class DependencyContainer {
     func requestLocalNotificationPermission() {
         Task {
             _ = await reminderScheduler.requestAuthorizationIfNeeded()
+            await OneSignalBridge.shared.requestPermissionIfNeeded()
         }
     }
 

@@ -106,7 +106,28 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
     }
 
     func signInWithApple() async throws -> SessionUser {
-        throw AuthServiceError.providerUnavailable("Apple")
+        do {
+            let token = try await AppleSignInCoordinator().start()
+            let session = try await client.auth.signInWithIdToken(
+                credentials: OpenIDConnectCredentials(
+                    provider: .apple,
+                    idToken: token.idToken,
+                    nonce: token.nonce
+                )
+            )
+            return await sessionUser(from: session.user)
+        } catch let error as AppleSignInError {
+            switch error {
+            case .cancelled:
+                throw AuthServiceError.unknown("Sign in was cancelled.")
+            case .missingPresentationAnchor:
+                throw AuthServiceError.unknown("Unable to present Apple sign in. Please try again.")
+            case .invalidResponse, .missingIdentityToken:
+                throw AuthServiceError.unknown("Apple sign in did not return a valid identity token.")
+            }
+        } catch {
+            throw mapAuthError(error)
+        }
     }
 
     func verifyEmailOTP(email: String, code: String) async throws -> SessionUser {
@@ -295,25 +316,31 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 
     func currentUser() async -> SessionUser? {
         if let user = client.auth.currentUser {
-            return await sessionUser(from: user)
+            return await sessionUser(from: user, fetchRemoteProfile: false)
         }
 
         do {
             let session = try await client.auth.session
-            return await sessionUser(from: session.user)
+            return await sessionUser(from: session.user, fetchRemoteProfile: false)
         } catch {
             do {
                 let refreshed = try await client.auth.refreshSession()
-                return await sessionUser(from: refreshed.user)
+                return await sessionUser(from: refreshed.user, fetchRemoteProfile: false)
             } catch {
                 return nil
             }
         }
     }
 
-    private func sessionUser(from user: User, fallbackUsername: String? = nil) async -> SessionUser {
+    private func sessionUser(
+        from user: User,
+        fallbackUsername: String? = nil,
+        fetchRemoteProfile: Bool = true
+    ) async -> SessionUser {
         let provider = authProvider(from: user)
-        let profile = await fetchProfileRow(for: user.id)
+        let profile = fetchRemoteProfile
+            ? await fetchProfileRowBounded(for: user.id)
+            : nil
         var username = sanitizeUsername(profile?.username)
         let metadataUsername = sanitizeUsername(user.userMetadata["username"]?.stringValue)
 
@@ -418,6 +445,22 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             return rows.first
         } catch {
             return nil
+        }
+    }
+
+    private func fetchProfileRowBounded(
+        for userID: UUID,
+        timeoutNanoseconds: UInt64 = 1_500_000_000
+    ) async -> ProfileRow? {
+        await withTaskGroup(of: ProfileRow?.self) { group in
+            group.addTask { await self.fetchProfileRow(for: userID) }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
         }
     }
 

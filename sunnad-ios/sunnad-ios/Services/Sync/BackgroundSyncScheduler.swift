@@ -3,7 +3,7 @@ import Foundation
 
 @MainActor
 final class BackgroundSyncScheduler {
-    static let taskIdentifier = "com.arystan.almasuly.sunnad-ios.sync.refresh"
+    static let taskIdentifier = "com.arystan.almasuly.sunnad.sync.refresh"
 
     private let syncCoordinator: SyncCoordinating
     private let logger: AnalyticsLogging
