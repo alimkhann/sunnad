@@ -3,16 +3,12 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { submitWaitlist } from "@/lib/waitlist-submit";
 import { captureLandingEvent } from "@/lib/analytics";
-import { Turnstile } from "@/components/turnstile";
-import { landingConfig } from "@/lib/config";
 import { Sun, Moon, Globe, ChevronDown } from "lucide-react";
-import CountUp from "@/components/count-up";
+import { useWebHaptics } from "web-haptics/react";
 
 type Theme = "dark" | "light";
 type SupportedLocale = "en" | "ru" | "kk";
-type WaitlistSuccessStatus = "subscribed" | "already_subscribed";
 type CtaLocation = "hero" | "bottom_cta";
 
 const screenshotLocaleByLocale: Record<SupportedLocale, "en" | "ru" | "kz"> = {
@@ -25,11 +21,9 @@ const translations = {
   en: {
     heroTitle: "Strengthen your deen through daily action.",
     heroSubtitle: "Group-first Islamic habit tracking stripped of all visual noise.",
-    waitlistCount: "people joined",
-    waitlistBtn: "Join Waitlist",
-    waitlistJoining: "Joining...",
-    waitlistSuccess: "You have been added.",
-    waitlistPlaceholder: "Email address",
+    downloadOnAppStore: "Download on the App Store",
+    getItOnGooglePlay: "Get it on Google Play",
+    comingSoon: "Coming soon",
     bottomTitle: "Start improving your deen today.",
     bottomSubtitle:
       "Track the habits that matter and stay consistent with a simple, focused flow.",
@@ -99,11 +93,9 @@ const translations = {
     heroTitle: "Укрепляйте иман ежедневными действиями.",
     heroSubtitle:
       "Групповой исламский трекер привычек без визуального шума.",
-    waitlistCount: "уже присоединились",
-    waitlistBtn: "Присоединиться",
-    waitlistJoining: "Идёт отправка...",
-    waitlistSuccess: "Вы добавлены в список.",
-    waitlistPlaceholder: "Ваш email",
+    downloadOnAppStore: "Загрузите в App Store",
+    getItOnGooglePlay: "Доступно в Google Play",
+    comingSoon: "Скоро",
     bottomTitle: "Начните укреплять иман уже сегодня.",
     bottomSubtitle:
       "Отслеживайте важные привычки и сохраняйте постоянство в простом и сфокусированном формате.",
@@ -173,11 +165,9 @@ const translations = {
     heroTitle: "Күнделікті амал арқылы дініңізді күшейтіңіз.",
     heroSubtitle:
       "Көрнекі шудан арылған, топқа бағытталған исламдық әдет трекері.",
-    waitlistCount: "адам қосылды",
-    waitlistBtn: "Тізімге қосылу",
-    waitlistJoining: "Қосылуда...",
-    waitlistSuccess: "Сіз тізімге қосылдыңыз.",
-    waitlistPlaceholder: "Email мекенжайы",
+    downloadOnAppStore: "App Store-ден жүктеңіз",
+    getItOnGooglePlay: "Google Play-ден алыңыз",
+    comingSoon: "Жақында",
     bottomTitle: "Дініңізді жақсартуды бүгін бастаңыз.",
     bottomSubtitle:
       "Маңызды әдеттерді бақылап, қарапайым және нысаналы ағынмен тұрақтылықты сақтаңыз.",
@@ -277,112 +267,6 @@ function parseUtmParams(): Record<string, string> {
   }
 
   return result;
-}
-
-// --- Form ---
-function MinimalWaitlist({
-  locale,
-  theme,
-  ctaLocation,
-  isDark,
-  t,
-  onSuccess,
-}: {
-  locale: SupportedLocale;
-  theme: Theme;
-  ctaLocation: CtaLocation;
-  isDark?: boolean;
-  t: any;
-  onSuccess?: (status: WaitlistSuccessStatus) => void;
-}) {
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<
-    "idle" | "loading" | "success" | "error"
-  >("idle");
-  const [token, setToken] = useState<string | null>(null);
-  const [hasTrackedFormStart, setHasTrackedFormStart] = useState(false);
-  const hasTurnstile = Boolean(landingConfig.turnstileSiteKey);
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email || status === "loading") return;
-
-    captureLandingEvent("landing_cta_clicked", {
-      locale,
-      theme,
-      path: window.location.pathname,
-      cta_location: ctaLocation,
-    });
-
-    setStatus("loading");
-    const res = await submitWaitlist({
-      email,
-      turnstileToken: token || "demo",
-      locale,
-      ctaLocation,
-    });
-    if (res.status === "subscribed" || res.status === "already_subscribed") {
-      setStatus("success");
-      onSuccess?.(res.status);
-      return;
-    }
-    setStatus("error");
-  }
-
-  return (
-    <div className="w-full max-w-sm mx-auto">
-      {status === "success" ? (
-        <div className="bg-[#1A1A1A] text-white p-4 rounded-xl text-center text-sm font-medium tracking-wide">
-          {t.waitlistSuccess}
-        </div>
-      ) : (
-        <form onSubmit={onSubmit} className="flex flex-col gap-3">
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onFocus={() => {
-              if (hasTrackedFormStart) return;
-              setHasTrackedFormStart(true);
-              captureLandingEvent("landing_waitlist_form_started", {
-                locale,
-                theme,
-                path: window.location.pathname,
-                cta_location: ctaLocation,
-              });
-            }}
-            placeholder={t.waitlistPlaceholder}
-            className={`w-full border-none px-5 py-4 rounded-xl placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-all shadow-inner text-sm ${isDark ? "bg-[#1A1A1A] text-white" : "bg-[#F5F5F5] text-black"}`}
-          />
-          {hasTurnstile && (
-            <div
-              className={`rounded-xl overflow-hidden ${token ? "hidden" : ""}`}
-            >
-              <Turnstile
-                siteKey={landingConfig.turnstileSiteKey}
-                onToken={setToken}
-                onExpired={() => {
-                  setToken(null);
-                }}
-                onError={() => {
-                  setToken(null);
-                }}
-                theme={isDark ? "dark" : "light"}
-              />
-            </div>
-          )}
-          <button
-            type="submit"
-            disabled={status === "loading" || (hasTurnstile && !token)}
-            className={`font-semibold py-4 rounded-xl transition-colors disabled:opacity-50 text-sm tracking-wide ${isDark ? "bg-white text-black hover:bg-gray-200" : "bg-black text-white hover:bg-gray-800"}`}
-          >
-            {status === "loading" ? t.waitlistJoining : t.waitlistBtn}
-          </button>
-        </form>
-      )}
-    </div>
-  );
 }
 
 function FeaturesScroll({
@@ -605,16 +489,6 @@ function FAQSection({
   );
 }
 
-async function fetchWaitlistCount(): Promise<number> {
-  try {
-    const res = await fetch("/api/waitlist-count", { cache: "no-store" });
-    const data = await res.json();
-    return typeof data.count === "number" ? data.count : 0;
-  } catch {
-    return 0;
-  }
-}
-
 // --- Page ---
 export default function LandingPage({
   locale: initialLocale,
@@ -637,12 +511,6 @@ export default function LandingPage({
   const viewedSectionsRef = useRef<Set<string>>(new Set());
   const hasTrackedAllSectionsRef = useRef(false);
   const lastViewedSectionRef = useRef<string | null>(null);
-
-  // Fetch real waitlist count
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    void fetchWaitlistCount().then(setCount);
-  }, []);
 
   // Track landing page view (manual, privacy-safe)
   useEffect(() => {
@@ -790,12 +658,26 @@ export default function LandingPage({
     };
   }, [activeLocale, theme]);
 
-  function handleWaitlistSuccess(status: WaitlistSuccessStatus): void {
-    if (status === "subscribed") {
-      setCount((prev) => prev + 1);
-    }
-    void fetchWaitlistCount().then(setCount);
+  // Haptics + toast for Google Play "coming soon"
+  const { trigger: triggerHaptic } = useWebHaptics({
+    debug: false,
+    showSwitch: false,
+  });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => setToastMessage(null), 2500);
+    return () => clearTimeout(timer);
+  }, [toastMessage]);
+
+  function handleGooglePlayClick() {
+    setToastMessage(t.comingSoon);
+    void triggerHaptic("error");
   }
+
+  // Badge locale mapping (Kazakh falls back to English)
+  const badgeLocale = activeLocale === "ru" ? "ru" : "en";
 
   const containerRef = useRef<HTMLElement | null>(null);
   const { scrollYProgress } = useScroll({
@@ -828,7 +710,7 @@ export default function LandingPage({
 
       {/* Header */}
       <header
-        className={`fixed top-0 w-full z-40 p-6 md:p-8 flex justify-between items-center transition-colors ${isDark ? "text-white" : "text-black"}`}
+        className={`fixed top-0 w-full z-50 p-6 md:p-8 flex justify-between items-center transition-colors ${isDark ? "text-white" : "text-black"}`}
       >
         <div className="flex items-center gap-3">
           <img
@@ -896,30 +778,38 @@ export default function LandingPage({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.4, ease: "easeOut" }}
+            className="flex items-center justify-center gap-4"
           >
-            <MinimalWaitlist
-              locale={activeLocale}
-              theme={theme}
-              ctaLocation="hero"
-              isDark={isDark}
-              t={t}
-              onSuccess={handleWaitlistSuccess}
-            />
-
-            <div className="mt-8 text-sm font-medium text-gray-400 flex items-center justify-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-              </span>
-              <span className={isDark ? "text-white" : "text-black"}>
-                {count > 0 ? (
-                  <CountUp to={count} separator="," duration={2} />
-                ) : (
-                  "0"
-                )}
-              </span>{" "}
-              {t.waitlistCount}
-            </div>
+            <a
+              href="https://apps.apple.com/us/app/adat/id6761636021"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() =>
+                captureLandingEvent("landing_cta_clicked", {
+                  locale: activeLocale,
+                  theme,
+                  path: typeof window !== "undefined" ? window.location.pathname : "/",
+                  cta_location: "hero" as CtaLocation,
+                  store: "app_store",
+                })
+              }
+            >
+              <img
+                src={`/badges/app-store-${badgeLocale}.svg`}
+                alt={t.downloadOnAppStore}
+                className="h-[52px] w-auto"
+              />
+            </a>
+            <button
+              onClick={handleGooglePlayClick}
+              className="opacity-40 grayscale hover:opacity-50 transition-opacity cursor-pointer"
+            >
+              <img
+                src={`/badges/google-play-${badgeLocale}.png`}
+                alt={t.getItOnGooglePlay}
+                className="h-[52px] w-auto"
+              />
+            </button>
           </motion.div>
         </div>
       </main>
@@ -1036,7 +926,7 @@ export default function LandingPage({
         }}
       />
 
-      {/* Bottom Waitlist Section */}
+      {/* Bottom CTA Section */}
       <section
         ref={bottomCTASectionRef}
         className="relative z-40 bg-transparent pb-20 pt-32 px-6 md:h-[80vh] flex md:items-center"
@@ -1046,27 +936,37 @@ export default function LandingPage({
             {t.bottomTitle}
           </h2>
           <p className="text-gray-500 mb-12 text-lg">{t.bottomSubtitle}</p>
-          <MinimalWaitlist
-            locale={activeLocale}
-            theme={theme}
-            ctaLocation="bottom_cta"
-            isDark={isDark}
-            t={t}
-            onSuccess={handleWaitlistSuccess}
-          />
-          <div className="mt-8 text-sm font-medium text-gray-400 flex items-center justify-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-            </span>
-            <span className={isDark ? "text-white" : "text-black"}>
-              {count > 0 ? (
-                <CountUp to={count} separator="," duration={2} />
-              ) : (
-                "0"
-              )}
-            </span>{" "}
-            {t.waitlistCount}
+          <div className="flex items-center justify-center gap-4">
+            <a
+              href="https://apps.apple.com/us/app/adat/id6761636021"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() =>
+                captureLandingEvent("landing_cta_clicked", {
+                  locale: activeLocale,
+                  theme,
+                  path: typeof window !== "undefined" ? window.location.pathname : "/",
+                  cta_location: "bottom_cta" as CtaLocation,
+                  store: "app_store",
+                })
+              }
+            >
+              <img
+                src={`/badges/app-store-${badgeLocale}.svg`}
+                alt={t.downloadOnAppStore}
+                className="h-[52px] w-auto"
+              />
+            </a>
+            <button
+              onClick={handleGooglePlayClick}
+              className="opacity-40 grayscale hover:opacity-50 transition-opacity cursor-pointer"
+            >
+              <img
+                src={`/badges/google-play-${badgeLocale}.png`}
+                alt={t.getItOnGooglePlay}
+                className="h-[52px] w-auto"
+              />
+            </button>
           </div>
         </div>
       </section>
@@ -1086,6 +986,21 @@ export default function LandingPage({
           {t.legal.privacy}
         </Link>
       </footer>
+
+      {/* Toast */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] px-6 py-3 rounded-full text-sm font-medium shadow-lg ${isDark ? "bg-white/10 text-white backdrop-blur-md" : "bg-black/80 text-white backdrop-blur-md"}`}
+          >
+            {toastMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
