@@ -1593,14 +1593,12 @@ final class AppRouteState: ObservableObject {
 
     private func bindTodayViewModel() {
         todayViewModel.$habits
-            .receive(on: DispatchQueue.main)
             .sink { [weak self] habits in
                 self?.todayHabitsData = habits
             }
             .store(in: &cancellables)
 
         todayViewModel.$quote
-            .receive(on: DispatchQueue.main)
             .sink { [weak self] quote in
                 self?.todayQuote = quote
                 guard let self else { return }
