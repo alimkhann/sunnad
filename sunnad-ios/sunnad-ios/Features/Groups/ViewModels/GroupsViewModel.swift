@@ -200,18 +200,30 @@ final class GroupsViewModel: ObservableObject {
 
     func updateHabitSharing(habitID: UUID, sharedGroupIDs: Set<UUID>) async {
         guard !groups.isEmpty else { return }
+
+        // Optimistic: update UI immediately
+        var snapshotByGroup: [UUID: Set<UUID>] = [:]
+        for group in groups where !group.isPending {
+            snapshotByGroup[group.id] = group.sharedHabitIDs
+            var habitIDs = group.sharedHabitIDs
+            if sharedGroupIDs.contains(group.id) {
+                habitIDs.insert(habitID)
+            } else {
+                habitIDs.remove(habitID)
+            }
+            applyOptimisticSharing(groupID: group.id, habitIDs: habitIDs)
+        }
+
+        // Persist to remote
         do {
             for group in groups where !group.isPending {
-                var habitIDs = group.sharedHabitIDs
-                if sharedGroupIDs.contains(group.id) {
-                    habitIDs.insert(habitID)
-                } else {
-                    habitIDs.remove(habitID)
-                }
-                try await groupsRepository.updateSharing(groupID: group.id, habitIDs: habitIDs)
+                try await groupsRepository.updateSharing(groupID: group.id, habitIDs: group.sharedHabitIDs)
             }
-            await refresh()
         } catch {
+            // Rollback on failure
+            for (groupID, original) in snapshotByGroup {
+                applyOptimisticSharing(groupID: groupID, habitIDs: original)
+            }
             errorMessage = friendlyGroupError(error, fallback: L10n.t("groups.errors.permissions"))
             logger.log(.storageFailure, metadata: ["scope": "groups_update_habit_sharing", "error": error.localizedDescription])
         }
