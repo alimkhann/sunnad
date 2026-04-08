@@ -595,6 +595,9 @@ final class AppRouteState: ObservableObject {
                 dhikrTarget: template.isDhikr ? 33 : 0
             )
             habits.append(habit)
+            if habit.isScheduled(on: Date()) {
+                todayHabitsData.append(habit)
+            }
             persistHabit(habit)
             dependencies.analytics.trackHabit(
                 .created(
@@ -634,6 +637,9 @@ final class AppRouteState: ObservableObject {
 
         deletedHabitIDs.remove(habit.id)
         habits.append(habit)
+        if habit.isScheduled(on: Date()) {
+            todayHabitsData.append(habit)
+        }
         persistHabit(habit)
         dependencies.analytics.trackHabit(
             .created(
@@ -712,6 +718,7 @@ final class AppRouteState: ObservableObject {
         deletedHabitIDs.insert(habitID)
         cancelAllPersistTasks()
         habits.removeAll(where: { $0.id == habitID })
+        todayHabitsData.removeAll(where: { $0.id == habitID })
 
         Task {
             do {

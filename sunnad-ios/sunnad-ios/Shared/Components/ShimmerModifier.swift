@@ -23,7 +23,7 @@ struct ShimmerModifier: ViewModifier {
                                 endPoint: .trailing
                             )
                         )
-                        .frame(width: diagonal * 0.4, height: diagonal * 1.5)
+                        .frame(width: diagonal * 0.4, height: diagonal * 2.5)
                         .rotationEffect(.degrees(25))
                         .offset(x: phase * (width + diagonal * 0.5) - diagonal * 0.3)
                 }
