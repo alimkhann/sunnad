@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ShimmerModifier: ViewModifier {
-    @State private var phase: CGFloat = -0.5
+    @State private var phase: CGFloat = -1
 
     func body(content: Content) -> some View {
         content
