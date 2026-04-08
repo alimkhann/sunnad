@@ -8,6 +8,7 @@ struct TodayView: View {
 
     let habits: [UIHabit]
     let quote: UIQuote
+    let isLoading: Bool
     let onToggle: (UUID) -> Void
     let onSelectHabit: (UIHabit) -> Void
     let onManage: () -> Void
@@ -33,7 +34,9 @@ struct TodayView: View {
 
             QuoteCardView(quote: quote, onTap: onOpenQuote)
 
-            if habits.isEmpty {
+            if isLoading && habits.isEmpty {
+                HabitListSkeletonView()
+            } else if habits.isEmpty {
                 Card {
                     EmptyStateView(
                         symbol: "calendar.badge.exclamationmark",

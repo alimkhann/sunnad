@@ -6,6 +6,7 @@ struct GroupsView: View {
     let groups: [UIGroup]
     let user: UIUserState
     let habits: [UIHabit]
+    let isLoading: Bool
     let errorMessage: String?
     let onRefresh: () async -> Void
     let onCreateGroup: () -> Void
@@ -78,7 +79,9 @@ struct GroupsView: View {
                 }
             }
 
-            if groups.isEmpty {
+            if isLoading && groups.isEmpty {
+                GroupListSkeletonView()
+            } else if groups.isEmpty {
                 Card {
                     EmptyStateView(
                         symbol: "person.3",

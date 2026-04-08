@@ -25,6 +25,7 @@ struct SunnadRootView: View {
                     onCompleteTemplateSelection: { state.completeTemplateSelection() },
                     onEnableNotifications: state.enableOnboardingNotifications,
                     onSkipNotifications: state.skipOnboardingNotifications,
+                    onJoinGroupsAppeared: state.promptNotificationsOnJoinGroupsIfNeeded,
                     onCompleteAsGuest: state.completeAsGuest,
                     onOpenSignIn: state.openSignIn,
                     onOpenSignUp: state.openSignUp,
@@ -74,6 +75,7 @@ struct SunnadRootView: View {
                 TodayView(
                     habits: state.todayHabits,
                     quote: state.todayQuote,
+                    isLoading: state.isInitialLoad,
                     onToggle: { state.toggleTodayHabit($0) },
                     onSelectHabit: { state.rootSheet = .habitDetail($0.id) },
                     onManage: { state.fullScreen = .schedule },
@@ -93,6 +95,7 @@ struct SunnadRootView: View {
                     groups: state.groupsViewModel.groups,
                     user: state.groupsViewModel.user,
                     habits: state.groupsViewModel.habits,
+                    isLoading: state.groupsViewModel.isLoading || state.isInitialLoad,
                     errorMessage: state.groupsViewModel.errorMessage,
                     onRefresh: state.refreshGroups,
                     onCreateGroup: { state.rootSheet = .createGroup },

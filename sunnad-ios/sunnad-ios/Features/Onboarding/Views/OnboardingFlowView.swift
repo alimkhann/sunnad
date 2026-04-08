@@ -15,6 +15,7 @@ struct OnboardingFlowView: View {
     let onCompleteTemplateSelection: () -> Void
     let onEnableNotifications: () -> Void
     let onSkipNotifications: () -> Void
+    let onJoinGroupsAppeared: () -> Void
     let onCompleteAsGuest: () -> Void
     let onOpenSignIn: () -> Void
     let onOpenSignUp: () -> Void
@@ -54,7 +55,8 @@ struct OnboardingFlowView: View {
                 onBack: { step = .notifications },
                 onSignIn: onOpenSignIn,
                 onSignUp: onOpenSignUp,
-                onGuest: onCompleteAsGuest
+                onGuest: onCompleteAsGuest,
+                onAppearAction: onJoinGroupsAppeared
             )
         case .signIn:
             SignInView(

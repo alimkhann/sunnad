@@ -5,6 +5,7 @@ struct JoinGroupsOnboardingView: View {
     let onSignIn: () -> Void
     let onSignUp: () -> Void
     let onGuest: () -> Void
+    var onAppearAction: (() -> Void)? = nil
 
     var body: some View {
         ScreenScaffold {
@@ -44,6 +45,9 @@ struct JoinGroupsOnboardingView: View {
                     .padding(.vertical, 16)
                     .foregroundStyle(SunnadTheme.primary)
             }
+        }
+        .task {
+            onAppearAction?()
         }
     }
 }

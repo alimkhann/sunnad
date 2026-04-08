@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import Network
+import SwiftData
 import SwiftUI
 import UIKit
 #if canImport(OneSignalFramework)
@@ -18,6 +19,7 @@ final class AppRouteState: ObservableObject {
         static let groupRemindersEnabled = "sunnad.notifications.group.enabled"
         static let hapticsEnabled = "sunnad.feedback.haptics.enabled"
         static let soundsEnabled = "sunnad.feedback.sounds.enabled"
+        static let selectedLanguage = "sunnad.settings.language"
         static func analyticsFirstSeenDate(distinctID: String) -> String {
             "sunnad.analytics.first_seen.\(distinctID)"
         }
@@ -54,6 +56,7 @@ final class AppRouteState: ObservableObject {
 
     @Published var language: AppLanguage = .en {
         didSet {
+            persistLanguage()
             L10n.setLanguage(code: language.localeIdentifier)
             todayViewModel.updateLocale(language.localeIdentifier)
             Task { await loadTodayData() }
@@ -113,6 +116,7 @@ final class AppRouteState: ObservableObject {
     @Published private(set) var authErrorMessage: String?
     @Published private(set) var authSuccessMessage: String?
     @Published private(set) var otpResendSecondsRemaining = 0
+    @Published private(set) var isInitialLoad = true
     @Published private(set) var todayHabitsData: [UIHabit] = []
     @Published private(set) var completionMarksByHabit: [UUID: [Bool]] = [:]
     @Published private(set) var debugPendingReminderCount = 0
@@ -182,6 +186,7 @@ final class AppRouteState: ObservableObject {
     private var pendingTodayDataReload = false
     private var pendingHabitToggleIDs = Set<UUID>()
     private var currentSessionUserID: UUID?
+    private var didPromptNotificationsDuringOnboarding = false
     private var postDeleteHabitSnapshot: [UIHabit]?
     private var streakByHabitID: [UUID: Int] = [:]
     private let sessionTracker: AppSessionAnalyticsTracker
@@ -198,16 +203,21 @@ final class AppRouteState: ObservableObject {
             }
         )
 
-        let initialHabits = UIFixtures.initialHabits
-
-        self.habits = initialHabits
+        let savedLanguage: AppLanguage
+        if let code = userDefaults.string(forKey: LocalStateKeys.selectedLanguage),
+           let lang = AppLanguage.allCases.first(where: { $0.localeIdentifier == code }) {
+            savedLanguage = lang
+        } else {
+            savedLanguage = .en
+        }
+        self.language = savedLanguage
 
         self.todayViewModel = TodayViewModel(
             habitsRepository: dependencies.habitsRepository,
             completionsRepository: dependencies.completionsRepository,
             quotesRepository: dependencies.quotesRepository,
             logger: dependencies.analyticsLogger,
-            localeCode: AppLanguage.en.localeIdentifier
+            localeCode: savedLanguage.localeIdentifier
         )
 
         self.groupsViewModel = GroupsViewModel(
@@ -230,6 +240,7 @@ final class AppRouteState: ObservableObject {
         self.showsOnboarding = !userDefaults.bool(forKey: LocalStateKeys.onboardingCompleted)
         L10n.setLanguage(code: language.localeIdentifier)
 
+        loadInitialHabitsSync()
         bindTodayViewModel()
         bindChildViewModels()
         bindTimeChangeNotifications()
@@ -258,6 +269,7 @@ final class AppRouteState: ObservableObject {
         if !todayHabitsData.isEmpty {
             return todayHabitsData
         }
+        guard !isInitialLoad else { return [] }
         let today = Date()
         return habits.filter { $0.isScheduled(on: today) }
     }
@@ -348,14 +360,22 @@ final class AppRouteState: ObservableObject {
     }
 
     func enableOnboardingNotifications() {
+        didPromptNotificationsDuringOnboarding = true
         dependencies.analytics.trackOnboardingStepCompleted(.notifications)
         dependencies.requestLocalNotificationPermission()
         onboardingStep = .joinGroups
     }
 
     func skipOnboardingNotifications() {
+        didPromptNotificationsDuringOnboarding = true
         dependencies.analytics.trackOnboardingStepCompleted(.notifications)
         onboardingStep = .joinGroups
+    }
+
+    func promptNotificationsOnJoinGroupsIfNeeded() {
+        guard !didPromptNotificationsDuringOnboarding else { return }
+        didPromptNotificationsDuringOnboarding = true
+        dependencies.requestLocalNotificationPermission()
     }
 
     func requestNotificationPermissionIfNeeded() {
@@ -1526,6 +1546,15 @@ final class AppRouteState: ObservableObject {
         userDefaults.set(feedbackPreferences.soundsEnabled, forKey: LocalStateKeys.soundsEnabled)
     }
 
+    private func persistLanguage() {
+        userDefaults.set(language.localeIdentifier, forKey: LocalStateKeys.selectedLanguage)
+    }
+
+    private func loadLanguage() -> AppLanguage {
+        guard let code = userDefaults.string(forKey: LocalStateKeys.selectedLanguage) else { return .en }
+        return AppLanguage.allCases.first { $0.localeIdentifier == code } ?? .en
+    }
+
     private func syncGroupReminderPreferenceIfNeeded() async {
         guard let currentSessionUserID else {
             return
@@ -1640,6 +1669,7 @@ final class AppRouteState: ObservableObject {
             todayHabitsData = snapshot
         }
         await todayViewModel.loadToday(preloadedHistories: preloadedHistories)
+        if isInitialLoad { isInitialLoad = false }
         trackStreakTransitions(using: todayViewModel.habits)
         await profileViewModel.load()
         dependencies.syncHabitReminders(enabled: notificationPreferences.habitReminders)
@@ -1651,6 +1681,64 @@ final class AppRouteState: ObservableObject {
         }
         updateAnalyticsPersonPropertiesIfNeeded()
         await refreshDebugReminderCountIfNeeded()
+    }
+
+    /// Synchronous fast-path: loads habits + today's completions directly from
+    /// the SwiftData model context so the first frame shows real data instead of
+    /// an empty/skeleton state.  Streaks and completion marks are filled in by
+    /// the full async `loadTodayData()` that follows.
+    private func loadInitialHabitsSync() {
+        guard !showsOnboarding else { return }
+        do {
+            let modelContext = dependencies.modelContainer.mainContext
+            let ownerScope = dependencies.ownerScopeResolver.currentOwnerScopeRawValue
+            let today = Date()
+            var calendar = Calendar.current
+            calendar.timeZone = .current
+            let normalizedToday = calendar.startOfDay(for: today)
+
+            let habitsDescriptor = FetchDescriptor<HabitEntity>(
+                predicate: #Predicate { $0.ownerScope == ownerScope },
+                sortBy: [
+                    SortDescriptor(\.sortOrder, order: .forward),
+                    SortDescriptor(\.createdAt, order: .forward)
+                ]
+            )
+            let habitEntities = try modelContext.fetch(habitsDescriptor)
+            let domainHabits = habitEntities.map { $0.asDomainHabit() }.filter { !$0.archived }
+
+            let completionsDescriptor = FetchDescriptor<CompletionEntity>(
+                predicate: #Predicate { $0.dayDate == normalizedToday && $0.ownerScope == ownerScope }
+            )
+            let todayCompletions = try modelContext.fetch(completionsDescriptor)
+            let completionsByHabitID = Dictionary(
+                todayCompletions.map { ($0.habitID, $0.asDomainCompletion()) },
+                uniquingKeysWith: { _, last in last }
+            )
+
+            var mapped: [UIHabit] = []
+            mapped.reserveCapacity(domainHabits.count)
+
+            for habit in domainHabits {
+                let completion = completionsByHabitID[habit.id]
+                    ?? HabitCompletion(habitID: habit.id, dayDate: today, value: 0)
+                mapped.append(
+                    habit.asUIHabit(
+                        completedToday: completion.isCompleted(for: habit),
+                        streak: 0,
+                        completionValue: completion.value
+                    )
+                )
+            }
+
+            habits = mapped
+            isInitialLoad = false
+        } catch {
+            dependencies.analyticsLogger.log(
+                .storageFailure,
+                metadata: ["scope": "initial_sync_load", "error": error.localizedDescription]
+            )
+        }
     }
 
     @discardableResult
