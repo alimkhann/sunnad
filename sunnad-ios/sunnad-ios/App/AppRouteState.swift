@@ -20,6 +20,7 @@ final class AppRouteState: ObservableObject {
         static let hapticsEnabled = "sunnad.feedback.haptics.enabled"
         static let soundsEnabled = "sunnad.feedback.sounds.enabled"
         static let selectedLanguage = "sunnad.settings.language"
+        static let selectedAppearance = "sunnad.settings.appearance"
         static func analyticsFirstSeenDate(distinctID: String) -> String {
             "sunnad.analytics.first_seen.\(distinctID)"
         }
@@ -62,7 +63,11 @@ final class AppRouteState: ObservableObject {
             Task { await loadTodayData() }
         }
     }
-    @Published var appearance: AppAppearance = .system
+    @Published var appearance: AppAppearance = .system {
+        didSet {
+            persistAppearance()
+        }
+    }
     @Published var notificationPreferences = UINotificationPreferences() {
         didSet {
             persistNotificationPreferences()
@@ -211,6 +216,11 @@ final class AppRouteState: ObservableObject {
             savedLanguage = .en
         }
         self.language = savedLanguage
+
+        if let rawAppearance = userDefaults.string(forKey: LocalStateKeys.selectedAppearance),
+           let saved = AppAppearance(rawValue: rawAppearance) {
+            self.appearance = saved
+        }
 
         self.todayViewModel = TodayViewModel(
             habitsRepository: dependencies.habitsRepository,
@@ -1553,6 +1563,15 @@ final class AppRouteState: ObservableObject {
     private func loadLanguage() -> AppLanguage {
         guard let code = userDefaults.string(forKey: LocalStateKeys.selectedLanguage) else { return .en }
         return AppLanguage.allCases.first { $0.localeIdentifier == code } ?? .en
+    }
+
+    private func persistAppearance() {
+        userDefaults.set(appearance.rawValue, forKey: LocalStateKeys.selectedAppearance)
+    }
+
+    private func loadAppearance() -> AppAppearance {
+        guard let raw = userDefaults.string(forKey: LocalStateKeys.selectedAppearance) else { return .system }
+        return AppAppearance(rawValue: raw) ?? .system
     }
 
     private func syncGroupReminderPreferenceIfNeeded() async {
