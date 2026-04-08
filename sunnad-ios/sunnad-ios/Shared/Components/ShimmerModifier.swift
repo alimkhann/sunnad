@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ShimmerModifier: ViewModifier {
-    @State private var phase: CGFloat = -1
+    @State private var phase: CGFloat = -1.35
 
     func body(content: Content) -> some View {
         content
@@ -25,7 +25,7 @@ struct ShimmerModifier: ViewModifier {
                 .mask(content)
             )
             .onAppear {
-                withAnimation(.easeInOut(duration: 1.3).repeatForever(autoreverses: false)) {
+                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
                     phase = 1.5
                 }
             }
