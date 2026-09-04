@@ -1,186 +1,277 @@
 import SwiftUI
 
 struct DhikrCounterView: View {
+    private enum FocusedField: Hashable {
+        case count
+        case target
+    }
+
     @Binding var count: Int
     @Binding var target: Int
-    @Binding var selectedDhikrKey: String
-    @Binding var countsByDhikr: [String: Int]
+    @Binding var phraseKey: String?
+    @Binding var customPhrase: String?
     let onIncremented: (Bool) -> Void
 
-    private let commonDhikrs = [
+    @State private var countDraft = ""
+    @State private var targetDraft = ""
+    @FocusState private var focusedField: FocusedField?
+
+    private let builtInPhraseKeys = [
         "dhikr.choice.subhanallah",
         "dhikr.choice.alhamdulillah",
         "dhikr.choice.allahu_akbar"
     ]
+    private let targetPresets = [33, 99, 100, 1_000]
+    private let customSelection = "custom"
 
     var body: some View {
         VStack(spacing: 22) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(commonDhikrs, id: \.self) { key in
-                        Button {
-                            switchDhikr(to: key)
-                        } label: {
-                            Text(L10n.t(key))
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(1)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(selectedDhikrKey == key ? SunnadTheme.primary : Color(.tertiarySystemFill))
-                                )
-                                .foregroundStyle(selectedDhikrKey == key ? Color.white : Color.primary)
-                        }
-                        .buttonStyle(.plain)
-                    }
+            phraseEditor
+            counter
+            counterActions
+            targetEditor
+        }
+        .padding(.vertical, 16)
+        .onAppear {
+            normalizePhrase()
+            countDraft = String(max(count, 0))
+            targetDraft = String(normalizedTarget)
+        }
+        .onChange(of: target) { _, newValue in
+            targetDraft = String(min(max(newValue, 1), 999_999))
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button(L10n.t("common.done")) {
+                    commitFocusedDraft()
+                    focusedField = nil
                 }
-                .padding(.horizontal, 2)
+            }
+        }
+    }
+
+    private var phraseEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(L10n.t("dhikr.phrase"))
+                    .font(.headline.weight(.semibold))
+                Spacer()
+                Picker(L10n.t("dhikr.phrase"), selection: phraseSelection) {
+                    ForEach(builtInPhraseKeys, id: \.self) { key in
+                        Text(L10n.t(key)).tag(key)
+                    }
+                    Text(L10n.t("dhikr.custom_phrase")).tag(customSelection)
+                }
+                .labelsHidden()
+                .accessibilityIdentifier("dhikr.phrase.picker")
             }
 
-            Button {
-                increment()
-            } label: {
+            if phraseSelection.wrappedValue == customSelection {
+                TextField(
+                    L10n.t("dhikr.custom_phrase.placeholder"),
+                    text: Binding(
+                        get: { customPhrase ?? "" },
+                        set: { customPhrase = String($0.prefix(80)) }
+                    )
+                )
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.sentences)
+                .accessibilityLabel(L10n.t("dhikr.custom_phrase"))
+                .accessibilityIdentifier("dhikr.custom_phrase.field")
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.tertiarySystemBackground))
+        )
+    }
+
+    private var counter: some View {
+        ZStack {
+            Button(action: increment) {
                 ZStack {
                     Circle()
                         .stroke(lineWidth: 12)
                         .foregroundStyle(Color(.tertiarySystemFill))
-                        .frame(width: 272, height: 272)
 
                     Circle()
                         .trim(from: 0, to: progress)
-                        .stroke(SunnadTheme.primary, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                        .stroke(
+                            SunnadTheme.primary,
+                            style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                        )
                         .rotationEffect(.degrees(-90))
-                        .frame(width: 272, height: 272)
-
-                    VStack(spacing: 6) {
-                        Text("\(count)")
-                            .font(.system(size: 56, weight: .bold, design: .rounded))
-                        Text("\(L10n.t("dhikr.of")) \(target)")
-                            .font(.title3.weight(.medium))
-                            .foregroundStyle(.secondary)
-                    }
                 }
             }
             .buttonStyle(.plain)
             .accessibilityLabel(L10n.t("dhikr.tap"))
-
-            Button {
-                increment()
-            } label: {
-                Text(L10n.t("dhikr.tap"))
-                    .font(.title3.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
-                    .foregroundStyle(.white)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(SunnadTheme.primary)
-                    )
+            .accessibilityValue("\(count) / \(normalizedTarget)")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: increment()
+                case .decrement:
+                    count = max(count - 1, 0)
+                    countDraft = String(count)
+                @unknown default: break
+                }
             }
-            .buttonStyle(.plain)
 
-            HStack(spacing: 10) {
-                Button {
-                    count = 0
-                } label: {
-                    Text(L10n.t("dhikr.reset"))
-                        .font(.headline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color(.tertiarySystemBackground))
-                        )
-                }
-                .buttonStyle(.plain)
-                .frame(width: 110)
-
-                HStack(spacing: 8) {
-                    Text(L10n.t("dhikr.target"))
-                        .font(.headline.weight(.semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-
-                    Spacer(minLength: 8)
-
-                    HStack(spacing: 0) {
-                Button {
-                    target = max(1, target - 1)
-                    count = min(count, target)
-                } label: {
-                    Image(systemName: "minus")
-                        .frame(width: 34, height: 34)
-                        }
-                        Divider()
-                        Button {
-                            target = min(999, target + 1)
-                        } label: {
-                            Image(systemName: "plus")
-                                .frame(width: 34, height: 34)
-                        }
+            VStack(spacing: 6) {
+                if focusedField == .count {
+                    TextField("0", text: $countDraft)
+                        .keyboardType(.numberPad)
+                        .focused($focusedField, equals: .count)
+                        .multilineTextAlignment(.center)
+                        .font(.system(size: 52, weight: .bold, design: .rounded))
+                        .frame(maxWidth: 180)
+                        .onSubmit(commitCountDraft)
+                } else {
+                    Button {
+                        countDraft = String(max(count, 0))
+                        focusedField = .count
+                    } label: {
+                        Text("\(count)")
+                            .font(.system(size: 56, weight: .bold, design: .rounded))
+                            .contentTransition(.numericText())
                     }
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color(.tertiarySystemFill))
-                    )
-
-                    Text("\(target)")
-                        .font(.headline.weight(.semibold))
-                        .frame(minWidth: 36)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(L10n.t("dhikr.edit_count"))
+                    .accessibilityIdentifier("dhikr.count.edit.button")
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(.tertiarySystemBackground))
-                )
+
+                Text("\(L10n.t("dhikr.of")) \(normalizedTarget)")
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 16)
-        .onAppear(perform: bootstrapDhikrCountsIfNeeded)
-        .onChange(of: count) { _, newCount in
-            countsByDhikr[selectedDhikrKey] = max(newCount, 0)
+        .frame(maxWidth: 272, maxHeight: 272)
+        .aspectRatio(1, contentMode: .fit)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var counterActions: some View {
+        HStack(spacing: 10) {
+            Button {
+                count = 0
+                countDraft = "0"
+            } label: {
+                Label(L10n.t("dhikr.reset"), systemImage: "arrow.counterclockwise")
+                    .font(.headline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 48)
+            }
+            .buttonStyle(.bordered)
+
+            Button(action: increment) {
+                Text(L10n.t("dhikr.tap"))
+                    .font(.headline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 48)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(SunnadTheme.primary)
         }
     }
 
+    private var targetEditor: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Text(L10n.t("dhikr.target"))
+                    .font(.headline.weight(.semibold))
+                Spacer()
+                TextField("33", text: $targetDraft)
+                    .keyboardType(.numberPad)
+                    .focused($focusedField, equals: .target)
+                    .multilineTextAlignment(.trailing)
+                    .font(.title3.monospacedDigit().weight(.semibold))
+                    .frame(minWidth: 88, maxWidth: 140)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(commitTargetDraft)
+                    .accessibilityLabel(L10n.t("dhikr.target"))
+                    .accessibilityIdentifier("dhikr.target.field")
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(targetPresets, id: \.self) { preset in
+                        Button(preset.formatted()) {
+                            target = preset
+                            targetDraft = String(preset)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(target == preset ? SunnadTheme.primary : .secondary)
+                        .accessibilityIdentifier("dhikr.target.preset.\(preset)")
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.tertiarySystemBackground))
+        )
+    }
+
+    private var phraseSelection: Binding<String> {
+        Binding(
+            get: { customPhrase != nil ? customSelection : phraseKey ?? builtInPhraseKeys[0] },
+            set: { selection in
+                if selection == customSelection {
+                    phraseKey = nil
+                    customPhrase = customPhrase?.isEmpty == false ? customPhrase : ""
+                } else {
+                    phraseKey = selection
+                    customPhrase = nil
+                }
+            }
+        )
+    }
+
+    private var normalizedTarget: Int {
+        min(max(target, 1), 999_999)
+    }
+
     private var progress: CGFloat {
-        guard target > 0 else { return 0 }
-        return min(CGFloat(count) / CGFloat(target), 1)
+        min(CGFloat(max(count, 0)) / CGFloat(normalizedTarget), 1)
     }
 
     private func increment() {
         let previous = count
-        count = min(count + 1, max(target, 1))
-        let reachedTarget = previous < target && count >= target
-        onIncremented(reachedTarget)
+        count = min(max(count, 0) + 1, 9_999_999)
+        countDraft = String(count)
+        onIncremented(previous < normalizedTarget && count >= normalizedTarget)
     }
 
-    private func bootstrapDhikrCountsIfNeeded() {
-        for key in commonDhikrs where countsByDhikr[key] == nil {
-            countsByDhikr[key] = 0
+    private func normalizePhrase() {
+        let trimmedCustom = customPhrase?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedCustom, !trimmedCustom.isEmpty {
+            customPhrase = String(trimmedCustom.prefix(80))
+            phraseKey = nil
+        } else {
+            customPhrase = nil
+            if !builtInPhraseKeys.contains(phraseKey ?? "") {
+                phraseKey = builtInPhraseKeys[0]
+            }
         }
-
-        if !commonDhikrs.contains(selectedDhikrKey) {
-            selectedDhikrKey = commonDhikrs[0]
-        }
-
-        if countsByDhikr[selectedDhikrKey] == 0 && count > 0 {
-            countsByDhikr[selectedDhikrKey] = count
-        }
-
-        count = countsByDhikr[selectedDhikrKey] ?? 0
+        target = normalizedTarget
+        count = max(count, 0)
     }
 
-    private func switchDhikr(to key: String) {
-        guard selectedDhikrKey != key else {
-            return
+    private func commitFocusedDraft() {
+        switch focusedField {
+        case .count: commitCountDraft()
+        case .target: commitTargetDraft()
+        case nil: break
         }
+    }
 
-        countsByDhikr[selectedDhikrKey] = count
-        selectedDhikrKey = key
-        count = countsByDhikr[key] ?? 0
+    private func commitCountDraft() {
+        count = min(max(Int(countDraft) ?? count, 0), 9_999_999)
+        countDraft = String(count)
+    }
+
+    private func commitTargetDraft() {
+        target = min(max(Int(targetDraft) ?? target, 1), 999_999)
+        targetDraft = String(target)
     }
 }

@@ -50,9 +50,9 @@ enum AppAppearance: String, CaseIterable, Identifiable {
 }
 
 struct UINotificationPreferences: Equatable {
-    var habitReminders = true
-    var quoteReminder = true
-    var groupReminders = true
+    var habitReminders = false
+    var quoteReminder = false
+    var groupReminders = false
 }
 
 struct UIFeedbackPreferences: Equatable {
@@ -215,7 +215,7 @@ struct HabitTemplate: Identifiable, Hashable {
 }
 
 struct UIHabit: Identifiable, Hashable {
-    static let defaultDhikrKey = "dhikr.choice.subhanallah"
+    static let defaultDhikrPhraseKey = "dhikr.choice.subhanallah"
 
     let id: UUID
     var templateTitleKey: String?
@@ -229,8 +229,8 @@ struct UIHabit: Identifiable, Hashable {
     var weekdays: Set<Int>
     var reminderTime: Date?
     var isDhikr: Bool
-    var selectedDhikrKey: String
-    var dhikrCountsByKey: [String: Int]
+    var dhikrPhraseKey: String?
+    var dhikrCustomPhrase: String?
     var dhikrCount: Int
     var dhikrTarget: Int
 
@@ -247,17 +247,11 @@ struct UIHabit: Identifiable, Hashable {
         weekdays: Set<Int> = Set(0...6),
         reminderTime: Date? = nil,
         isDhikr: Bool = false,
-        selectedDhikrKey: String = UIHabit.defaultDhikrKey,
-        dhikrCountsByKey: [String: Int] = [:],
+        dhikrPhraseKey: String? = nil,
+        dhikrCustomPhrase: String? = nil,
         dhikrCount: Int = 0,
         dhikrTarget: Int = 33
     ) {
-        var normalizedCounts = dhikrCountsByKey
-        normalizedCounts = normalizedCounts.mapValues { max($0, 0) }
-        if isDhikr {
-            normalizedCounts[selectedDhikrKey] = max(normalizedCounts[selectedDhikrKey] ?? dhikrCount, 0)
-        }
-
         self.id = id
         self.templateTitleKey = templateTitleKey
         self.customTitle = customTitle
@@ -270,8 +264,14 @@ struct UIHabit: Identifiable, Hashable {
         self.weekdays = weekdays
         self.reminderTime = reminderTime
         self.isDhikr = isDhikr
-        self.selectedDhikrKey = selectedDhikrKey
-        self.dhikrCountsByKey = normalizedCounts
+        let normalizedCustomPhrase = dhikrCustomPhrase?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isDhikr, normalizedCustomPhrase?.isEmpty != false {
+            self.dhikrPhraseKey = dhikrPhraseKey ?? UIHabit.defaultDhikrPhraseKey
+            self.dhikrCustomPhrase = nil
+        } else {
+            self.dhikrPhraseKey = isDhikr ? nil : dhikrPhraseKey
+            self.dhikrCustomPhrase = normalizedCustomPhrase
+        }
         self.dhikrCount = dhikrCount
         self.dhikrTarget = dhikrTarget
     }
@@ -286,6 +286,13 @@ struct UIHabit: Identifiable, Hashable {
         }
 
         return L10n.t("habit.untitled")
+    }
+
+    var dhikrPhraseDisplayTitle: String {
+        if let custom = dhikrCustomPhrase?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty {
+            return custom
+        }
+        return L10n.t(dhikrPhraseKey ?? UIHabit.defaultDhikrPhraseKey)
     }
 
     func isScheduled(on date: Date, calendar: Calendar = .current) -> Bool {

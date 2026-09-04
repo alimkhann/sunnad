@@ -17,7 +17,8 @@ private enum HabitDetailMode: String, CaseIterable, Identifiable {
 struct HabitDetailSheetView: View {
     @Environment(\.dismiss) private var dismiss
 
-    @Binding var habit: UIHabit
+    @Binding private var persistedHabit: UIHabit
+    @State private var habit: UIHabit
 
     let user: UIUserState
     let groups: [UIGroup]
@@ -31,8 +32,28 @@ struct HabitDetailSheetView: View {
     @State private var showsDeleteConfirmation = false
     @State private var didApplyDebugMode = false
     @State private var sharedGroupIDs: Set<UUID> = []
+    @State private var originalSharedGroupIDs: Set<UUID> = []
     @State private var customCategoryEnabled = false
     @State private var customCategoryDraft = ""
+
+    init(
+        habit: Binding<UIHabit>,
+        user: UIUserState,
+        groups: [UIGroup],
+        lastSevenCompletionMarksOverride: [Bool]?,
+        onDelete: @escaping (UUID) -> Void,
+        onUpdateHabitSharing: @escaping (UUID, Set<UUID>) -> Void,
+        onDhikrIncremented: @escaping (Bool) -> Void
+    ) {
+        _persistedHabit = habit
+        _habit = State(initialValue: habit.wrappedValue)
+        self.user = user
+        self.groups = groups
+        self.lastSevenCompletionMarksOverride = lastSevenCompletionMarksOverride
+        self.onDelete = onDelete
+        self.onUpdateHabitSharing = onUpdateHabitSharing
+        self.onDhikrIncremented = onDhikrIncremented
+    }
 
     var body: some View {
         NavigationStack {
@@ -53,8 +74,8 @@ struct HabitDetailSheetView: View {
                         DhikrCounterView(
                             count: $habit.dhikrCount,
                             target: $habit.dhikrTarget,
-                            selectedDhikrKey: $habit.selectedDhikrKey,
-                            countsByDhikr: $habit.dhikrCountsByKey,
+                            phraseKey: $habit.dhikrPhraseKey,
+                            customPhrase: $habit.dhikrCustomPhrase,
                             onIncremented: onDhikrIncremented
                         )
                     }
@@ -62,11 +83,11 @@ struct HabitDetailSheetView: View {
                     detailsContent
                 }
             } footer: {
-                if mode == .details || !habit.isDhikr {
-                    PrimaryButton(title: L10n.t("habit.save_changes")) {
-                        dismiss()
-                    }
+                PrimaryButton(title: L10n.t("habit.save_changes")) {
+                    saveDraft()
                 }
+                .accessibilityIdentifier("habit.save.button")
+                .disabled(!isDraftValid)
             }
             .toolbar(.hidden, for: .navigationBar)
             .sunnadSolidBars()
@@ -75,6 +96,13 @@ struct HabitDetailSheetView: View {
             .onAppear(perform: syncCustomCategoryDraft)
             .onChange(of: groups) {
                 syncSharedGroups()
+            }
+            .onChange(of: habit.dhikrCount) { _, newValue in
+                guard newValue != persistedHabit.dhikrCount else { return }
+                var immediateHabit = persistedHabit
+                immediateHabit.dhikrCount = newValue
+                immediateHabit.completedToday = newValue >= max(immediateHabit.dhikrTarget, 1)
+                persistedHabit = immediateHabit
             }
             .sheet(isPresented: $isSymbolPickerPresented) {
                 SFSymbolPickerSheetView(selectedSymbol: $habit.iconSystemName)
@@ -103,7 +131,7 @@ struct HabitDetailSheetView: View {
                 Image(systemName: "trash")
                     .font(.headline)
                     .foregroundStyle(.red)
-                    .frame(width: 38, height: 38)
+                    .frame(width: 44, height: 44)
                     .background(Circle().fill(Color(.tertiarySystemFill)))
             }
             .accessibilityLabel(L10n.t("common.delete"))
@@ -123,7 +151,7 @@ struct HabitDetailSheetView: View {
                 Image(systemName: "xmark")
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 38, height: 38)
+                    .frame(width: 44, height: 44)
                     .background(Circle().fill(Color(.tertiarySystemFill)))
             }
             .accessibilityLabel(L10n.t("common.cancel"))
@@ -293,7 +321,6 @@ struct HabitDetailSheetView: View {
                                     } else {
                                         sharedGroupIDs.remove(group.id)
                                     }
-                                    onUpdateHabitSharing(habit.id, sharedGroupIDs)
                                 }
                             )) {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -425,10 +452,40 @@ struct HabitDetailSheetView: View {
     }
 
     private func syncSharedGroups() {
-        sharedGroupIDs = Set(
+        let resolved = Set(
             groups
                 .filter { $0.sharedHabitIDs.contains(habit.id) }
                 .map(\.id)
         )
+        sharedGroupIDs = resolved
+        originalSharedGroupIDs = resolved
+    }
+
+    private func saveDraft() {
+        if habit.isDhikr {
+            let customPhrase = habit.dhikrCustomPhrase?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if customPhrase?.isEmpty == false {
+                habit.dhikrCustomPhrase = String(customPhrase!.prefix(80))
+                habit.dhikrPhraseKey = nil
+            } else {
+                habit.dhikrCustomPhrase = nil
+                habit.dhikrPhraseKey = habit.dhikrPhraseKey ?? UIHabit.defaultDhikrPhraseKey
+            }
+            habit.dhikrTarget = min(max(habit.dhikrTarget, 1), 999_999)
+        }
+
+        persistedHabit = habit
+        if sharedGroupIDs != originalSharedGroupIDs {
+            onUpdateHabitSharing(habit.id, sharedGroupIDs)
+        }
+        dismiss()
+    }
+
+    private var isDraftValid: Bool {
+        guard habit.isDhikr else { return true }
+        if let customPhrase = habit.dhikrCustomPhrase {
+            return !customPhrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return habit.dhikrPhraseKey != nil
     }
 }

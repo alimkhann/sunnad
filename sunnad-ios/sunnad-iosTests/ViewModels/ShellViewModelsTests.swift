@@ -12,7 +12,16 @@ struct ShellViewModelsTests {
             name: "Ali",
             completedToday: 0,
             totalSharedHabits: 0,
-            sharedHabits: []
+            sharedHabits: [
+                SharedHabit(
+                    habitID: habit.id,
+                    title: "Read",
+                    icon: "book.fill",
+                    completedToday: true,
+                    streak: 4,
+                    rollingCompletionPercent: 73
+                )
+            ]
         )
         let persisted = Group(
             id: UUID(),
@@ -31,6 +40,7 @@ struct ShellViewModelsTests {
         #expect(vm.groups.count == 1)
         #expect(vm.groups[0].members.first?.completedToday == 1)
         #expect(vm.groups[0].members.first?.sharedHabits.count == 1)
+        #expect(vm.groups[0].members.first?.sharedHabits.first?.rollingCompletionPercent == 73)
     }
 
     @Test
@@ -310,7 +320,7 @@ final class FakeGroupsRepository: GroupsRepository, @unchecked Sendable {
 
     func sendNudge(groupID: UUID, toUserID: UUID, habitID: UUID) async throws -> GroupNudgeStatus {
         _ = (groupID, toUserID, habitID)
-        return .sent
+        return .delivered
     }
 
     func replaceGroups(_ groups: [Group]) async throws {
@@ -413,7 +423,7 @@ final class DelayedSharingGroupsRepository: GroupsRepository, @unchecked Sendabl
 
     func sendNudge(groupID: UUID, toUserID: UUID, habitID: UUID) async throws -> GroupNudgeStatus {
         _ = (groupID, toUserID, habitID)
-        return .sent
+        return .delivered
     }
 
     func replaceGroups(_ groups: [Group]) async throws {

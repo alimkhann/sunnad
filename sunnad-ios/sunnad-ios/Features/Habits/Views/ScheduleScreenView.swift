@@ -132,7 +132,9 @@ struct ScheduleScreenView: View {
                                     Image(systemName: "line.3.horizontal")
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(.secondary)
-                                        .frame(width: 22, height: 22)
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(Rectangle())
+                                        .accessibilityLabel(L10n.t("common.reorder"))
                                         .accessibilityIdentifier("schedule.reorder.handle.\(index)")
                                         .onDrag {
                                             draggedHabit = habit
@@ -257,44 +259,48 @@ struct ScheduleScreenView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
             }
 
-            HStack(spacing: 0) {
-                ForEach(weekdayLabels, id: \.self) { symbol in
-                    Text(symbol)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            .padding(.horizontal, 6)
-
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), spacing: 8) {
-                ForEach(0..<firstWeekdayOffset, id: \.self) { _ in
-                    Color.clear
-                        .frame(height: 52)
-                }
-
-                ForEach(Array(dayRange), id: \.self) { day in
-                    let date = calendar.date(byAdding: .day, value: day - 1, to: monthStart) ?? today
-                    let count = habits.filter { $0.isScheduled(on: date) }.count
-                    let isToday = calendar.isDate(date, inSameDayAs: today)
-
-                    VStack(spacing: 2) {
-                        Text("\(day)")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(isToday ? .white : .primary)
-                        Text("\(count)")
-                            .font(.caption2)
-                            .foregroundStyle(isToday ? .white.opacity(0.88) : .secondary)
+            VStack(spacing: 4) {
+                HStack(spacing: 0) {
+                    ForEach(weekdayLabels, id: \.self) { symbol in
+                        Text(symbol)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(isToday ? SunnadTheme.primary : SunnadTheme.surface)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(SunnadTheme.border, lineWidth: isToday ? 0 : 0.5)
-                    )
+                }
+                .padding(.horizontal, 6)
+
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), spacing: 8) {
+                    // Keep placeholder identities disjoint from the positive day numbers.
+                    // Duplicate sibling IDs make LazyVGrid drop the first days of the month.
+                    ForEach((-firstWeekdayOffset)..<0, id: \.self) { _ in
+                        Color.clear
+                            .frame(height: 52)
+                    }
+
+                    ForEach(Array(dayRange), id: \.self) { day in
+                        let date = calendar.date(byAdding: .day, value: day - 1, to: monthStart) ?? today
+                        let count = habits.filter { $0.isScheduled(on: date) }.count
+                        let isToday = calendar.isDate(date, inSameDayAs: today)
+
+                        VStack(spacing: 2) {
+                            Text("\(day)")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(isToday ? .white : .primary)
+                            Text("\(count)")
+                                .font(.caption2)
+                                .foregroundStyle(isToday ? .white.opacity(0.88) : .secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(isToday ? SunnadTheme.primary : SunnadTheme.surface)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(SunnadTheme.border, lineWidth: isToday ? 0 : 0.5)
+                        )
+                    }
                 }
             }
         }
