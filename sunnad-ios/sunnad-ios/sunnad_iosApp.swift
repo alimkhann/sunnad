@@ -2,9 +2,40 @@ import SwiftUI
 import UIKit
 import SwiftData
 
+final class AdatAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        Task { @MainActor in
+            await APNsRegistrationBridge.shared.refreshRegistrationIfAuthorized()
+        }
+        return true
+    }
+
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task { @MainActor in
+            APNsRegistrationBridge.shared.didRegister(deviceToken: deviceToken)
+        }
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        #if DEBUG
+        NSLog("APNs registration failed: \(error.localizedDescription)")
+        #endif
+    }
+}
+
 @main
 struct sunnad_iosApp: App {
     @Environment(\.scenePhase) private var scenePhase
+    @UIApplicationDelegateAdaptor(AdatAppDelegate.self) private var appDelegate
 
     private let dependencies = DependencyContainer()
     private let backgroundSyncScheduler: BackgroundSyncScheduler

@@ -1,13 +1,13 @@
 import Foundation
 
-enum AuthProvider: String, Equatable, Sendable {
+nonisolated enum AuthProvider: String, Equatable, Sendable {
     case email
     case google
     case apple
     case unknown
 }
 
-struct SessionUser: Equatable, Sendable {
+nonisolated struct SessionUser: Equatable, Sendable {
     let id: UUID
     let email: String?
     let username: String?

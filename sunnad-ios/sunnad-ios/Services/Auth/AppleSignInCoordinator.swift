@@ -20,6 +20,7 @@ enum AppleSignInError: Error {
     case invalidResponse
     case missingIdentityToken
     case missingPresentationAnchor
+    case nonceGenerationFailed(OSStatus)
 }
 
 @MainActor
@@ -35,7 +36,7 @@ final class AppleSignInCoordinator: NSObject {
 
         self.presentationAnchorWindow = presentationAnchorWindow
 
-        let nonce = Self.randomNonceString()
+        let nonce = try Self.randomNonceString()
         currentNonce = nonce
 
         let request = ASAuthorizationAppleIDProvider().createRequest()
@@ -75,7 +76,7 @@ final class AppleSignInCoordinator: NSObject {
         return hashed.map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func randomNonceString(length: Int = 32) -> String {
+    private static func randomNonceString(length: Int = 32) throws -> String {
         let charset = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
         var result = ""
         result.reserveCapacity(length)
@@ -85,7 +86,7 @@ final class AppleSignInCoordinator: NSObject {
             var randoms = [UInt8](repeating: 0, count: 16)
             let status = SecRandomCopyBytes(kSecRandomDefault, randoms.count, &randoms)
             guard status == errSecSuccess else {
-                fatalError("Unable to generate secure nonce. OSStatus=\(status)")
+                throw AppleSignInError.nonceGenerationFailed(status)
             }
 
             randoms.forEach { random in

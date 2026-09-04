@@ -2,7 +2,7 @@ import Foundation
 import Supabase
 
 final class SupabaseAuthService: AuthService, @unchecked Sendable {
-    private struct ProfileRow: Decodable {
+    private struct ProfileRow: Decodable, Sendable {
         let username: String?
         let avatarPath: String?
         let updatedAtRaw: String?
@@ -16,6 +16,12 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             case avatarPath = "avatar_path"
             case updatedAtRaw = "updated_at"
         }
+    }
+
+    private enum ProfileLookup: Sendable {
+        case found(ProfileRow)
+        case missing
+        case unavailable
     }
 
     private struct DeleteAccountResponse: Decodable {
@@ -40,7 +46,7 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
     private let client: SupabaseClient
     private let supabaseURL: URL
     private let authRedirectURL: URL?
-    private let usernameRegex = try! NSRegularExpression(pattern: "^[a-z0-9_]{3,20}$")
+    private let usernameRegex = try? NSRegularExpression(pattern: "^[a-z0-9_]{3,20}$")
 
     init(client: SupabaseClient, supabaseURL: URL, authRedirectURL: URL?) {
         self.client = client
@@ -124,6 +130,8 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
                 throw AuthServiceError.unknown("Unable to present Apple sign in. Please try again.")
             case .invalidResponse, .missingIdentityToken:
                 throw AuthServiceError.unknown("Apple sign in did not return a valid identity token.")
+            case .nonceGenerationFailed:
+                throw AuthServiceError.unknown("Unable to securely start Apple sign in. Please try again.")
             }
         } catch {
             throw mapAuthError(error)
@@ -232,6 +240,9 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 
         do {
             try await persistProfileUsername(cleanedUsername, for: user.id)
+            _ = try? await client.auth.update(
+                user: UserAttributes(data: ["username": AnyJSON.string(cleanedUsername)])
+            )
             return try await fetchProfile()
         } catch {
             throw mapAuthError(error)
@@ -316,16 +327,16 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 
     func currentUser() async -> SessionUser? {
         if let user = client.auth.currentUser {
-            return await sessionUser(from: user, fetchRemoteProfile: false)
+            return await sessionUser(from: user)
         }
 
         do {
             let session = try await client.auth.session
-            return await sessionUser(from: session.user, fetchRemoteProfile: false)
+            return await sessionUser(from: session.user)
         } catch {
             do {
                 let refreshed = try await client.auth.refreshSession()
-                return await sessionUser(from: refreshed.user, fetchRemoteProfile: false)
+                return await sessionUser(from: refreshed.user)
             } catch {
                 return nil
             }
@@ -338,15 +349,24 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         fetchRemoteProfile: Bool = true
     ) async -> SessionUser {
         let provider = authProvider(from: user)
-        let profile = fetchRemoteProfile
-            ? await fetchProfileRowBounded(for: user.id)
-            : nil
+        let profileLookup = fetchRemoteProfile
+            ? await fetchProfileLookupBounded(for: user.id)
+            : ProfileLookup.unavailable
+        let profile: ProfileRow?
+        switch profileLookup {
+        case .found(let resolvedProfile):
+            profile = resolvedProfile
+        case .missing, .unavailable:
+            profile = nil
+        }
         var username = sanitizeUsername(profile?.username)
         let metadataUsername = sanitizeUsername(user.userMetadata["username"]?.stringValue)
 
         if username == nil, let metadataUsername {
             username = metadataUsername
-            try? await persistProfileUsername(metadataUsername, for: user.id)
+            if case .missing = profileLookup {
+                try? await persistProfileUsername(metadataUsername, for: user.id)
+            }
         }
 
         if username == nil, let fallbackUsername = sanitizeUsername(fallbackUsername) {
@@ -354,7 +374,9 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
             try? await persistProfileUsername(fallbackUsername, for: user.id)
         }
 
-        if username == nil, provider == .google || provider == .apple {
+        if username == nil,
+           case .missing = profileLookup,
+           provider == .google || provider == .apple {
             let base = oauthUsernameBase(from: user) ?? "user"
             if let claimed = await claimOAuthUsername(base: base) {
                 username = claimed
@@ -386,7 +408,7 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         guard !normalized.isEmpty else { return nil }
 
         let range = NSRange(location: 0, length: normalized.utf16.count)
-        guard usernameRegex.firstMatch(in: normalized, options: [], range: range) != nil else {
+        guard usernameRegex?.firstMatch(in: normalized, options: [], range: range) != nil else {
             return nil
         }
         return normalized
@@ -433,6 +455,13 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
     }
 
     private func fetchProfileRow(for userID: UUID) async -> ProfileRow? {
+        if case .found(let profile) = await fetchProfileLookup(for: userID) {
+            return profile
+        }
+        return nil
+    }
+
+    private func fetchProfileLookup(for userID: UUID) async -> ProfileLookup {
         do {
             let response = try await client
                 .from("profiles")
@@ -442,23 +471,26 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
                 .execute()
 
             let rows = try JSONDecoder().decode([ProfileRow].self, from: response.data)
-            return rows.first
+            if let profile = rows.first {
+                return .found(profile)
+            }
+            return .missing
         } catch {
-            return nil
+            return .unavailable
         }
     }
 
-    private func fetchProfileRowBounded(
+    private func fetchProfileLookupBounded(
         for userID: UUID,
         timeoutNanoseconds: UInt64 = 1_500_000_000
-    ) async -> ProfileRow? {
-        await withTaskGroup(of: ProfileRow?.self) { group in
-            group.addTask { await self.fetchProfileRow(for: userID) }
+    ) async -> ProfileLookup {
+        await withTaskGroup(of: ProfileLookup.self) { group in
+            group.addTask { await self.fetchProfileLookup(for: userID) }
             group.addTask {
                 try? await Task.sleep(nanoseconds: timeoutNanoseconds)
-                return nil
+                return .unavailable
             }
-            let first = await group.next() ?? nil
+            let first = await group.next() ?? .unavailable
             group.cancelAll()
             return first
         }
@@ -730,42 +762,58 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
 final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Sendable {
     private enum Keys {
         static let deviceToken = "sunnad.device.push-token"
-        static let oneSignalSubscriptionID = "sunnad.device.onesignal-subscription-id"
     }
 
     private struct DeviceTokenRow: Encodable {
         let userID: UUID
         let platform: String
         let token: String
-        let oneSignalSubscriptionID: String?
+        let installationID: UUID
+        let apnsEnvironment: String
 
         enum CodingKeys: String, CodingKey {
             case userID = "user_id"
             case platform
             case token
-            case oneSignalSubscriptionID = "onesignal_subscription_id"
+            case installationID = "installation_id"
+            case apnsEnvironment = "apns_environment"
+        }
+    }
+
+    private struct ProfileContextRow: Encodable {
+        let id: UUID
+        let locale: String
+        let timeZone: String
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case locale
+            case timeZone = "time_zone"
         }
     }
 
     private let client: SupabaseClient
     private let logger: AnalyticsLogging
     private let userDefaults: UserDefaults
+    private let installationIdentifierStore: InstallationIdentifierStore
+    private let apnsEnvironment: String
 
     init(
         client: SupabaseClient,
         logger: AnalyticsLogging,
-        userDefaults: UserDefaults = .standard
+        apnsEnvironment: String = "production",
+        userDefaults: UserDefaults = .standard,
+        installationIdentifierStore: InstallationIdentifierStore = InstallationIdentifierStore()
     ) {
         self.client = client
         self.logger = logger
         self.userDefaults = userDefaults
+        self.installationIdentifierStore = installationIdentifierStore
+        self.apnsEnvironment = apnsEnvironment == "development" ? "development" : "production"
     }
 
     func syncCurrentDeviceToken(for userID: UUID) async {
-        let registration = resolveRegistration()
-        let resolvedToken = registration.token
-        let oneSignalSubscriptionID = registration.oneSignalSubscriptionID
-
+        let resolvedToken = resolveDeviceToken()
         guard let resolvedToken, !resolvedToken.isEmpty else {
             logger.log(.syncFinished, metadata: ["scope": "device_token", "status": "skipped_no_token"])
             return
@@ -775,13 +823,26 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
             userID: userID,
             platform: "ios",
             token: resolvedToken,
-            oneSignalSubscriptionID: oneSignalSubscriptionID
+            installationID: installationIdentifierStore.identifier(),
+            apnsEnvironment: apnsEnvironment
         )
 
         do {
             try await client
                 .from("device_tokens")
-                .upsert(row, onConflict: "user_id,token")
+                .delete()
+                .eq("user_id", value: userID)
+                .eq("installation_id", value: installationIdentifierStore.identifier())
+                .execute()
+            try await client
+                .from("device_tokens")
+                .delete()
+                .eq("user_id", value: userID)
+                .eq("token", value: resolvedToken)
+                .execute()
+            try await client
+                .from("device_tokens")
+                .insert(row)
                 .execute()
 
             logger.log(
@@ -789,7 +850,7 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
                 metadata: [
                     "scope": "device_token",
                     "status": "upserted",
-                    "onesignal": oneSignalSubscriptionID == nil ? "none" : "present"
+                    "environment": apnsEnvironment
                 ]
             )
         } catch {
@@ -804,55 +865,64 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
     }
 
     func setGroupRemindersEnabled(_ enabled: Bool, for userID: UUID) async {
-        guard enabled else {
-            let registration = resolveRegistration()
-            guard let token = registration.token, !token.isEmpty else {
-                logger.log(
-                    .syncFinished,
-                    metadata: ["scope": "device_token_group_receive", "status": "skipped_no_token"]
-                )
-                return
+        do {
+            try await client
+                .from("profiles")
+                .update(["group_nudges_enabled": enabled])
+                .eq("id", value: userID)
+                .execute()
+            if enabled {
+                await syncCurrentDeviceToken(for: userID)
             }
-
-            do {
-                try await client
-                    .from("device_tokens")
-                    .delete()
-                    .eq("user_id", value: userID)
-                    .eq("token", value: token)
-                    .execute()
-
-                logger.log(
-                    .syncFinished,
-                    metadata: ["scope": "device_token_group_receive", "status": "disabled"]
-                )
-            } catch {
-                logger.log(
-                    .storageFailure,
-                    metadata: [
-                        "scope": "device_token_group_receive_disable",
-                        "error": error.localizedDescription
-                    ]
-                )
-            }
-            return
+            logger.log(
+                .syncFinished,
+                metadata: ["scope": "device_token_group_receive", "status": enabled ? "enabled" : "disabled"]
+            )
+        } catch {
+            logger.log(
+                .storageFailure,
+                metadata: ["scope": "device_token_group_receive", "error": error.localizedDescription]
+            )
         }
-
-        await syncCurrentDeviceToken(for: userID)
     }
 
-    private func resolveRegistration() -> (token: String?, oneSignalSubscriptionID: String?) {
-        let token = resolveDeviceToken()
-        let oneSignalSubscriptionID = resolveOneSignalSubscriptionID()
+    func syncProfileContext(for userID: UUID, locale: String, timeZone: String) async {
+        let supportedLocale = ["en", "ru", "kk"].contains(locale) ? locale : "en"
+        let resolvedTimeZone = TimeZone(identifier: timeZone)?.identifier ?? "UTC"
+        do {
+            try await client
+                .from("profiles")
+                .upsert(
+                    ProfileContextRow(
+                        id: userID,
+                        locale: supportedLocale,
+                        timeZone: resolvedTimeZone
+                    ),
+                    onConflict: "id"
+                )
+                .execute()
+        } catch {
+            logger.log(
+                .storageFailure,
+                metadata: ["scope": "profile_context_sync", "error": error.localizedDescription]
+            )
+        }
+    }
 
-        if let token, !token.isEmpty {
-            return (token, oneSignalSubscriptionID)
+    func removeCurrentInstallation(for userID: UUID) async {
+        do {
+            try await client
+                .from("device_tokens")
+                .delete()
+                .eq("user_id", value: userID)
+                .eq("installation_id", value: installationIdentifierStore.identifier())
+                .execute()
+        } catch {
+            logger.log(
+                .storageFailure,
+                metadata: ["scope": "device_token_remove", "error": error.localizedDescription]
+            )
         }
-        if let oneSignalSubscriptionID, !oneSignalSubscriptionID.isEmpty {
-            // Keep a stable PK row for users where only OneSignal subscription ID is available.
-            return ("onesignal-subscription:\(oneSignalSubscriptionID)", oneSignalSubscriptionID)
-        }
-        return (nil, oneSignalSubscriptionID)
     }
 
     private func resolveDeviceToken() -> String? {
@@ -861,18 +931,5 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
         }
 
         return userDefaults.string(forKey: Keys.deviceToken)
-    }
-
-    private func resolveOneSignalSubscriptionID() -> String? {
-        if let override = ProcessInfo.processInfo.environment["SUNNAD_DEBUG_ONESIGNAL_SUBSCRIPTION_ID"], !override.isEmpty {
-            return override
-        }
-        if let value = ProcessInfo.processInfo.environment["SUNNAD_ONESIGNAL_SUBSCRIPTION_ID"], !value.isEmpty {
-            return value
-        }
-        if let value = userDefaults.string(forKey: Keys.oneSignalSubscriptionID), !value.isEmpty {
-            return value
-        }
-        return nil
     }
 }

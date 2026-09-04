@@ -87,6 +87,27 @@ struct AppRouteStateAuthTests {
     }
 
     @Test
+    func signInToExistingAccountImportsGuestDataBeforeSync() async throws {
+        let signInUser = SessionUser(id: UUID(), email: "existing@example.com", username: "Existing")
+        let sync = RecordingSyncCoordinator()
+        let dependencies = DependencyContainer(
+            modelContainer: try makeInMemoryContainer(),
+            authService: FakeAuthService(currentUserValue: nil, signInValue: signInUser),
+            deviceTokenSyncService: FakeDeviceTokenSyncService(),
+            syncCoordinator: sync
+        )
+        let state = AppRouteState(dependencies: dependencies)
+
+        state.handleSignIn(identifier: "existing@example.com", password: "password")
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, !(await sync.didPromoteGuestData(to: signInUser.id)) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+
+        #expect(await sync.didPromoteGuestData(to: signInUser.id))
+    }
+
+    @Test
     func onboardingSignUpRequiresOTPThenVerifySignsIn() async throws {
         let verifiedUser = SessionUser(id: UUID(), email: "otp@example.com", username: "OtpUser")
         let authService = FakeAuthService(
@@ -758,5 +779,28 @@ actor FakeDeviceTokenSyncService: DeviceTokenSyncing {
 
     func containsSyncedUserID(_ userID: UUID) -> Bool {
         syncedUserIDs.contains(userID)
+    }
+}
+
+private actor RecordingSyncCoordinator: SyncCoordinating {
+    private var promotedUserIDs: [UUID] = []
+
+    func setSignedInUserID(_ userID: UUID?) async { _ = userID }
+    func promoteGuestDataIfNeeded(to userID: UUID) async { promotedUserIDs.append(userID) }
+    func promoteLocalDataIfNeeded() async {}
+    func runSyncCycle(trigger: SyncTrigger) async { _ = trigger }
+    func enqueueHabitUpsert(habitID: UUID) async { _ = habitID }
+    func enqueueHabitDelete(habitID: UUID) async { _ = habitID }
+    func enqueueCompletionUpsert(habitID: UUID, dayDate: Date, calendar: Calendar, timeZone: TimeZone) async {
+        _ = (habitID, dayDate, calendar, timeZone)
+    }
+    func enqueueSavedQuoteInsert(quoteID: UUID) async { _ = quoteID }
+    func enqueueSavedQuoteDelete(quoteID: UUID) async { _ = quoteID }
+    func enqueueGroupSharedHabitUpsert(groupID: UUID, habitID: UUID, shared: Bool) async {
+        _ = (groupID, habitID, shared)
+    }
+
+    func didPromoteGuestData(to userID: UUID) -> Bool {
+        promotedUserIDs.contains(userID)
     }
 }

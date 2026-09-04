@@ -68,6 +68,18 @@ protocol AuthService: Sendable {
 protocol DeviceTokenSyncing: Sendable {
     func syncCurrentDeviceToken(for userID: UUID) async
     func setGroupRemindersEnabled(_ enabled: Bool, for userID: UUID) async
+    func syncProfileContext(for userID: UUID, locale: String, timeZone: String) async
+    func removeCurrentInstallation(for userID: UUID) async
+}
+
+extension DeviceTokenSyncing {
+    func syncProfileContext(for userID: UUID, locale: String, timeZone: String) async {
+        _ = (userID, locale, timeZone)
+    }
+
+    func removeCurrentInstallation(for userID: UUID) async {
+        _ = userID
+    }
 }
 
 struct UnconfiguredAuthService: AuthService {

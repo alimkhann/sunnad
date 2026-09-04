@@ -1,6 +1,31 @@
 import Combine
 import Foundation
 
+enum APNsEnvironmentResolver {
+    static func embeddedProvisioningEnvironment(bundle: Bundle = .main) -> String? {
+        guard let url = bundle.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        return environment(inProvisioningProfile: data)
+    }
+
+    static func environment(inProvisioningProfile data: Data) -> String? {
+        let profile = String(decoding: data, as: UTF8.self)
+        guard let keyRange = profile.range(of: "<key>aps-environment</key>") else {
+            return nil
+        }
+        let suffix = profile[keyRange.upperBound...]
+        guard let openingTag = suffix.range(of: "<string>"),
+              let closingTag = suffix.range(of: "</string>", range: openingTag.upperBound..<suffix.endIndex) else {
+            return nil
+        }
+        let value = suffix[openingTag.upperBound..<closingTag.lowerBound]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return value == "development" || value == "production" ? value : nil
+    }
+}
+
 enum AppEnvironment: String {
     case development
     case production
@@ -11,15 +36,26 @@ enum AppEnvironment: String {
             return url
         }
 
-        return URL(string: "https://www.sunnad.app")!
+        return localizedPublicURL()
     }
 
     var privacyURL: URL {
-        URL(string: "https://www.sunnad.app/privacy")!
+        localizedPublicURL(path: "privacy")
+    }
+
+    var termsURL: URL {
+        localizedPublicURL(path: "terms")
     }
 
     var helpURL: URL {
-        URL(string: "https://www.sunnad.app/help")!
+        localizedPublicURL(fragment: "faq")
+    }
+
+    private func localizedPublicURL(path: String? = nil, fragment: String? = nil) -> URL {
+        var components = URLComponents(string: "https://adatapp.vercel.app")!
+        components.path = "/\(L10n.languageCode)" + (path.map { "/\($0)" } ?? "")
+        components.fragment = fragment
+        return components.url!
     }
 
     var authRedirectURL: URL {
@@ -91,28 +127,22 @@ enum AppEnvironment: String {
         return "default"
     }
 
-    var oneSignalAppID: String? {
-        if let configured = bundleString("SunnadOneSignalAppID"), !configured.isEmpty {
+    var apnsEnvironment: String {
+        if let signedEnvironment = APNsEnvironmentResolver.embeddedProvisioningEnvironment() {
+            return signedEnvironment
+        }
+
+        if let configured = bundleString("SunnadAPNsEnvironment"),
+           configured == "development" || configured == "production" {
             return configured
         }
 
-        if let override = debugResolveEnv(["SUNNAD_ONESIGNAL_APP_ID"]), !override.isEmpty {
+        if let override = debugResolveEnv(["SUNNAD_APNS_ENVIRONMENT"]),
+           override == "development" || override == "production" {
             return override
         }
 
-        return nil
-    }
-
-    var oneSignalAppGroupID: String? {
-        if let configured = bundleString("SunnadOneSignalAppGroupID"), !configured.isEmpty {
-            return configured
-        }
-
-        if let override = debugResolveEnv(["SUNNAD_ONESIGNAL_APP_GROUP_ID"]), !override.isEmpty {
-            return override
-        }
-
-        return nil
+        return self == .development ? "development" : "production"
     }
 
     var supabaseConfig: SupabaseConfig? {

@@ -46,10 +46,8 @@
 	<string>$(SUNNAD_AUTH_REDIRECT_URL_BUNDLE)</string>
 	<key>SunnadAuthResendCooldownSeconds</key>
 	<string>$(SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS_BUNDLE)</string>
-	<key>SunnadOneSignalAppID</key>
-	<string>$(SUNNAD_ONESIGNAL_APP_ID_BUNDLE)</string>
-	<key>SunnadOneSignalAppGroupID</key>
-	<string>$(SUNNAD_ONESIGNAL_APP_GROUP_ID_BUNDLE)</string>
+	<key>SunnadAPNsEnvironment</key>
+	<string>$(SUNNAD_APNS_ENVIRONMENT_BUNDLE)</string>
 	<key>SunnadStorageNamespace</key>
 	<string>$(SUNNAD_STORAGE_NAMESPACE_BUNDLE)</string>
 	<key>SunnadSupabaseAnonKey</key>
@@ -68,6 +66,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
+		<string>remote-notification</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
