@@ -47,3 +47,8 @@ manifest.json
 
 # Local source asset copy (moved into Android resources)
 apple-logo.png
+
+# Local agent/browser artifacts
+.claude/
+.playwright-cli/
+onesignal-requests.txt
