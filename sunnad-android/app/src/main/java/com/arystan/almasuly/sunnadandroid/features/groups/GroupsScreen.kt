@@ -127,8 +127,8 @@ fun GroupsScreen(
         selectedGroupId?.let { id -> state.groups.firstOrNull { it.id == id } }
     }
 
-    LaunchedEffect(state.hasLoadedOnce) {
-        if (!state.hasLoadedOnce && !state.isLoading) {
+    LaunchedEffect(isGuest) {
+        if (!isGuest && !state.isLoading) {
             onLoad()
         }
     }
@@ -140,6 +140,9 @@ fun GroupsScreen(
     }
 
     selectedGroup?.let { group ->
+        LaunchedEffect(group.id) {
+            onLoad()
+        }
         GroupDetailScreen(
             group = group,
             dueHabits = dueHabits,

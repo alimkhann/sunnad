@@ -1,6 +1,7 @@
 package com.arystan.almasuly.sunnadandroid.notifications
 
 import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.exception.PostgrestRestException
 import io.github.jan.supabase.postgrest.from
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -31,30 +32,54 @@ class SupabasePushTokenSyncService(
                     ?.trim()
                     ?.takeIf { it.isNotEmpty() }
             }
-        client.from("device_tokens").upsert(
-            value = DeviceTokenRow(
-                userId = userId.toString(),
-                platform = "android",
-                token = token.trim(),
-                oneSignalSubscriptionId = normalizedOneSignal
-            )
+        val row = DeviceTokenRow(
+            userId = userId.toString(),
+            platform = "android",
+            token = token.trim(),
+            oneSignalSubscriptionId = normalizedOneSignal
         )
+
+        runCatching {
+            upsertTokenRow(row)
+        }.onFailure { error ->
+            val duplicateOneSignalSubscription = (error as? PostgrestRestException)?.let { restError ->
+                restError.code == "23505" &&
+                    restError.message.orEmpty().contains("device_tokens_onesignal_subscription_uidx", ignoreCase = true)
+            } ?: false
+
+            if (duplicateOneSignalSubscription && normalizedOneSignal != null) {
+                runCatching {
+                    client.from("device_tokens").delete {
+                        filter { eq("onesignal_subscription_id", normalizedOneSignal) }
+                    }
+                    upsertTokenRow(row)
+                }
+            }
+        }
     }
 
     override suspend fun clearToken(userId: UUID, token: String, oneSignalSubscriptionId: String?) {
         if (token.isBlank()) return
-        client.from("device_tokens").delete {
-            filter {
-                eq("user_id", userId.toString())
-                eq("token", token.trim())
+        runCatching {
+            client.from("device_tokens").delete {
+                filter {
+                    eq("user_id", userId.toString())
+                    eq("token", token.trim())
+                }
+            }
+            val normalizedOneSignal = oneSignalSubscriptionId?.trim()?.takeIf { it.isNotEmpty() } ?: return@runCatching
+            client.from("device_tokens").delete {
+                filter {
+                    eq("user_id", userId.toString())
+                    eq("onesignal_subscription_id", normalizedOneSignal)
+                }
             }
         }
-        val normalizedOneSignal = oneSignalSubscriptionId?.trim()?.takeIf { it.isNotEmpty() } ?: return
-        client.from("device_tokens").delete {
-            filter {
-                eq("user_id", userId.toString())
-                eq("onesignal_subscription_id", normalizedOneSignal)
-            }
+    }
+
+    private suspend fun upsertTokenRow(row: DeviceTokenRow) {
+        client.from("device_tokens").upsert(row) {
+            onConflict = "user_id,token"
         }
     }
 }

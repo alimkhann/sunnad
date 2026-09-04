@@ -21,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -28,8 +29,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.onesignal.OneSignal
 import com.arystan.almasuly.sunnadandroid.BuildConfig
@@ -56,6 +59,7 @@ import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenPadding
 import com.arystan.almasuly.sunnadandroid.ui.components.SunnadScreenSurface
 import com.arystan.almasuly.sunnadandroid.ui.theme.SunnadTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.UUID
 
@@ -110,6 +114,7 @@ fun SunnadApp(
     val todayState by todayViewModel.state.collectAsStateWithLifecycle()
     val groupsState by groupsViewModel.state.collectAsStateWithLifecycle()
     val authState by authViewModel.state.collectAsStateWithLifecycle()
+    val foregroundSyncScope = rememberCoroutineScope()
 
     val onboardingCompleted = profileState.settings.onboardingCompleted
 
@@ -336,6 +341,18 @@ fun SunnadApp(
             !onboardingCompleted -> {
                 rootGraph = RootGraph.ONBOARDING
             }
+        }
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        if (rootGraph != RootGraph.MAIN || authState.user == null || !authState.hasRestoredSession) {
+            return@LifecycleEventEffect
+        }
+        foregroundSyncScope.launch {
+            container.syncCoordinator.runSyncCycle(SyncTrigger.FOREGROUND)
+            todayViewModel.loadToday()
+            groupsViewModel.loadGroups()
+            profileViewModel.refresh()
         }
     }
 

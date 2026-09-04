@@ -1,10 +1,8 @@
 package com.arystan.almasuly.sunnadandroid.features.insights
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -34,16 +33,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.arystan.almasuly.sunnadandroid.R
@@ -58,7 +52,6 @@ import java.time.LocalDate
 import java.util.Locale
 import java.util.UUID
 import kotlin.math.max
-import kotlin.math.roundToInt
 
 @Composable
 fun InsightsScreen(
@@ -355,17 +348,13 @@ private fun CompletionTrendChart(
 ) {
     val scroll = rememberScrollState()
     var didAutoScrollToLatest by remember(points) { mutableStateOf(false) }
-    val chartScaleMaxDue = remember(points) {
-        val latestWindow = if (points.size <= 7) points else points.takeLast(7)
-        max(1, latestWindow.maxOfOrNull { it.due } ?: 1)
+    val chartScaleMax = remember(points) {
+        points.maxOfOrNull { max(it.due, it.completed) }?.coerceAtLeast(1) ?: 1
     }
-    val chartWidth = maxOf(380.dp, (points.size * 48).dp)
-    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
+    val chartHeight = 158.dp
+    val slotWidth = 46.dp
     val completedColor = MaterialTheme.colorScheme.primary
-    val completedLineShadowColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f)
-    val completedMarkerOuterColor = MaterialTheme.colorScheme.surface
     val dueColor = Color(0xFFF4C430)
-    val selectedLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
     val selectedIndex = selectedDate?.let { selected ->
         points.indexOfFirst { it.date == selected }.takeIf { it != -1 }
     }
@@ -382,172 +371,65 @@ private fun CompletionTrendChart(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp)
-                .horizontalScroll(scroll)
-        ) {
-            Canvas(
-                modifier = Modifier
-                    .height(190.dp)
-                    .size(width = chartWidth, height = 190.dp)
-                    .pointerInput(points, scroll.value) {
-                        detectTapGestures { tapOffset ->
-                            if (points.isEmpty()) return@detectTapGestures
-                            val horizontalInset = 12.dp.toPx()
-                            val chartWidth = size.width.toFloat() - horizontalInset * 2f
-                            val stepX = if (points.size <= 1) 1f else chartWidth / (points.size - 1).toFloat()
-                            val absoluteX = tapOffset.x + scroll.value.toFloat()
-                            val normalized = (absoluteX - horizontalInset).coerceIn(0f, chartWidth)
-                            val index = (normalized / stepX).roundToInt().coerceIn(0, points.lastIndex)
-                            onSelectDate(points[index].date)
-                        }
-                    }
-            ) {
-                if (points.isEmpty()) return@Canvas
-
-                val verticalPadding = 18.dp.toPx()
-                val horizontalInset = 12.dp.toPx()
-                val chartHeight = size.height - verticalPadding * 2f
-                val chartWidthPx = size.width - horizontalInset * 2f
-                val stepX = if (points.size <= 1) 0f else chartWidthPx / (points.size - 1)
-                val baselineY = size.height - verticalPadding
-                val minCompletedVisualRatio = 0.08f
-
-                repeat(5) { index ->
-                    val y = verticalPadding + chartHeight * (index / 4f)
-                    drawLine(
-                        color = gridColor,
-                        start = Offset(horizontalInset, y),
-                        end = Offset(size.width - horizontalInset, y),
-                        strokeWidth = 1.dp.toPx()
-                    )
-                }
-
-                val duePoints = points.mapIndexed { index, point ->
-                    val normalized = point.due.toFloat() / chartScaleMaxDue.toFloat()
-                    Offset(
-                        x = horizontalInset + stepX * index,
-                        y = verticalPadding + chartHeight * (1f - normalized)
-                    )
-                }
-                val completedPoints = points.mapIndexed { index, point ->
-                    val rawNormalized = point.completed.toFloat() / chartScaleMaxDue.toFloat()
-                    val normalized = if (point.completed > 0) {
-                        max(rawNormalized, minCompletedVisualRatio)
-                    } else {
-                        0f
-                    }
-                    Offset(
-                        x = horizontalInset + stepX * index,
-                        y = verticalPadding + chartHeight * (1f - normalized)
-                    )
-                }
-
-                val dueLinePath = smoothPath(duePoints)
-                val completedLinePath = smoothPath(completedPoints)
-                val completedAreaPath = areaToBaselinePath(completedPoints, baselineY)
-                val dueMinusCompletedAreaPath = areaBetweenPathsPath(duePoints, completedPoints)
-                val completedStemWidth = max(6.dp.toPx(), stepX * 0.18f)
-
-                drawPath(
-                    path = completedAreaPath,
-                    brush = Brush.verticalGradient(
-                        colors = listOf(completedColor.copy(alpha = 0.28f), completedColor.copy(alpha = 0.02f)),
-                        startY = verticalPadding,
-                        endY = baselineY
-                    )
-                )
-
-                drawPath(
-                    path = dueMinusCompletedAreaPath,
-                    brush = Brush.verticalGradient(
-                        colors = listOf(dueColor.copy(alpha = 0.24f), dueColor.copy(alpha = 0.04f)),
-                        startY = verticalPadding,
-                        endY = baselineY
-                    )
-                )
-
-                completedPoints.forEachIndexed { index, point ->
-                    val value = points[index].completed
-                    if (value <= 0) return@forEachIndexed
-                    drawLine(
-                        color = completedColor.copy(alpha = 0.24f),
-                        start = Offset(point.x, baselineY),
-                        end = point,
-                        strokeWidth = completedStemWidth,
-                        cap = StrokeCap.Round
-                    )
-                }
-
-                drawPath(
-                    path = dueLinePath,
-                    color = dueColor,
-                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-                )
-                drawPath(
-                    path = completedLinePath,
-                    color = completedLineShadowColor,
-                    style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round)
-                )
-                drawPath(
-                    path = completedLinePath,
-                    color = completedColor,
-                    style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
-                )
-
-                completedPoints.forEachIndexed { index, point ->
-                    val value = points[index].completed
-                    if (value <= 0 && index != selectedIndex && index != latestIndex) return@forEachIndexed
-                    val radius = when {
-                        index == selectedIndex -> 4.5.dp.toPx()
-                        value > 0 -> 3.5.dp.toPx()
-                        else -> 2.5.dp.toPx()
-                    }
-                    drawCircle(
-                        color = completedMarkerOuterColor,
-                        radius = radius + 1.5.dp.toPx(),
-                        center = point
-                    )
-                    drawCircle(
-                        color = completedColor,
-                        radius = radius,
-                        center = point
-                    )
-                }
-
-                selectedIndex?.let { index ->
-                    val x = horizontalInset + stepX * index
-                    drawLine(
-                        color = selectedLineColor,
-                        start = Offset(x, verticalPadding),
-                        end = Offset(x, baselineY),
-                        strokeWidth = 1.dp.toPx()
-                    )
-                    drawCircle(
-                        color = completedColor,
-                        radius = 4.dp.toPx(),
-                        center = completedPoints[index]
-                    )
-                    drawCircle(
-                        color = dueColor,
-                        radius = 4.dp.toPx(),
-                        center = duePoints[index]
-                    )
-                }
-            }
-        }
-
-        val formatter = remember { DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()) }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(scroll),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.Bottom
         ) {
+            val formatter = remember { DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()) }
             points.forEachIndexed { index, point ->
-                if (index % 2 == 0 || index == points.lastIndex) {
+                val isSelected = index == selectedIndex
+                val dueHeight = if (point.due > 0) {
+                    (chartHeight * (point.due.toFloat() / chartScaleMax.toFloat())).coerceAtLeast(6.dp)
+                } else {
+                    0.dp
+                }
+                val completedHeight = if (point.completed > 0) {
+                    (chartHeight * (point.completed.toFloat() / chartScaleMax.toFloat())).coerceAtLeast(6.dp)
+                } else {
+                    0.dp
+                }
+                val showCompletedMarker = point.completed > 0 && (isSelected || index == latestIndex)
+
+                Column(
+                    modifier = Modifier
+                        .width(slotWidth)
+                        .clickable { onSelectDate(point.date) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(chartHeight + 18.dp)
+                            .background(
+                                color = if (isSelected) {
+                                    MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f)
+                                } else {
+                                    Color.Transparent
+                                },
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            TrendBar(
+                                height = dueHeight,
+                                color = dueColor.copy(alpha = 0.5f)
+                            )
+                            TrendBar(
+                                height = completedHeight,
+                                color = completedColor,
+                                showMarker = showCompletedMarker
+                            )
+                        }
+                    }
                     Text(
                         text = point.date.format(formatter),
                         style = MaterialTheme.typography.labelSmall,
@@ -556,6 +438,32 @@ private fun CompletionTrendChart(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TrendBar(
+    height: Dp,
+    color: Color,
+    showMarker: Boolean = false
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        if (showMarker) {
+            Box(
+                modifier = Modifier
+                    .size(4.dp)
+                    .background(color, RoundedCornerShape(999.dp))
+            )
+        }
+        Box(
+            modifier = Modifier
+                .width(11.dp)
+                .height(height)
+                .background(color, RoundedCornerShape(topStart = 999.dp, topEnd = 999.dp))
+        )
     }
 }
 
@@ -576,59 +484,6 @@ private fun LegendItem(color: Color, title: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
-}
-
-private fun DrawScope.smoothPath(points: List<Offset>): Path {
-    val path = Path()
-    if (points.isEmpty()) return path
-    path.moveTo(points.first().x, points.first().y)
-    if (points.size == 1) return path
-
-    for (index in 1 until points.size) {
-        val current = points[index]
-        path.lineTo(current.x, current.y)
-    }
-    return path
-}
-
-private fun areaToBaselinePath(points: List<Offset>, baselineY: Float): Path {
-    val path = Path()
-    if (points.isEmpty()) return path
-    path.moveTo(points.first().x, baselineY)
-    path.lineTo(points.first().x, points.first().y)
-    if (points.size > 1) {
-        for (index in 1 until points.size) {
-            val current = points[index]
-            path.lineTo(current.x, current.y)
-        }
-    }
-    path.lineTo(points.last().x, points.last().y)
-    path.lineTo(points.last().x, baselineY)
-    path.close()
-    return path
-}
-
-private fun areaBetweenPathsPath(top: List<Offset>, bottom: List<Offset>): Path {
-    val path = Path()
-    if (top.isEmpty() || bottom.isEmpty()) return path
-    path.moveTo(top.first().x, top.first().y)
-    if (top.size > 1) {
-        for (index in 1 until top.size) {
-            val current = top[index]
-            path.lineTo(current.x, current.y)
-        }
-    }
-    path.lineTo(top.last().x, top.last().y)
-    path.lineTo(bottom.last().x, bottom.last().y)
-    if (bottom.size > 1) {
-        for (index in bottom.lastIndex downTo 1) {
-            val previous = bottom[index - 1]
-            path.lineTo(previous.x, previous.y)
-        }
-    }
-    path.lineTo(bottom.first().x, bottom.first().y)
-    path.close()
-    return path
 }
 
 @Composable
