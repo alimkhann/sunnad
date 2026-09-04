@@ -93,9 +93,9 @@ Configured app display names:
 - prod: `Sunnad`
 
 Configured bundle IDs:
-- local: `com.arystan.almasuly.sunnad-ios.local`
-- dev: `com.arystan.almasuly.sunnad-ios.dev`
-- prod: `com.arystan.almasuly.sunnad-ios`
+- local: `com.arystan.almasuly.sunnad.local`
+- dev: `com.arystan.almasuly.sunnad.dev`
+- prod: `com.arystan.almasuly.sunnad`
 
 Configured Supabase endpoints:
 - local (`Local`): `http://127.0.0.1:55421`
@@ -183,14 +183,17 @@ Hosted dev/prod parity steps:
 4. Save in both `sunnad-dev` and `sunnad-prod`.
 
 ## OAuth provider checklist
-- Google (enabled now):
+- Google:
   - Auth -> Sign In / Providers -> Google: enabled.
   - Use provider credentials from Google Cloud OAuth app.
   - Callback URL in Google console:
     - `https://<project-ref>.supabase.co/auth/v1/callback`
-- Apple (prewired only):
-  - Keep disabled until Apple Developer credentials are ready.
-  - App shows Apple button disabled via `SUNNAD_AUTH_APPLE_ENABLED=0`.
+- Apple:
+  - Auth -> Sign In / Providers -> Apple: enable after Apple Developer credentials are created.
+  - Use the native iOS flow in app plus Supabase Apple provider config.
+  - Callback URL in Apple config:
+    - `https://<project-ref>.supabase.co/auth/v1/callback`
+  - App-side feature flag now reads from `SUNNAD_AUTH_APPLE_ENABLED_BUNDLE` in `Info.plist`.
 
 ## Edge Functions (delete-account + send-nudge-push)
 - Current function paths:
@@ -279,7 +282,7 @@ Recommended deploy target:
 - Sync triggers:
   - auth sign-in / auth restore
   - foreground refresh cycle
-  - background refresh via `BGTaskScheduler` identifier: `com.arystan.almasuly.sunnad-ios.sync.refresh`
+  - background refresh via `BGTaskScheduler` identifier: `com.arystan.almasuly.sunnad.sync.refresh`
 - Required iOS config:
   - `Info.plist` includes `BGTaskSchedulerPermittedIdentifiers`
   - `Info.plist` includes `UIBackgroundModes = fetch`
