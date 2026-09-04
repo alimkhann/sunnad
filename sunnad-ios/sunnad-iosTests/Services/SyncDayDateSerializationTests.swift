@@ -59,9 +59,7 @@ struct SyncDayDateSerializationTests {
         let streak = StreakCalculator.streak(
             for: habit,
             completions: completions,
-            asOf: asOf,
-            calendar: calendar,
-            timeZone: timeZone
+            context: DayContext(now: asOf, calendar: calendar, timeZone: timeZone)
         )
 
         #expect(streak == 1)

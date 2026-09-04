@@ -35,14 +35,15 @@ struct OnboardingFlowView: View {
         case .welcome:
             WelcomeOnboardingView(
                 onChangeLanguage: onOpenLanguagePicker,
-                onContinue: { step = .templates }
+                onContinue: { step = .templates },
+                onSkip: onCompleteAsGuest
             )
         case .templates:
             TemplatesOnboardingView(
                 selectedIDs: $selectedTemplateIDs,
                 onBack: { step = .welcome },
                 onContinue: onCompleteTemplateSelection,
-                onSkip: { step = .joinGroups }
+                onSkip: onCompleteAsGuest
             )
         case .notifications:
             NotificationsOnboardingView(

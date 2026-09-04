@@ -24,6 +24,7 @@ struct ProfileView: View {
     let onDeleteAccount: () -> Void
     let onRefresh: () async -> Void
     let debugDiagnosticsText: String?
+    let termsURL: URL
     let privacyURL: URL
     let helpURL: URL
 
@@ -31,6 +32,7 @@ struct ProfileView: View {
     @State private var showsSoundsHapticsSettings = false
     @State private var showsFeedback = false
     @State private var showsAppearancePicker = false
+    @State private var showsAbout = false
     @State private var confirmsSignOut = false
     @State private var confirmsDeleteData = false
     @State private var confirmsDeleteAccount = false
@@ -151,6 +153,11 @@ struct ProfileView: View {
                         title: L10n.t("profile.send_feedback"),
                         action: { showsFeedback = true }
                     )
+                    Divider().padding(.leading, 16)
+                    profileLinkRow(
+                        title: L10n.t("profile.about"),
+                        action: { showsAbout = true }
+                    )
                 }
             }
 
@@ -179,7 +186,7 @@ struct ProfileView: View {
                 }
             }
 
-            Text(L10n.t("profile.version"))
+            Text(appVersionDisplay)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -213,6 +220,9 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showsFeedback) {
             FeedbackSheetView()
+        }
+        .sheet(isPresented: $showsAbout) {
+            AboutAdatView(termsURL: termsURL, privacyURL: privacyURL, helpURL: helpURL)
         }
         .confirmationDialog(
             L10n.t("profile.appearance"),
@@ -330,6 +340,68 @@ struct ProfileView: View {
                 .font(.system(size: 42))
                 .foregroundStyle(SunnadTheme.primary)
         }
+    }
+
+    private var appVersionDisplay: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+        return String(format: L10n.t("about.version_format"), version, build)
+    }
+}
+
+private struct AboutAdatView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let termsURL: URL
+    let privacyURL: URL
+    let helpURL: URL
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Adat")
+                            .font(.title2.bold())
+                        Text(appVersionDisplay)
+                            .foregroundStyle(.secondary)
+                        Text(L10n.t("about.description"))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 8)
+                }
+
+                Section(L10n.t("about.made_by")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(L10n.t("about.founder.name")) — \(L10n.t("about.founder.role"))")
+                            .font(.body.weight(.medium))
+                        Text("\(L10n.t("about.cofounder_developer.name")) — \(L10n.t("about.cofounder_developer.role"))")
+                            .font(.body.weight(.medium))
+                    }
+                    .padding(.vertical, 8)
+                }
+
+                Section {
+                    Link(L10n.t("auth.terms_link"), destination: termsURL)
+                    Link(L10n.t("auth.privacy_link"), destination: privacyURL)
+                    Link(L10n.t("profile.help_faq"), destination: helpURL)
+                }
+            }
+            .navigationTitle(L10n.t("profile.about"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L10n.t("common.done")) { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var appVersionDisplay: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+        return String(format: L10n.t("about.version_format"), version, build)
     }
 }
 

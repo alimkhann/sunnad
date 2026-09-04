@@ -375,6 +375,7 @@ struct InsightsView: View {
         let clamped = min(max(percentage, 0), 100)
         let progress = CGFloat(clamped) / 100.0
         GeometryReader { proxy in
+            let availableWidth = proxy.size.width.isFinite ? max(proxy.size.width, 0) : 0
             ZStack(alignment: .leading) {
                 Capsule(style: .continuous)
                     .fill(Color.secondary.opacity(0.16))
@@ -386,7 +387,7 @@ struct InsightsView: View {
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: proxy.size.width * progress)
+                    .frame(width: availableWidth * progress)
             }
         }
         .frame(height: 7)

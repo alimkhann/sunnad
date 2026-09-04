@@ -136,6 +136,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         let iconKey: String?
         let presetCategory: String
         let categoryCustom: String?
+        let dhikrPhraseKey: String?
+        let dhikrCustomPhrase: String?
         let type: String
         let targetCount: Int?
         let schedule: String
@@ -155,6 +157,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             case iconKey = "icon_key"
             case presetCategory = "preset_category"
             case categoryCustom = "category_custom"
+            case dhikrPhraseKey = "dhikr_phrase_key"
+            case dhikrCustomPhrase = "dhikr_custom_phrase"
             case type
             case targetCount = "target_count"
             case schedule
@@ -209,6 +213,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         let icon: String
         let presetCategory: String
         let categoryCustom: String?
+        let dhikrPhraseKey: String?
+        let dhikrCustomPhrase: String?
         let type: String
         let targetCount: Int?
         let schedule: String
@@ -227,6 +233,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             case icon
             case presetCategory = "preset_category"
             case categoryCustom = "category_custom"
+            case dhikrPhraseKey = "dhikr_phrase_key"
+            case dhikrCustomPhrase = "dhikr_custom_phrase"
             case type
             case targetCount = "target_count"
             case schedule
@@ -247,6 +255,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         let value: Int
         let completedAt: String?
         let updatedAt: String
+        let entrySource: String
 
         enum CodingKeys: String, CodingKey {
             case userID = "user_id"
@@ -255,6 +264,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             case value
             case completedAt = "completed_at"
             case updatedAt = "updated_at"
+            case entrySource = "entry_source"
         }
     }
 
@@ -293,6 +303,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         let iconKey: String?
         let presetCategory: String?
         let categoryCustom: String?
+        let dhikrPhraseKey: String?
+        let dhikrCustomPhrase: String?
         let type: String
         let targetCount: Int?
         let schedule: String
@@ -311,6 +323,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             case iconKey = "icon_key"
             case presetCategory = "preset_category"
             case categoryCustom = "category_custom"
+            case dhikrPhraseKey = "dhikr_phrase_key"
+            case dhikrCustomPhrase = "dhikr_custom_phrase"
             case type
             case targetCount = "target_count"
             case schedule
@@ -363,6 +377,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 iconKey: nil,
                 presetCategory: nil,
                 categoryCustom: nil,
+                dhikrPhraseKey: type == HabitType.dhikr.rawValue ? Habit.defaultDhikrPhraseKey : nil,
+                dhikrCustomPhrase: nil,
                 type: type,
                 targetCount: targetCount,
                 schedule: schedule,
@@ -383,6 +399,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         let value: Int
         let completedAt: String?
         let updatedAt: String
+        let entrySource: String?
 
         enum CodingKeys: String, CodingKey {
             case habitID = "habit_id"
@@ -390,6 +407,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             case value
             case completedAt = "completed_at"
             case updatedAt = "updated_at"
+            case entrySource = "entry_source"
         }
     }
 
@@ -541,8 +559,10 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                     existing.weekdaysISO = guestHabit.weekdaysISO
                     existing.reminderHour = guestHabit.reminderHour
                     existing.reminderMinute = guestHabit.reminderMinute
-                    existing.selectedDhikrKey = guestHabit.selectedDhikrKey
-                    existing.dhikrCountsJSON = guestHabit.dhikrCountsJSON
+                    existing.dhikrPhraseKey = guestHabit.dhikrPhraseKey ?? guestHabit.selectedDhikrKey
+                    existing.dhikrCustomPhrase = guestHabit.dhikrCustomPhrase
+                    existing.selectedDhikrKey = nil
+                    existing.dhikrCountsJSON = nil
                     existing.sortOrder = guestHabit.sortOrder
                     existing.archived = guestHabit.archived
                     existing.createdAt = min(existing.createdAt, guestHabit.createdAt)
@@ -566,6 +586,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                     reminderMinute: guestHabit.reminderMinute,
                     selectedDhikrKey: guestHabit.selectedDhikrKey,
                     dhikrCountsJSON: guestHabit.dhikrCountsJSON,
+                    dhikrPhraseKey: guestHabit.dhikrPhraseKey ?? guestHabit.selectedDhikrKey,
+                    dhikrCustomPhrase: guestHabit.dhikrCustomPhrase,
                     sortOrder: guestHabit.sortOrder,
                     archived: guestHabit.archived,
                     createdAt: guestHabit.createdAt,
@@ -902,6 +924,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             iconKey: local.iconKey ?? local.icon,
             presetCategory: local.categoryRaw.lowercased(),
             categoryCustom: local.categoryCustom,
+            dhikrPhraseKey: local.dhikrPhraseKey,
+            dhikrCustomPhrase: local.dhikrCustomPhrase,
             type: local.typeRaw,
             targetCount: local.targetCount,
             schedule: local.scheduleFrequency,
@@ -939,6 +963,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 icon: local.icon,
                 presetCategory: local.categoryRaw.lowercased(),
                 categoryCustom: local.categoryCustom,
+                dhikrPhraseKey: local.dhikrPhraseKey,
+                dhikrCustomPhrase: local.dhikrCustomPhrase,
                 type: local.typeRaw,
                 targetCount: local.targetCount,
                 schedule: local.scheduleFrequency,
@@ -1006,7 +1032,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             dayDate: payload.dayDate,
             value: local.value,
             completedAt: local.completedAt.map(Self.timestampString),
-            updatedAt: Self.timestampString(local.updatedAt)
+            updatedAt: Self.timestampString(local.updatedAt),
+            entrySource: local.entrySourceRaw
         )
 
         try await client
@@ -1067,7 +1094,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         do {
             let response = try await client
                 .from("habits")
-                .select("id,name,icon,icon_key,preset_category,category_custom,type,target_count,schedule,weekdays,reminder_enabled,reminder_time,sort_order,archived,created_at,updated_at")
+                .select("id,name,icon,icon_key,preset_category,category_custom,dhikr_phrase_key,dhikr_custom_phrase,type,target_count,schedule,weekdays,reminder_enabled,reminder_time,sort_order,archived,created_at,updated_at")
                 .eq("user_id", value: activeUserID)
                 .gt("updated_at", value: cursorString)
                 .order("updated_at", ascending: true)
@@ -1088,7 +1115,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             do {
                 let compatibilityResponse = try await client
                     .from("habits")
-                    .select("id,name,icon,preset_category,category_custom,type,target_count,schedule,weekdays,reminder_enabled,reminder_time,sort_order,archived,created_at,updated_at")
+                    .select("id,name,icon,preset_category,category_custom,dhikr_phrase_key,dhikr_custom_phrase,type,target_count,schedule,weekdays,reminder_enabled,reminder_time,sort_order,archived,created_at,updated_at")
                     .eq("user_id", value: activeUserID)
                     .gt("updated_at", value: cursorString)
                     .order("updated_at", ascending: true)
@@ -1147,6 +1174,9 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             existing.iconKey = row.iconKey ?? row.icon
             existing.categoryRaw = row.presetCategory ?? HabitCategoryValue.spiritual.rawValue
             existing.categoryCustom = row.categoryCustom
+            existing.dhikrPhraseKey = row.dhikrPhraseKey
+                ?? (row.type == HabitType.dhikr.rawValue ? Habit.defaultDhikrPhraseKey : nil)
+            existing.dhikrCustomPhrase = row.dhikrCustomPhrase
             existing.typeRaw = row.type
             existing.targetCount = row.targetCount
             existing.scheduleFrequency = row.schedule
@@ -1175,8 +1205,11 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 weekdaysISO: weekdaysCSV,
                 reminderHour: row.reminderEnabled ? reminder?.hour : nil,
                 reminderMinute: row.reminderEnabled ? reminder?.minute : nil,
-                selectedDhikrKey: Habit.defaultDhikrKey,
-                dhikrCountsJSON: "{}",
+                selectedDhikrKey: nil,
+                dhikrCountsJSON: nil,
+                dhikrPhraseKey: row.dhikrPhraseKey
+                    ?? (row.type == HabitType.dhikr.rawValue ? Habit.defaultDhikrPhraseKey : nil),
+                dhikrCustomPhrase: row.dhikrCustomPhrase,
                 sortOrder: row.sortOrder ?? 0,
                 archived: row.archived ?? false,
                 createdAt: createdAt,
@@ -1194,7 +1227,7 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
 
         let response = try await client
             .from("habit_completions")
-            .select("habit_id,day_date,value,completed_at,updated_at")
+            .select("habit_id,day_date,value,completed_at,updated_at,entry_source")
             .eq("user_id", value: activeUserID)
             .gte("day_date", value: windowStart)
             .gt("updated_at", value: cursorString)
@@ -1232,6 +1265,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
             existing.value = row.value
             existing.completedAt = completedAt
             existing.updatedAt = updatedAt
+            existing.entrySourceRaw = CompletionEntrySource(rawValue: row.entrySource ?? "")?.rawValue
+                ?? CompletionEntrySource.normal.rawValue
             return
         }
 
@@ -1243,7 +1278,9 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
                 dayDate: dayDate,
                 value: row.value,
                 completedAt: completedAt,
-                updatedAt: updatedAt
+                updatedAt: updatedAt,
+                entrySourceRaw: CompletionEntrySource(rawValue: row.entrySource ?? "")?.rawValue
+                    ?? CompletionEntrySource.normal.rawValue
             )
         )
     }
@@ -1624,6 +1661,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         }
 
         return message.contains("habits.icon_key")
+            || message.contains("habits.dhikr_phrase_key")
+            || message.contains("habits.dhikr_custom_phrase")
     }
 
     private static func requiresCategoryContractFallback(_ error: Error) -> Bool {
@@ -1638,6 +1677,8 @@ final class SupabaseSyncCoordinator: SyncCoordinating {
         return message.contains("habits.preset_category")
             || message.contains("habits.category_custom")
             || message.contains("habits.category")
+            || message.contains("habits.dhikr_phrase_key")
+            || message.contains("habits.dhikr_custom_phrase")
     }
 
     private static func savedQuoteMatchKey(_ quoteID: UUID?) -> String {

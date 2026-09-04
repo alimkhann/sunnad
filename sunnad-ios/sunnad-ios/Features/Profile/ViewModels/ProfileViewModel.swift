@@ -63,10 +63,7 @@ final class ProfileViewModel: ObservableObject {
                 let streak = StreakCalculator.streak(
                     for: habit,
                     completions: history,
-                    asOf: today,
-                    calendar: calendar,
-                    timeZone: timeZone,
-                    referenceDate: today
+                    context: DayContext(now: today, calendar: calendar, timeZone: timeZone)
                 )
                 mappedHabits.append(
                     habit.asUIHabit(

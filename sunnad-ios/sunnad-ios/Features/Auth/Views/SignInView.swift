@@ -83,6 +83,7 @@ struct SignInView: View {
                 PrimaryButton(title: L10n.t("auth.sign_in"), isEnabled: canSubmit) {
                     onSubmit(trimmedIdentifier, password)
                 }
+                .accessibilityIdentifier("auth.sign_in.button")
                 .padding(.top, 2)
 
                 Button(L10n.t("auth.switch_to_sign_up"), action: onSwitchToSignUp)
@@ -125,6 +126,7 @@ struct SignInView: View {
                     value: $identifier,
                     keyboardType: .default
                 )
+                .accessibilityIdentifier("auth.identifier.field")
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
 
@@ -136,6 +138,7 @@ struct SignInView: View {
                     value: $password,
                     isSecure: true
                 )
+                .accessibilityIdentifier("auth.password.field")
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
             }

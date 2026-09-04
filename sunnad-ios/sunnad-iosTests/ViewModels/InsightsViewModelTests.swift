@@ -109,6 +109,30 @@ struct InsightsViewModelTests {
         #expect(category.percentage == 5)
     }
 
+    @Test
+    func categoryPerformanceCountsHabitOccurrencesInsteadOfAllOrNothingDays() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let today = makeDate(year: 2026, month: 3, day: 5, hour: 10)
+        let first = Habit(name: "Read", icon: "book", category: .spiritual, type: .binary)
+        let second = Habit(name: "Dhikr", icon: "sparkles", category: .spiritual, type: .binary)
+        let completion = HabitCompletion(habitID: first.id, dayDate: today, value: 1)
+        let vm = InsightsViewModel(
+            habitsRepository: FakeHabitsRepository(habits: [first, second]),
+            completionsRepository: FakeCompletionsRepository(completionsByHabit: [first.id: [completion], second.id: []]),
+            logger: TestLogger(),
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            now: { today }
+        )
+
+        await vm.load()
+
+        let category = try #require(vm.categoryPerformance.first)
+        #expect(category.total == 80)
+        #expect(category.completed == 1)
+    }
+
     private func makeDate(year: Int, month: Int, day: Int, hour: Int) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

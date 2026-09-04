@@ -269,13 +269,13 @@ struct SignUpView: View {
                 .multilineTextAlignment(.center)
 
             HStack(spacing: 4) {
-                Link(L10n.t("auth.terms_link"), destination: URL(string: "https://example.com/terms")!)
+                Link(L10n.t("auth.terms_link"), destination: AppEnvironment.current.termsURL)
                     .underline()
                     .foregroundStyle(SunnadTheme.primary)
                 Text(L10n.t("common.and"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                Link(L10n.t("auth.privacy_link"), destination: URL(string: "https://example.com/privacy")!)
+                Link(L10n.t("auth.privacy_link"), destination: AppEnvironment.current.privacyURL)
                     .underline()
                     .foregroundStyle(SunnadTheme.primary)
             }

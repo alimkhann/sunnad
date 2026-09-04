@@ -84,7 +84,7 @@ final class InsightsViewModel: ObservableObject {
 
             var completionLookup: [UUID: [Date: HabitCompletion]] = [:]
             var performances: [HabitPerformance] = []
-            var categoryAggregates: [String: (title: String, completedDays: Int, totalDays: Int)] = [:]
+            var categoryAggregates: [String: (title: String, completedOccurrences: Int, totalOccurrences: Int)] = [:]
             var categoryIdentityByHabitID: [UUID: (key: String, title: String)] = [:]
 
             let days = timelineDays(asOf: today)
@@ -161,11 +161,10 @@ final class InsightsViewModel: ObservableObject {
                 }
 
                 for (key, bucket) in categoryDayRollup {
-                    var aggregate = categoryAggregates[key] ?? (title: bucket.title, completedDays: 0, totalDays: 0)
-                    aggregate.totalDays += 1
-                    if bucket.due > 0 && bucket.due == bucket.completed {
-                        aggregate.completedDays += 1
-                    }
+                    var aggregate = categoryAggregates[key]
+                        ?? (title: bucket.title, completedOccurrences: 0, totalOccurrences: 0)
+                    aggregate.totalOccurrences += bucket.due
+                    aggregate.completedOccurrences += bucket.completed
                     categoryAggregates[key] = aggregate
                 }
 
@@ -181,15 +180,15 @@ final class InsightsViewModel: ObservableObject {
             }
 
             categoryPerformance = categoryAggregates.map { key, aggregate in
-                let percentage = aggregate.totalDays == 0
+                let percentage = aggregate.totalOccurrences == 0
                     ? 0
-                    : Int((Double(aggregate.completedDays) / Double(aggregate.totalDays) * 100).rounded())
+                    : Int((Double(aggregate.completedOccurrences) / Double(aggregate.totalOccurrences) * 100).rounded())
                 return CategoryPerformance(
                     key: key,
                     title: aggregate.title,
                     percentage: percentage,
-                    completed: aggregate.completedDays,
-                    total: min(aggregate.totalDays, totalDays)
+                    completed: aggregate.completedOccurrences,
+                    total: aggregate.totalOccurrences
                 )
             }.sorted { lhs, rhs in
                 if lhs.percentage == rhs.percentage {

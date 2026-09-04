@@ -7,6 +7,7 @@ struct ShimmerModifier: ViewModifier {
         content
             .overlay(
                 GeometryReader { geo in
+                    let availableWidth = geo.size.width.isFinite ? max(geo.size.width, 0) : 0
                     Rectangle()
                         .fill(
                             LinearGradient(
@@ -19,8 +20,8 @@ struct ShimmerModifier: ViewModifier {
                                 endPoint: .trailing
                             )
                         )
-                        .frame(width: geo.size.width * 0.5)
-                        .offset(x: phase * geo.size.width)
+                        .frame(width: availableWidth * 0.5)
+                        .offset(x: phase * availableWidth)
                 }
                 .mask(content)
             )

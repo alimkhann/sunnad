@@ -34,6 +34,16 @@ struct TemplatesOnboardingView: View {
                     .foregroundStyle(.secondary)
             }
 
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(L10n.t("onboarding.templates.subtitle"))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Text(String(format: L10n.t("onboarding.templates.selection_count"), selectedIDs.count))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(selectedIDs.isEmpty ? .secondary : SunnadTheme.primary)
+            }
+
             ForEach(HabitCategory.allCases) { category in
                 let sectionItems = filteredTemplates.filter { $0.category == category }
                 if !sectionItems.isEmpty {
@@ -51,6 +61,7 @@ struct TemplatesOnboardingView: View {
                                     toggle(template.id)
                                 }
                                 .padding(.horizontal, 16)
+                                .accessibilityIdentifier("onboarding.template.\(template.id)")
                             }
                         }
                     }
@@ -72,6 +83,7 @@ struct TemplatesOnboardingView: View {
                     isEnabled: !selectedIDs.isEmpty,
                     action: onContinue
                 )
+                .accessibilityIdentifier("onboarding.templates.continue.button")
             }
         }
     }
@@ -79,7 +91,7 @@ struct TemplatesOnboardingView: View {
     private func toggle(_ id: String) {
         if selectedIDs.contains(id) {
             selectedIDs.remove(id)
-        } else {
+        } else if selectedIDs.count < 3 {
             selectedIDs.insert(id)
         }
     }

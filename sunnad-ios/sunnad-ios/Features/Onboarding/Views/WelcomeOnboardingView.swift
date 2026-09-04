@@ -3,10 +3,14 @@ import SwiftUI
 struct WelcomeOnboardingView: View {
     let onChangeLanguage: () -> Void
     let onContinue: () -> Void
+    let onSkip: () -> Void
 
     var body: some View {
         ScreenScaffold {
             HStack {
+                Button(L10n.t("onboarding.welcome.skip"), action: onSkip)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("onboarding.skip.button")
                 Spacer()
                 Button(action: onChangeLanguage) {
                     Image(systemName: "globe")
@@ -20,35 +24,57 @@ struct WelcomeOnboardingView: View {
             .padding(.top, 8)
 
             VStack(spacing: 18) {
-                Spacer(minLength: 90)
+                Spacer(minLength: 20)
+
+                ZStack {
+                    Circle()
+                        .fill(SunnadTheme.primary.opacity(0.10))
+                        .frame(width: 132, height: 132)
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [SunnadTheme.primary, SunnadTheme.primary.opacity(0.72)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 96, height: 96)
+                        .shadow(color: SunnadTheme.primary.opacity(0.24), radius: 18, y: 8)
+                    Image(systemName: "moon.stars.fill")
+                        .font(.system(size: 38, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .accessibilityHidden(true)
+                }
 
                 Text("Adat")
-                    .font(.title.weight(.bold))
+                    .font(.largeTitle.weight(.bold))
                     .multilineTextAlignment(.center)
 
-                Text(localizedOmarQuote())
-                    .font(.body)
+                Text(L10n.t("onboarding.welcome.value"))
+                    .font(.title3.weight(.semibold))
+                    .multilineTextAlignment(.center)
+
+                Label(L10n.t("onboarding.welcome.private_start"), systemImage: "lock.fill")
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 22)
+                    .padding(.horizontal, 18)
 
-                Spacer(minLength: 220)
+                Card {
+                    Text(L10n.t("onboarding.welcome.quote"))
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                }
+
+                Spacer(minLength: 24)
             }
             .frame(maxWidth: .infinity)
         } footer: {
             PrimaryButton(title: L10n.t("onboarding.welcome.cta"), action: onContinue)
+                .accessibilityIdentifier("onboarding.get_started.button")
         }
     }
 
-    private func localizedOmarQuote() -> String {
-        let languageCode = Locale.current.language.languageCode?.identifier.lowercased() ?? "en"
-        switch languageCode {
-        case "ru":
-            return "Призовите себя к отчёту, прежде чем вас призовут к отчёту. Взвешивайте свои деяния, прежде чем их взвесят.\n- Омар ибн аль-Хаттаб, да будет доволен им Аллах."
-        case "kk":
-            return "Есепке тартылмай тұрып өздеріңді есепке тартыңдар.\nАмалдарың таразыланбай тұрып, өз амалдарыңды таразылаңдар\n- Омар ибн әл-Хаттаб р.а."
-        default:
-            return "Call yourselves to account before you are called to account. Weigh your deeds before your deeds are weighed.\n- Omar ibn al-Khattab, may Allah be pleased with him."
-        }
-    }
 }
