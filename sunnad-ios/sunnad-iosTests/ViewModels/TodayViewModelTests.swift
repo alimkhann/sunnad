@@ -100,7 +100,7 @@ struct TodayViewModelTests {
         )
 
         await vm.loadToday()
-        await vm.saveCurrentQuote()
+        _ = await vm.saveCurrentQuote()
 
         #expect(vm.savedQuotes.count == 1)
         #expect(vm.savedQuotes[0].text == "Quote")
@@ -222,6 +222,71 @@ struct TodayViewModelTests {
         }
         #expect(vm.habits.first?.completedToday == false)
         #expect(vm.habits.first?.streak == 1)
+    }
+
+    @Test
+    func lateCheckInRecordsYesterdayWithFullTargetAndSource() async throws {
+        let timeZone = TimeZone(identifier: "Asia/Almaty")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 29, hour: 3, minute: 59))!
+        let habit = Habit(
+            name: "Custom dhikr",
+            icon: "circle",
+            type: .dhikr,
+            targetCount: 1_000,
+            schedule: .daily,
+            dhikrCustomPhrase: "Hasbunallahu"
+        )
+        let completionsRepo = FakeCompletionsRepository(completionsByHabit: [habit.id: []])
+        let vm = TodayViewModel(
+            habitsRepository: FakeHabitsRepository(habits: [habit]),
+            completionsRepository: completionsRepo,
+            quotesRepository: FakeQuotesRepository(quoteOfDay: nil),
+            logger: TestLogger(),
+            localeCode: "en",
+            calendar: calendar,
+            timeZone: timeZone,
+            now: { now }
+        )
+
+        await vm.loadToday()
+        #expect(vm.lateCheckInCandidates.map(\.id) == [habit.id])
+        #expect(await vm.recordLateCheckIn(for: habit.id))
+
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: now))!
+        let recorded = try #require(await completionsRepo.fetchCompletion(
+            habitID: habit.id,
+            on: yesterday,
+            calendar: calendar,
+            timeZone: timeZone
+        ))
+        #expect(recorded.value == 1_000)
+        #expect(recorded.entrySource == .lateCheckIn)
+        #expect(vm.lateCheckInCandidates.isEmpty)
+    }
+
+    @Test
+    func lateCheckInIsUnavailableAtFourAM() async {
+        let timeZone = TimeZone(identifier: "Asia/Almaty")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 29, hour: 4))!
+        let habit = Habit(name: "Read", icon: "book", type: .binary, schedule: .daily)
+        let vm = TodayViewModel(
+            habitsRepository: FakeHabitsRepository(habits: [habit]),
+            completionsRepository: FakeCompletionsRepository(completionsByHabit: [habit.id: []]),
+            quotesRepository: FakeQuotesRepository(quoteOfDay: nil),
+            logger: TestLogger(),
+            localeCode: "en",
+            calendar: calendar,
+            timeZone: timeZone,
+            now: { now }
+        )
+
+        await vm.loadToday()
+        #expect(vm.lateCheckInCandidates.isEmpty)
+        #expect(!(await vm.recordLateCheckIn(for: habit.id)))
     }
 
     private var fixedDate: Date {

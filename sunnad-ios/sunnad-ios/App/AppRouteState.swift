@@ -4,9 +4,11 @@ import Network
 import SwiftData
 import SwiftUI
 import UIKit
-#if canImport(OneSignalFramework)
-import OneSignalFramework
-#endif
+import UserNotifications
+
+extension Notification.Name {
+    static let adatDeviceTokenDidChange = Notification.Name("adat.device-token-did-change")
+}
 
 @MainActor
 final class AppRouteState: ObservableObject {
@@ -52,7 +54,7 @@ final class AppRouteState: ObservableObject {
 
     private enum GuestPromotionMode {
         case none
-        case signup
+        case importGuestData
     }
 
     @Published var language: AppLanguage = .en {
@@ -60,7 +62,10 @@ final class AppRouteState: ObservableObject {
             persistLanguage()
             L10n.setLanguage(code: language.localeIdentifier)
             todayViewModel.updateLocale(language.localeIdentifier)
-            Task { await loadTodayData() }
+            Task {
+                await syncProfileContextIfNeeded()
+                await loadTodayData()
+            }
         }
     }
     @Published var appearance: AppAppearance = .system {
@@ -70,6 +75,13 @@ final class AppRouteState: ObservableObject {
     }
     @Published var notificationPreferences = UINotificationPreferences() {
         didSet {
+            let enabledAProtectedReminder =
+                (!oldValue.habitReminders && notificationPreferences.habitReminders)
+                || (!oldValue.quoteReminder && notificationPreferences.quoteReminder)
+                || (!oldValue.groupReminders && notificationPreferences.groupReminders)
+            if enabledAProtectedReminder && !isHydratingNotificationPreferences {
+                dependencies.requestLocalNotificationPermission()
+            }
             persistNotificationPreferences()
             dependencies.syncHabitReminders(enabled: notificationPreferences.habitReminders)
             dependencies.syncQuoteReminders(
@@ -123,6 +135,7 @@ final class AppRouteState: ObservableObject {
     @Published private(set) var otpResendSecondsRemaining = 0
     @Published private(set) var isInitialLoad = true
     @Published private(set) var todayHabitsData: [UIHabit] = []
+    @Published private(set) var lateCheckInCandidates: [UIHabit] = []
     @Published private(set) var completionMarksByHabit: [UUID: [Bool]] = [:]
     @Published private(set) var debugPendingReminderCount = 0
 
@@ -132,6 +145,10 @@ final class AppRouteState: ObservableObject {
 
     var privacyURL: URL {
         dependencies.environment.privacyURL
+    }
+
+    var termsURL: URL {
+        dependencies.environment.termsURL
     }
 
     var helpURL: URL {
@@ -191,6 +208,7 @@ final class AppRouteState: ObservableObject {
     private var pendingTodayDataReload = false
     private var pendingHabitToggleIDs = Set<UUID>()
     private var currentSessionUserID: UUID?
+    private var isHydratingNotificationPreferences = true
     private var didPromptNotificationsDuringOnboarding = false
     private var postDeleteHabitSnapshot: [UIHabit]?
     private var streakByHabitID: [UUID: Int] = [:]
@@ -254,6 +272,7 @@ final class AppRouteState: ObservableObject {
         bindTodayViewModel()
         bindChildViewModels()
         bindTimeChangeNotifications()
+        bindDeviceTokenNotifications()
         startConnectivityMonitoring()
 
         #if DEBUG
@@ -261,6 +280,7 @@ final class AppRouteState: ObservableObject {
         #endif
 
         notificationPreferences = loadNotificationPreferences()
+        isHydratingNotificationPreferences = false
         feedbackPreferences = loadFeedbackPreferences()
 
         Task {
@@ -366,7 +386,10 @@ final class AppRouteState: ObservableObject {
 
         replaceLocalHabits(with: habits)
         dependencies.analytics.trackOnboardingStepCompleted(.templates)
-        onboardingStep = .notifications
+        user = .guest
+        markOnboardingCompleted()
+        activeTab = .today
+        Task { await loadTodayData() }
     }
 
     func enableOnboardingNotifications() {
@@ -393,7 +416,6 @@ final class AppRouteState: ObservableObject {
     }
 
     func completeAsGuest() {
-        dependencies.analytics.trackOnboardingStepCompleted(.joinGroups)
         user = .guest
         markOnboardingCompleted()
         activeTab = .today
@@ -410,7 +432,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .none)
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .importGuestData)
                 markOnboardingCompleted()
                 activeTab = .today
                 dependencies.analytics.trackAuth(
@@ -480,7 +502,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .signup)
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .importGuestData)
                 markOnboardingCompleted()
                 activeTab = .today
                 onboardingStep = .joinGroups
@@ -558,6 +580,13 @@ final class AppRouteState: ObservableObject {
 
     func toggleHabit(_ habitID: UUID) {
         toggleTodayHabit(habitID, source: "groups")
+    }
+
+    func recordLateCheckIn(_ habitID: UUID) {
+        Task {
+            guard await todayViewModel.recordLateCheckIn(for: habitID) else { return }
+            await loadTodayData()
+        }
     }
 
     func appDidBecomeActive() {
@@ -1025,7 +1054,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .none)
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .importGuestData)
                 markOnboardingCompleted()
                 fullScreen = nil
                 dependencies.analytics.trackAuth(
@@ -1063,7 +1092,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .signup)
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .importGuestData)
                 markOnboardingCompleted()
                 fullScreen = nil
                 dependencies.analytics.trackAuth(
@@ -1108,6 +1137,10 @@ final class AppRouteState: ObservableObject {
 
     func signOut() {
         Task {
+            let signingOutUserID = currentSessionUserID
+            if let signingOutUserID {
+                await dependencies.deviceTokenSyncService.removeCurrentInstallation(for: signingOutUserID)
+            }
             do {
                 try await dependencies.authService.signOut()
             } catch {
@@ -1123,7 +1156,6 @@ final class AppRouteState: ObservableObject {
             authSuccessMessage = nil
             user = .guest
             currentSessionUserID = nil
-            await OneSignalBridge.shared.logout()
             await dependencies.syncCoordinator.setSignedInUserID(nil)
             await loadTodayData()
         }
@@ -1148,6 +1180,10 @@ final class AppRouteState: ObservableObject {
         let preservedHabits = habits
         let preservedTodayHabits = todayHabitsData
         Task {
+            let deletingUserID = currentSessionUserID
+            if let deletingUserID {
+                await dependencies.deviceTokenSyncService.removeCurrentInstallation(for: deletingUserID)
+            }
             postDeleteHabitSnapshot = preservedHabits
             todayReloadTask?.cancel()
             pendingTodayDataReload = false
@@ -1170,7 +1206,6 @@ final class AppRouteState: ObservableObject {
             otpFlowMode = .signup
             user = .guest
             currentSessionUserID = nil
-            await OneSignalBridge.shared.logout()
             authErrorMessage = nil
             authSuccessMessage = nil
             markOnboardingCompleted()
@@ -1279,7 +1314,7 @@ final class AppRouteState: ObservableObject {
             memberID: memberID,
             habitID: habitID
         )
-        if status == .sent {
+        if status == .delivered {
             dependencies.interactionFeedback.groupNudgeSent(hapticsEnabled: feedbackPreferences.hapticsEnabled)
         }
         return status
@@ -1323,8 +1358,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                let promotionMode: GuestPromotionMode = intent == .signUp ? .signup : .none
-                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: promotionMode)
+                await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: .importGuestData)
                 clearPendingOAuthIntent()
                 markOnboardingCompleted()
                 activeTab = .today
@@ -1387,7 +1421,7 @@ final class AppRouteState: ObservableObject {
                 authErrorMessage = nil
                 authSuccessMessage = nil
                 user = sessionUser.asUIUserState
-                let promotionMode: GuestPromotionMode = otpFlowMode == .signup ? .signup : .none
+                let promotionMode: GuestPromotionMode = otpFlowMode == .signup ? .importGuestData : .none
                 await syncSignedInSession(sessionUser, trigger: .auth, promotionMode: promotionMode)
                 if otpFlowMode == .signup {
                     dependencies.analytics.trackAuth(
@@ -1528,13 +1562,13 @@ final class AppRouteState: ObservableObject {
         return UINotificationPreferences(
             habitReminders: hasStoredHabit
                 ? userDefaults.bool(forKey: LocalStateKeys.habitRemindersEnabled)
-                : true,
+                : false,
             quoteReminder: hasStoredQuote
                 ? userDefaults.bool(forKey: LocalStateKeys.quoteRemindersEnabled)
-                : true,
+                : false,
             groupReminders: hasStoredGroup
                 ? userDefaults.bool(forKey: LocalStateKeys.groupRemindersEnabled)
-                : true
+                : false
         )
     }
 
@@ -1591,6 +1625,15 @@ final class AppRouteState: ObservableObject {
         )
     }
 
+    private func syncProfileContextIfNeeded() async {
+        guard let currentSessionUserID else { return }
+        await dependencies.deviceTokenSyncService.syncProfileContext(
+            for: currentSessionUserID,
+            locale: language.localeIdentifier,
+            timeZone: TimeZone.current.identifier
+        )
+    }
+
     private func bindTodayViewModel() {
         todayViewModel.$habits
             .sink { [weak self] habits in
@@ -1606,6 +1649,12 @@ final class AppRouteState: ObservableObject {
                     enabled: self.notificationPreferences.quoteReminder,
                     locale: self.language.localeIdentifier
                 )
+            }
+            .store(in: &cancellables)
+
+        todayViewModel.$lateCheckInCandidates
+            .sink { [weak self] candidates in
+                self?.lateCheckInCandidates = candidates
             }
             .store(in: &cancellables)
 
@@ -1655,7 +1704,22 @@ final class AppRouteState: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 guard let self else { return }
-                Task { await self.loadTodayData() }
+                Task {
+                    await self.syncProfileContextIfNeeded()
+                    await self.loadTodayData()
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func bindDeviceTokenNotifications() {
+        NotificationCenter.default.publisher(for: .adatDeviceTokenDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self, let userID = self.currentSessionUserID else { return }
+                Task {
+                    await self.dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: userID)
+                }
             }
             .store(in: &cancellables)
     }
@@ -1785,7 +1849,11 @@ final class AppRouteState: ObservableObject {
 
                 let history = try await dependencies.completionsRepository.fetchCompletions(for: habit.id)
                 historiesByHabitID[habit.id] = history
-                let streak = StreakCalculator.streak(for: habit, completions: history, asOf: today, referenceDate: today)
+                let streak = StreakCalculator.streak(
+                    for: habit,
+                    completions: history,
+                    context: DayContext(now: today)
+                )
                 marksByHabit[habit.id] = Self.lastSevenMarks(
                     for: habit,
                     completions: history,
@@ -1854,8 +1922,7 @@ final class AppRouteState: ObservableObject {
 
                 if habit.isDhikr {
                     let now = Date()
-                    let maxTrackedCount = ([habit.dhikrCount] + Array(habit.dhikrCountsByKey.values)).max() ?? 0
-                    let value = min(max(maxTrackedCount, 0), domain.normalizedTargetCount)
+                    let value = max(habit.dhikrCount, 0)
                     let completion = HabitCompletion(
                         habitID: habit.id,
                         dayDate: now,
@@ -1924,11 +1991,11 @@ final class AppRouteState: ObservableObject {
         if oldHabit.dhikrCount != newHabit.dhikrCount {
             fields.append("dhikr_count")
         }
-        if oldHabit.selectedDhikrKey != newHabit.selectedDhikrKey {
-            fields.append("selected_dhikr_key")
+        if oldHabit.dhikrPhraseKey != newHabit.dhikrPhraseKey {
+            fields.append("dhikr_phrase_key")
         }
-        if oldHabit.dhikrCountsByKey != newHabit.dhikrCountsByKey {
-            fields.append("dhikr_counts")
+        if oldHabit.dhikrCustomPhrase != newHabit.dhikrCustomPhrase {
+            fields.append("dhikr_custom_phrase")
         }
 
         return fields
@@ -2007,7 +2074,6 @@ final class AppRouteState: ObservableObject {
         } else {
             currentSessionUserID = nil
             await dependencies.syncCoordinator.setSignedInUserID(nil)
-            await OneSignalBridge.shared.logout()
             dependencies.analyticsLogger.log(.syncFinished, metadata: ["scope": "auth_restore", "status": "no_session"])
         }
     }
@@ -2019,25 +2085,23 @@ final class AppRouteState: ObservableObject {
     ) async {
         postDeleteHabitSnapshot = nil
         let activeSessionUserID = sessionUser.id
-        if promotionMode == .signup {
+        if promotionMode == .importGuestData {
             await settleLocalHabitPersistenceBeforePromotion()
             await dependencies.syncCoordinator.promoteGuestDataIfNeeded(to: activeSessionUserID)
         }
         currentSessionUserID = activeSessionUserID
-        let oneSignalAppID = dependencies.environment.oneSignalAppID
-        let oneSignalAppGroupID = dependencies.environment.oneSignalAppGroupID
         Task { [weak self] in
             guard let self else { return }
-            await OneSignalBridge.shared.configure(
-                appID: oneSignalAppID,
-                appGroupID: oneSignalAppGroupID
-            )
-            await OneSignalBridge.shared.login(externalID: activeSessionUserID.uuidString.lowercased())
-            await OneSignalBridge.shared.requestPermissionIfNeeded()
+            await APNsRegistrationBridge.shared.refreshRegistrationIfAuthorized()
             guard self.currentSessionUserID == activeSessionUserID else { return }
             await self.dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: activeSessionUserID)
             await self.syncGroupReminderPreferenceIfNeeded()
         }
+        await dependencies.deviceTokenSyncService.syncProfileContext(
+            for: activeSessionUserID,
+            locale: language.localeIdentifier,
+            timeZone: TimeZone.current.identifier
+        )
         await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: activeSessionUserID)
         await dependencies.deviceTokenSyncService.setGroupRemindersEnabled(
             notificationPreferences.groupReminders,
@@ -2185,14 +2249,11 @@ final class AppRouteState: ObservableObject {
         }
 
         if Self.isSignupCallbackURL(url) {
-            return .signup
+            return .importGuestData
         }
 
-        if consumePendingOAuthIntent() == .signUp {
-            return .signup
-        }
-
-        return .none
+        _ = consumePendingOAuthIntent()
+        return .importGuestData
     }
 
     private func setPendingOAuthIntent(_ intent: OAuthIntent) {
@@ -2454,6 +2515,10 @@ final class AppRouteState: ObservableObject {
     private func applyDebugLaunchOverrides() {
         let environment = ProcessInfo.processInfo.environment
 
+        if isTruthy(environment["SUNNAD_UI_TEST_RESET_HABITS"]) {
+            resetHabitsForUITests()
+        }
+
         if let rawLanguage = environment["SUNNAD_DEBUG_LANGUAGE"]?.lowercased(),
            let debugLanguage = AppLanguage(rawValue: rawLanguage) {
             language = debugLanguage
@@ -2489,6 +2554,21 @@ final class AppRouteState: ObservableObject {
         if isTruthy(environment["SUNNAD_DEBUG_SKIP_ONBOARDING"]) {
             showsOnboarding = false
             onboardingStep = .welcome
+
+            // The normal synchronous cache load is intentionally skipped while
+            // onboarding is visible. UI tests dismiss onboarding through this
+            // launch override, so give an existing guest cache the same fast
+            // path before considering deterministic seed data below.
+            if habits.isEmpty {
+                loadInitialHabitsSync()
+            }
+        }
+
+        if isTruthy(environment["SUNNAD_UI_TEST_SEED_HABITS"]), habits.isEmpty {
+            let seededHabits = UIFixtures.initialHabits
+            habits = seededHabits
+            todayHabitsData = seededHabits.filter { $0.isScheduled(on: Date()) }
+            replaceLocalHabits(with: seededHabits)
         }
 
         if let rawUser = environment["SUNNAD_DEBUG_USER"]?.lowercased() {
@@ -2559,6 +2639,31 @@ final class AppRouteState: ObservableObject {
         }
     }
 
+    private func resetHabitsForUITests() {
+        let modelContext = dependencies.modelContainer.mainContext
+        let ownerScope = dependencies.ownerScopeResolver.currentOwnerScopeRawValue
+        do {
+            let habitsToDelete = try modelContext.fetch(
+                FetchDescriptor<HabitEntity>(predicate: #Predicate { $0.ownerScope == ownerScope })
+            )
+            let completionsToDelete = try modelContext.fetch(
+                FetchDescriptor<CompletionEntity>(predicate: #Predicate { $0.ownerScope == ownerScope })
+            )
+            habitsToDelete.forEach(modelContext.delete)
+            completionsToDelete.forEach(modelContext.delete)
+            try modelContext.save()
+            habits = []
+            todayHabitsData = []
+            completionMarksByHabit = [:]
+            UserDefaults.standard.set(false, forKey: "adat.coachmark.firstCompletion.dismissed")
+        } catch {
+            dependencies.analyticsLogger.log(
+                .storageFailure,
+                metadata: ["scope": "ui_test_reset_habits", "error": error.localizedDescription]
+            )
+        }
+    }
+
     private func isTruthy(_ value: String?) -> Bool {
         guard let normalized = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
             return false
@@ -2575,89 +2680,51 @@ private extension SessionUser {
     }
 }
 
-actor OneSignalBridge {
-    static let shared = OneSignalBridge()
+@MainActor
+final class APNsRegistrationBridge {
+    static let shared = APNsRegistrationBridge()
 
     private enum Keys {
-        static let subscriptionID = "sunnad.device.onesignal-subscription-id"
-        static let sharedSubscriptionID = "sunnad.onesignal.subscription-id"
-        static let sharedAppID = "sunnad.onesignal.app-id"
+        static let deviceToken = "sunnad.device.push-token"
     }
 
     private let userDefaults = UserDefaults.standard
-    private var configuredAppID: String?
-    private var configuredAppGroupID: String?
-
-    func configure(appID: String?, appGroupID: String? = nil) {
-        let trimmed = appID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let trimmedGroupID = appGroupID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !trimmedGroupID.isEmpty {
-            configuredAppGroupID = trimmedGroupID
-        }
-        guard !trimmed.isEmpty else { return }
-        guard configuredAppID != trimmed else { return }
-
-        #if canImport(OneSignalFramework)
-        OneSignal.initialize(trimmed, withLaunchOptions: nil)
-        #endif
-        configuredAppID = trimmed
-        sharedDefaults?.set(trimmed, forKey: Keys.sharedAppID)
-    }
-
-    func login(externalID: String) async {
-        guard !externalID.isEmpty else { return }
-        guard configuredAppID != nil else { return }
-
-        #if canImport(OneSignalFramework)
-        OneSignal.login(externalID)
-        #endif
-        await refreshSubscriptionID()
-    }
 
     func requestPermissionIfNeeded() async {
-        #if canImport(OneSignalFramework)
-        guard configuredAppID != nil else { return }
-        guard OneSignal.Notifications.canRequestPermission else { return }
-
-        await withCheckedContinuation { continuation in
-            OneSignal.Notifications.requestPermission({ _ in
-                continuation.resume()
-            }, fallbackToSettings: true)
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        let isAuthorized: Bool
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            isAuthorized = true
+        case .notDetermined:
+            isAuthorized = (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) == true
+        case .denied:
+            isAuthorized = false
+        @unknown default:
+            isAuthorized = false
         }
-        #endif
-        await refreshSubscriptionID()
-    }
-
-    func logout() {
-        #if canImport(OneSignalFramework)
-        OneSignal.logout()
-        #endif
-        userDefaults.removeObject(forKey: Keys.subscriptionID)
-        sharedDefaults?.removeObject(forKey: Keys.sharedSubscriptionID)
-    }
-
-    private func refreshSubscriptionID() async {
-        for _ in 0 ..< 8 {
-            if let id = currentSubscriptionID() {
-                userDefaults.set(id, forKey: Keys.subscriptionID)
-                sharedDefaults?.set(id, forKey: Keys.sharedSubscriptionID)
-                return
-            }
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        if isAuthorized {
+            UIApplication.shared.registerForRemoteNotifications()
         }
     }
 
-    private var sharedDefaults: UserDefaults? {
-        guard let groupID = configuredAppGroupID, !groupID.isEmpty else { return nil }
-        return UserDefaults(suiteName: groupID)
+    func refreshRegistrationIfAuthorized() async {
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        switch status {
+        case .authorized, .provisional, .ephemeral:
+            UIApplication.shared.registerForRemoteNotifications()
+        case .notDetermined, .denied:
+            break
+        @unknown default:
+            break
+        }
     }
 
-    private func currentSubscriptionID() -> String? {
-        #if canImport(OneSignalFramework)
-        let raw = OneSignal.User.pushSubscription.id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return raw.isEmpty ? nil : raw
-        #else
-        return nil
-        #endif
+    func didRegister(deviceToken: Data) {
+        let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+        guard token.count == 64 else { return }
+        userDefaults.set(token, forKey: Keys.deviceToken)
+        NotificationCenter.default.post(name: .adatDeviceTokenDidChange, object: nil)
     }
 }

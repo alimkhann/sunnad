@@ -3,6 +3,11 @@ import Foundation
 enum L10n {
     private static var languageCodeOverride: String?
 
+    static var languageCode: String {
+        let code = languageCodeOverride ?? Locale.current.language.languageCode?.identifier ?? "en"
+        return ["en", "ru", "kk"].contains(code) ? code : "en"
+    }
+
     static func setLanguage(code: String) {
         languageCodeOverride = code
     }

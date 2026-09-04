@@ -58,6 +58,76 @@
     "Adat" : {
 
     },
+    "about.cofounder_developer.role" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Co-founder & Developer" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Бірлескен құрылтайшы және әзірлеуші" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Сооснователь и разработчик" } }
+      }
+    },
+    "about.cofounder_developer.name" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Alimkhan Yergebayev" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Әлімхан Ергебай" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Алимхан Ергебаев" } }
+      }
+    },
+    "about.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Adat keeps daily habits and dhikr simple. Your progress is saved on this device first, so you can keep tracking without an account or internet. Sign in when you want backup, groups, and sync across devices." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Adat күнделікті әдеттер мен зікірді белгілеуді жеңілдетеді. Ілгерілеуіңіз алдымен осы құрылғыда сақталады, сондықтан аккаунтсыз және интернетсіз де жалғастыра аласыз. Сақтық көшірме, топтар және құрылғылар арасында синхрондау қажет болса, аккаунтқа кіріңіз." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Adat помогает без лишнего отмечать ежедневные привычки и зикр. Прогресс сначала сохраняется на этом устройстве, поэтому приложением можно пользоваться без аккаунта и интернета. Войдите, если нужны резервная копия, группы и синхронизация между устройствами." } }
+      }
+    },
+    "about.founder.name" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Arystan Almasuly" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Арыстан Алмасұлы" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Арыстан Алмасулы" } }
+      }
+    },
+    "about.founder.role" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Founder" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Құрылтайшы" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Основатель" } }
+      }
+    },
+    "about.made_by" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Made by" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Авторлар" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Авторы" } }
+      }
+    },
+    "about.version_format" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Version %@ (%@)" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Нұсқа %@ (%@)" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Версия %@ (%@)" } }
+      }
+    },
+    "onboarding.templates.selection_count" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld of 3" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "3 ішінен %lld" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "%lld из 3" } }
+      }
+    },
+    "onboarding.templates.subtitle" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose 1–3 habits for your first day. You can change them anytime." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Алғашқы күніңізге 1–3 әдет таңдаңыз. Оларды кез келген уақытта өзгерте аласыз." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Выберите 1–3 привычки на первый день. Их можно изменить в любое время." } }
+      }
+    },
+    "onboarding.welcome.private_start" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start privately. No account or notification permission required." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Жеке бастаңыз. Аккаунт пен хабарландыру рұқсаты қажет емес." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Начните приватно. Аккаунт и разрешение на уведомления не нужны." } }
+      }
+    },
     "appearance.dark" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1418,6 +1488,13 @@
         }
       }
     },
+    "common.close" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Жабу" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Закрыть" } }
+      }
+    },
     "common.continue" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1741,6 +1818,34 @@
             "value" : "Субханаллах"
           }
         }
+      }
+    },
+    "dhikr.custom_phrase" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Custom phrase" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Өз мәтініңіз" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Своя фраза" } }
+      }
+    },
+    "dhikr.custom_phrase.placeholder" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter dhikr phrase" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Зікір мәтінін енгізіңіз" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Введите текст зикра" } }
+      }
+    },
+    "dhikr.edit_count" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit today's count" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Бүгінгі санды өзгерту" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Изменить счёт за сегодня" } }
+      }
+    },
+    "dhikr.phrase" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Phrase" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Мәтін" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Фраза" } }
       }
     },
     "dhikr.of" : {
@@ -2709,6 +2814,13 @@
         }
       }
     },
+    "groups.progress.new" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Жаңа" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Новый" } }
+      }
+    },
     "groups.progress_mode.percent" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2868,6 +2980,13 @@
             "value" : "Слишком много напоминаний. Попробуйте позже."
           }
         }
+      }
+    },
+    "groups.reminder.recipient_unavailable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This member cannot receive reminders right now." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Бұл қатысушы қазір еске салғыштарды ала алмайды." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Этот участник сейчас не может получать напоминания." } }
       }
     },
     "groups.reminder.send" : {
@@ -4644,6 +4763,48 @@
     "Layer" : {
 
     },
+    "late_check_in.confirm.action" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Record yesterday" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Кешегі күнге белгілеу" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Отметить за вчера" } }
+      }
+    },
+    "late_check_in.confirm.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use this only if you completed the habit yesterday but forgot to track it." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Мұны әдетті кеше орындап, белгілеуді ұмытып кеткен жағдайда ғана пайдаланыңыз." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Используйте это, только если выполнили привычку вчера, но забыли отметить." } }
+      }
+    },
+    "late_check_in.confirm.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Did you complete this yesterday?" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Мұны кеше орындадыңыз ба?" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Вы выполнили это вчера?" } }
+      }
+    },
+    "late_check_in.prompt" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Forgot yesterday?" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Кешегіні ұмыттыңыз ба?" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Забыли отметить вчера?" } }
+      }
+    },
+    "late_check_in.prompt.hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shows eligible habits from yesterday" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Кешегі белгіленбеген әдеттерді көрсетеді" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Показывает неотмеченные привычки за вчера" } }
+      }
+    },
+    "late_check_in.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Record yesterday" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Кешегі күнді белгілеу" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Отметить вчера" } }
+      }
+    },
     "notifications.group_reminders" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4920,6 +5081,13 @@
         }
       }
     },
+    "onboarding.welcome.quote" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Call yourselves to account before you are called to account. — Umar ibn al-Khattab" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Есепке тартылмай тұрып өздеріңді есепке тартыңдар. — Омар ибн әл-Хаттаб" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Призовите себя к отчёту, прежде чем вас призовут к отчёту. — Умар ибн аль-Хаттаб" } }
+      }
+    },
     "onboarding.welcome.skip" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4941,6 +5109,13 @@
             "value" : "Пропустить"
           }
         }
+      }
+    },
+    "onboarding.welcome.value" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Build consistent worship, one small action at a time." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Ғибадатты шағын қадамдармен тұрақты әдетке айналдырыңыз." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Укрепляйте постоянство в поклонении маленькими шагами." } }
       }
     },
     "onboarding.welcome.subtitle" : {
@@ -5033,6 +5208,13 @@
             "value" : "Не найдено"
           }
         }
+      }
+    },
+    "profile.about" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "About Adat" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Adat туралы" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Об Adat" } }
       }
     },
     "profile.account" : {
@@ -6718,6 +6900,20 @@
             "value" : "Добавьте привычки или измените расписание, чтобы начать сегодня."
           }
         }
+      }
+    },
+    "today.coach.first_completion.message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tap the circle beside a habit when you finish it." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Әдетті орындағанда, жанындағы шеңберді басыңыз." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Выполнив привычку, нажмите кружок рядом с ней." } }
+      }
+    },
+    "today.coach.first_completion.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Your first check-in" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Алғашқы белгі" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Первая отметка" } }
       }
     },
     "today.empty.title" : {

@@ -67,7 +67,8 @@ final class CompletionsLocalRepository: CompletionsRepository {
                     dayDate: normalizedDay,
                     value: completion.value,
                     completedAt: completion.completedAt,
-                    updatedAt: completion.updatedAt
+                    updatedAt: completion.updatedAt,
+                    entrySource: completion.entrySource
                 ),
                 key: key,
                 ownerScope: ownerScope
@@ -80,7 +81,8 @@ final class CompletionsLocalRepository: CompletionsRepository {
                 dayDate: normalizedDay,
                 value: completion.value,
                 completedAt: completion.completedAt,
-                updatedAt: completion.updatedAt
+                updatedAt: completion.updatedAt,
+                entrySourceRaw: completion.entrySource.rawValue
             )
             modelContext.insert(entity)
         }

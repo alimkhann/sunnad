@@ -14,6 +14,7 @@ final class TodayViewModel: ObservableObject {
     @Published private(set) var habits: [UIHabit] = []
     @Published private(set) var quote: UIQuote = UIFixtures.dailyQuote
     @Published private(set) var savedQuotes: [UISavedQuote] = []
+    @Published private(set) var lateCheckInCandidates: [UIHabit] = []
     @Published private(set) var isLoading = false
     @Published private(set) var errorMessage: String?
 
@@ -27,6 +28,7 @@ final class TodayViewModel: ObservableObject {
 
     private var localeCode: String
     private var domainHabitsByID: [UUID: Habit] = [:]
+    private var allDomainHabitsByID: [UUID: Habit] = [:]
     private var completionHistoryByHabitID: [UUID: [HabitCompletion]] = [:]
     private var currentQuote: Quote?
 
@@ -60,6 +62,9 @@ final class TodayViewModel: ObservableObject {
 
         do {
             let today = now()
+            let allHabits = Self.deduplicatedHabits(
+                try await habitsRepository.fetchHabits(includeArchived: false)
+            )
             let habits = Self.deduplicatedHabits(
                 try await habitsRepository.fetchDueHabits(on: today, calendar: calendar, timeZone: timeZone)
             )
@@ -71,6 +76,9 @@ final class TodayViewModel: ObservableObject {
             }
 
             domainHabitsByID = habits.reduce(into: [UUID: Habit]()) { partialResult, habit in
+                partialResult[habit.id] = habit
+            }
+            allDomainHabitsByID = allHabits.reduce(into: [UUID: Habit]()) { partialResult, habit in
                 partialResult[habit.id] = habit
             }
 
@@ -90,10 +98,7 @@ final class TodayViewModel: ObservableObject {
                 let streak = StreakCalculator.streak(
                     for: habit,
                     completions: history,
-                    asOf: today,
-                    calendar: calendar,
-                    timeZone: timeZone,
-                    referenceDate: today
+                    context: DayContext(now: today, calendar: calendar, timeZone: timeZone)
                 )
 
                 let uiHabit = habit.asUIHabit(
@@ -108,6 +113,11 @@ final class TodayViewModel: ObservableObject {
 
             self.habits = uiHabits
             completionHistoryByHabitID = historyByHabitID
+            lateCheckInCandidates = try await resolveLateCheckInCandidates(
+                from: allHabits,
+                asOf: today,
+                preloadedHistories: preloadedHistories
+            )
 
             if let quote = try await quotesRepository.fetchQuoteOfDay(
                 locale: localeCode,
@@ -129,6 +139,57 @@ final class TodayViewModel: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    func recordLateCheckIn(for habitID: UUID) async -> Bool {
+        let context = DayContext(now: now(), calendar: calendar, timeZone: timeZone)
+        guard context.isWithinLateCheckInWindow,
+              let habit = allDomainHabitsByID[habitID],
+              habit.isDue(on: context.yesterday, calendar: calendar, timeZone: timeZone) else {
+            return false
+        }
+
+        do {
+            if let existing = try await completionsRepository.fetchCompletion(
+                habitID: habitID,
+                on: context.yesterday,
+                calendar: calendar,
+                timeZone: timeZone
+            ), existing.isCompleted(for: habit) {
+                lateCheckInCandidates.removeAll { $0.id == habitID }
+                return true
+            }
+
+            let timestamp = now()
+            let completion = HabitCompletion(
+                habitID: habitID,
+                dayDate: context.yesterday,
+                value: habit.normalizedTargetCount,
+                completedAt: timestamp,
+                updatedAt: timestamp,
+                entrySource: .lateCheckIn
+            )
+            try await completionsRepository.upsertCompletion(
+                completion,
+                calendar: calendar,
+                timeZone: timeZone
+            )
+            completionHistoryByHabitID[habitID] = updatedHistory(for: habitID, completion: completion)
+            lateCheckInCandidates.removeAll { $0.id == habitID }
+            logger.log(.habitToggled, metadata: [
+                "habit_id": habitID.uuidString,
+                "value": "\(habit.normalizedTargetCount)",
+                "source": "late_check_in"
+            ])
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            logger.log(.storageFailure, metadata: [
+                "scope": "late_check_in",
+                "error": error.localizedDescription
+            ])
+            return false
+        }
     }
 
     private static func deduplicatedHabits(_ habits: [Habit]) -> [Habit] {
@@ -197,17 +258,13 @@ final class TodayViewModel: ObservableObject {
         let optimisticStreak = StreakCalculator.streak(
             for: habit,
             completions: optimisticHistory,
-            asOf: today,
-            calendar: calendar,
-            timeZone: timeZone,
-            referenceDate: today
+            context: DayContext(now: today, calendar: calendar, timeZone: timeZone)
         )
         if habit.type == .binary {
             updatedHabit.completedToday = nextValue > 0
         } else {
             updatedHabit.dhikrCount = nextValue
             updatedHabit.completedToday = nextValue >= habit.normalizedTargetCount
-            updatedHabit.dhikrCountsByKey[updatedHabit.selectedDhikrKey] = nextValue
         }
         updatedHabit.streak = optimisticStreak
         habits[index] = updatedHabit
@@ -260,7 +317,6 @@ final class TodayViewModel: ObservableObject {
         } else {
             restoredHabit.dhikrCount = transaction.previousValue
             restoredHabit.completedToday = transaction.previousValue >= habit.normalizedTargetCount
-            restoredHabit.dhikrCountsByKey[restoredHabit.selectedDhikrKey] = transaction.previousValue
         }
         let today = now()
         let restoredCompletion = HabitCompletion(
@@ -273,10 +329,7 @@ final class TodayViewModel: ObservableObject {
         restoredHabit.streak = StreakCalculator.streak(
             for: habit,
             completions: updatedHistory(for: transaction.habitID, completion: restoredCompletion),
-            asOf: today,
-            calendar: calendar,
-            timeZone: timeZone,
-            referenceDate: today
+            context: DayContext(now: today, calendar: calendar, timeZone: timeZone)
         )
         habits[index] = restoredHabit
     }
@@ -309,5 +362,40 @@ final class TodayViewModel: ObservableObject {
             normalizedCalendar.startOfDay(for: $0.dayDate) != targetDay
         }
         return (prior + [completion]).sorted { $0.dayDate < $1.dayDate }
+    }
+
+    private func resolveLateCheckInCandidates(
+        from habits: [Habit],
+        asOf now: Date,
+        preloadedHistories: [UUID: [HabitCompletion]]?
+    ) async throws -> [UIHabit] {
+        let context = DayContext(now: now, calendar: calendar, timeZone: timeZone)
+        guard context.isWithinLateCheckInWindow else { return [] }
+
+        var candidates: [UIHabit] = []
+        for habit in habits where habit.isDue(on: context.yesterday, calendar: calendar, timeZone: timeZone) {
+            let history: [HabitCompletion]
+            if let preloadedHistory = preloadedHistories?[habit.id] {
+                history = preloadedHistory
+            } else {
+                history = try await completionsRepository.fetchCompletions(for: habit.id)
+            }
+            completionHistoryByHabitID[habit.id] = history
+            let yesterdayCompletion = history.first {
+                context.calendar.isDate($0.dayDate, inSameDayAs: context.yesterday)
+            }
+            guard yesterdayCompletion?.isCompleted(for: habit) != true else { continue }
+
+            candidates.append(
+                habit.asUIHabit(
+                    completedToday: false,
+                    streak: StreakCalculator.streak(for: habit, completions: history, context: context),
+                    completionValue: 0,
+                    calendar: calendar,
+                    timeZone: timeZone
+                )
+            )
+        }
+        return candidates
     }
 }

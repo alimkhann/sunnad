@@ -14,12 +14,13 @@ struct HabitCompletionTests {
     }
 
     @Test
-    func dhikrCompletionIsBoundedByTarget() {
+    func dhikrCompletionCanExceedTarget() {
         let habit = Habit(name: "Dhikr", icon: "star", type: .dhikr, targetCount: 33)
         let day = Date()
 
         #expect(HabitCompletion(habitID: habit.id, dayDate: day, value: 12).isValid(for: habit))
-        #expect(!HabitCompletion(habitID: habit.id, dayDate: day, value: 34).isValid(for: habit))
+        #expect(HabitCompletion(habitID: habit.id, dayDate: day, value: 34).isValid(for: habit))
+        #expect(!HabitCompletion(habitID: habit.id, dayDate: day, value: -1).isValid(for: habit))
     }
 
     @Test
@@ -32,6 +33,18 @@ struct HabitCompletionTests {
         let dhikr = HabitCompletion(habitID: dhikrHabit.id, dayDate: day, value: 99).clamped(for: dhikrHabit)
 
         #expect(binary.value == 1)
-        #expect(dhikr.value == 33)
+        #expect(dhikr.value == 99)
+    }
+
+    @Test
+    func lateCheckInSourceRoundTripsThroughTheDomainModel() {
+        let completion = HabitCompletion(
+            habitID: UUID(),
+            dayDate: Date(),
+            value: 1,
+            entrySource: .lateCheckIn
+        )
+
+        #expect(completion.entrySource == .lateCheckIn)
     }
 }

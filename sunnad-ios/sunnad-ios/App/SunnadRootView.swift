@@ -74,14 +74,15 @@ struct SunnadRootView: View {
             NavigationStack {
                 TodayView(
                     habits: state.todayHabits,
+                    lateCheckInCandidates: state.lateCheckInCandidates,
                     quote: state.todayQuote,
                     isLoading: state.isInitialLoad,
                     onToggle: { state.toggleTodayHabit($0) },
                     onSelectHabit: { state.rootSheet = .habitDetail($0.id) },
                     onManage: { state.fullScreen = .schedule },
                     onAddHabit: { state.rootSheet = .addHabit },
-                    onOpenQuote: state.openQuoteOfDay,
-                    onRequestNotificationPermission: state.requestNotificationPermissionIfNeeded
+                    onLateCheckIn: state.recordLateCheckIn,
+                    onOpenQuote: state.openQuoteOfDay
                 )
             }
             .sunnadSolidBars()
@@ -152,6 +153,7 @@ struct SunnadRootView: View {
                     onDeleteAccount: state.deleteAccount,
                     onRefresh: state.refreshProfile,
                     debugDiagnosticsText: state.profileDebugDiagnosticsText,
+                    termsURL: state.termsURL,
                     privacyURL: state.privacyURL,
                     helpURL: state.helpURL
                 )

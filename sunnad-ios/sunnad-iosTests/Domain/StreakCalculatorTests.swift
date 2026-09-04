@@ -18,7 +18,11 @@ struct StreakCalculatorTests {
             )
         }
 
-        let streak = StreakCalculator.streak(for: habit, completions: completions, asOf: today, calendar: calendar, timeZone: tz)
+        let streak = StreakCalculator.streak(
+            for: habit,
+            completions: completions,
+            context: DayContext(now: today, calendar: calendar, timeZone: tz)
+        )
         #expect(streak == 3)
     }
 
@@ -37,7 +41,11 @@ struct StreakCalculatorTests {
             )
         }
 
-        let streak = StreakCalculator.streak(for: habit, completions: completions, asOf: today, calendar: calendar, timeZone: tz)
+        let streak = StreakCalculator.streak(
+            for: habit,
+            completions: completions,
+            context: DayContext(now: today, calendar: calendar, timeZone: tz)
+        )
         #expect(streak == 1)
     }
 
@@ -59,10 +67,7 @@ struct StreakCalculatorTests {
         let streak = StreakCalculator.streak(
             for: habit,
             completions: completions,
-            asOf: today,
-            calendar: calendar,
-            timeZone: tz,
-            referenceDate: today
+            context: DayContext(now: today, calendar: calendar, timeZone: tz)
         )
         #expect(streak == 2)
     }
@@ -90,7 +95,11 @@ struct StreakCalculatorTests {
             HabitCompletion(habitID: habit.id, dayDate: $0, value: 1)
         }
 
-        let streak = StreakCalculator.streak(for: habit, completions: completions, asOf: thursday, calendar: calendar, timeZone: tz)
+        let streak = StreakCalculator.streak(
+            for: habit,
+            completions: completions,
+            context: DayContext(now: thursday, calendar: calendar, timeZone: tz)
+        )
         #expect(streak == 3)
     }
 
@@ -110,7 +119,11 @@ struct StreakCalculatorTests {
             HabitCompletion(habitID: habit.id, dayDate: $0, value: 1)
         }
 
-        let streak = StreakCalculator.streak(for: habit, completions: completions, asOf: jan1, calendar: calendar, timeZone: tz)
+        let streak = StreakCalculator.streak(
+            for: habit,
+            completions: completions,
+            context: DayContext(now: jan1, calendar: calendar, timeZone: tz)
+        )
         #expect(streak == 3)
     }
 

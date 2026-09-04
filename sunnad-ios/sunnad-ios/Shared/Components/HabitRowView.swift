@@ -30,8 +30,9 @@ struct HabitRowView: View {
                 HStack(spacing: 12) {
                     Image(systemName: habit.iconSystemName)
                         .font(.headline)
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         .foregroundStyle(SunnadTheme.primary)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                         .background(Circle().fill(Color(.secondarySystemGroupedBackground)))
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -39,6 +40,7 @@ struct HabitRowView: View {
                             .font(.body)
                             .foregroundStyle(isDimmed ? .secondary : .primary)
                             .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
 
                         if showsStreak && habit.streak > 0 {
                             Text("\(habit.streak) \(L10n.t("today.day_streak"))")
@@ -63,7 +65,9 @@ struct HabitRowView: View {
                 Button(action: onToggle) {
                     Image(systemName: habit.completedToday ? "checkmark.circle.fill" : "circle")
                         .font(.title3)
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         .foregroundStyle(habit.completedToday ? SunnadTheme.primary : .secondary)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(L10n.t("today.toggle_completion"))

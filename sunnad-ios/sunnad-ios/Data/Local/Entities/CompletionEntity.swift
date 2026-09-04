@@ -10,6 +10,7 @@ final class CompletionEntity {
     var value: Int
     var completedAt: Date?
     var updatedAt: Date
+    var entrySourceRaw: String = CompletionEntrySource.normal.rawValue
 
     init(
         id: String,
@@ -18,7 +19,8 @@ final class CompletionEntity {
         dayDate: Date,
         value: Int,
         completedAt: Date?,
-        updatedAt: Date
+        updatedAt: Date,
+        entrySourceRaw: String = CompletionEntrySource.normal.rawValue
     ) {
         self.id = id
         self.ownerScope = ownerScope
@@ -27,6 +29,7 @@ final class CompletionEntity {
         self.value = value
         self.completedAt = completedAt
         self.updatedAt = updatedAt
+        self.entrySourceRaw = entrySourceRaw
     }
 }
 
@@ -39,6 +42,7 @@ extension CompletionEntity {
         value = completion.value
         completedAt = completion.completedAt
         updatedAt = completion.updatedAt
+        entrySourceRaw = completion.entrySource.rawValue
     }
 
     func asDomainCompletion() -> HabitCompletion {
@@ -47,7 +51,8 @@ extension CompletionEntity {
             dayDate: dayDate,
             value: value,
             completedAt: completedAt,
-            updatedAt: updatedAt
+            updatedAt: updatedAt,
+            entrySource: CompletionEntrySource(rawValue: entrySourceRaw) ?? .normal
         )
     }
 }
