@@ -125,10 +125,11 @@ struct GroupsView: View {
                                 }
                             } label: {
                                 HStack(spacing: 12) {
-                                    Image(systemName: "person.3.fill")
-                                        .foregroundStyle(SunnadTheme.primary)
-                                        .frame(width: 34, height: 34)
-                                        .background(Circle().fill(Color(.secondarySystemGroupedBackground)))
+                                    GroupAvatarStack(
+                                        members: group.members,
+                                        avatarSize: 30,
+                                        overlap: 11
+                                    )
 
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(group.name)
@@ -154,6 +155,7 @@ struct GroupsView: View {
                                 .padding(.vertical, 12)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("group.row.\(group.id.uuidString)")
                             .disabled(group.isPending)
                             .simultaneousGesture(
                                 TapGesture().onEnded {
@@ -162,7 +164,7 @@ struct GroupsView: View {
                             )
 
                             if index < groups.count - 1 {
-                                Divider().padding(.leading, 62)
+                                Divider().padding(.leading, 82)
                             }
                         }
                     }

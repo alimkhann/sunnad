@@ -12,6 +12,7 @@ struct LocalRepositoriesTests {
         let ownerScope = makeTestOwnerScopeResolver()
         let repository = HabitsLocalRepository(modelContext: container.mainContext, logger: logger, ownerScopeProvider: ownerScope)
 
+        let originalCreatedAt = date(year: 2025, month: 1, day: 1)
         var habit = Habit(
             id: UUID(),
             name: "Read Quran",
@@ -19,7 +20,8 @@ struct LocalRepositoriesTests {
             category: .spiritual,
             type: .binary,
             schedule: .daily,
-            sortOrder: 0
+            sortOrder: 0,
+            createdAt: originalCreatedAt
         )
 
         try await repository.saveHabit(habit)
@@ -29,11 +31,13 @@ struct LocalRepositoriesTests {
         #expect(habits[0].name == "Read Quran")
 
         habit.name = "Read Surah"
+        habit.createdAt = date(year: 2026, month: 2, day: 19)
         try await repository.saveHabit(habit)
 
         habits = try await repository.fetchHabits(includeArchived: false)
         #expect(habits.count == 1)
         #expect(habits[0].name == "Read Surah")
+        #expect(habits[0].createdAt == originalCreatedAt)
 
         try await repository.deleteHabit(id: habit.id)
         habits = try await repository.fetchHabits(includeArchived: false)
@@ -154,7 +158,7 @@ struct LocalRepositoriesTests {
     }
 
     @Test
-    func dhikrCountersPersistPerKey() async throws {
+    func dhikrPhrasePersistsWithoutHabitLevelCounts() async throws {
         let container = try makeInMemoryContainer()
         let logger = TestLogger()
         let ownerScope = makeTestOwnerScopeResolver()
@@ -168,20 +172,15 @@ struct LocalRepositoriesTests {
             type: .dhikr,
             targetCount: 33,
             schedule: .daily,
-            selectedDhikrKey: "dhikr.choice.alhamdulillah",
-            dhikrCountsByKey: [
-                "dhikr.choice.subhanallah": 7,
-                "dhikr.choice.alhamdulillah": 12
-            ]
+            dhikrPhraseKey: "dhikr.choice.alhamdulillah"
         )
 
         try await repository.saveHabit(habit)
         let fetched = try await repository.fetchHabits(includeArchived: false)
 
         #expect(fetched.count == 1)
-        #expect(fetched[0].selectedDhikrKey == "dhikr.choice.alhamdulillah")
-        #expect(fetched[0].dhikrCountsByKey["dhikr.choice.subhanallah"] == 7)
-        #expect(fetched[0].dhikrCountsByKey["dhikr.choice.alhamdulillah"] == 12)
+        #expect(fetched[0].dhikrPhraseKey == "dhikr.choice.alhamdulillah")
+        #expect(fetched[0].dhikrCustomPhrase == nil)
     }
 
     @Test

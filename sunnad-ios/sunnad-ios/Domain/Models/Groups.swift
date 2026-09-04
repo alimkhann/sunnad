@@ -1,12 +1,15 @@
 import Combine
 import Foundation
 
-enum GroupNudgeStatus: String, Codable, Hashable, Sendable {
-    case sent
-    case duplicate
+enum NudgeDeliveryResult: String, Codable, Hashable, Sendable {
+    case delivered = "sent"
+    case alreadyDelivered = "duplicate"
+    case recipientNotRegistered = "recipient_not_registered"
     case forbidden
     case error
 }
+
+typealias GroupNudgeStatus = NudgeDeliveryResult
 
 enum GroupProgressDisplayMode: String, Codable, Hashable, Sendable {
     case percent

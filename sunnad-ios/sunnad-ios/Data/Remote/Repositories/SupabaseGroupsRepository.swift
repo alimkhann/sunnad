@@ -69,6 +69,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         let schedule: String?
         let weekdays: [Int]?
         let archived: Bool?
+        let createdAtRaw: String?
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -83,6 +84,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             case schedule
             case weekdays
             case archived
+            case createdAtRaw = "created_at"
         }
     }
 
@@ -104,10 +106,30 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         }
     }
 
+    private struct BatchCompletionHistoryRow: Decodable {
+        let habitID: UUID
+        let userID: UUID
+        let dayDate: String
+        let value: Int
+        let completedAtRaw: String?
+        let updatedAtRaw: String
+
+        enum CodingKeys: String, CodingKey {
+            case habitID = "habit_id"
+            case userID = "user_id"
+            case dayDate = "day_date"
+            case value
+            case completedAtRaw = "completed_at"
+            case updatedAtRaw = "updated_at"
+        }
+    }
+
     private struct ProfileRow: Decodable {
         let username: String?
         let avatarPath: String?
         let updatedAtRaw: String?
+        let timeZone: String?
+        let locale: String?
 
         var updatedAt: Date? {
             Self.parseProfileTimestamp(updatedAtRaw)
@@ -117,6 +139,8 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             case username
             case avatarPath = "avatar_path"
             case updatedAtRaw = "updated_at"
+            case timeZone = "time_zone"
+            case locale
         }
 
         private static func parseProfileTimestamp(_ rawValue: String?) -> Date? {
@@ -134,9 +158,29 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         }
     }
 
+    private struct BatchProfileRow: Decodable {
+        let id: UUID
+        let username: String?
+        let avatarPath: String?
+        let updatedAtRaw: String?
+        let timeZone: String?
+        let locale: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case username
+            case avatarPath = "avatar_path"
+            case updatedAtRaw = "updated_at"
+            case timeZone = "time_zone"
+            case locale
+        }
+    }
+
     private struct ResolvedProfile {
         let name: String
         let avatarURL: URL?
+        let timeZone: TimeZone
+        let locale: String
     }
 
     private struct GroupMutationRow: Encodable {
@@ -155,6 +199,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
 
     private struct NudgeFunctionResponse: Decodable {
         let status: GroupNudgeStatus
+        let delivered: Bool?
         let error: String?
     }
 
@@ -173,141 +218,143 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
     func fetchGroups() async throws -> [Group] {
         let currentUserID = try await requireCurrentUserID()
         let groupRows = try await fetchGroupRows()
-        let metricsCalendar = Self.utcCalendar()
-        let metricsTimeZone = Self.utcTimeZone
+        guard !groupRows.isEmpty else { return [] }
 
-        var profilesByUserID: [UUID: ResolvedProfile] = [:]
-        var habitsByID: [UUID: HabitRow] = [:]
-        var completionCache: [String: Bool] = [:]
-        var completionHistoryCache: [String: [HabitCompletion]] = [:]
-        let todayDate = Self.utcDayDateString(for: Date())
+        do {
+            let now = Date()
+            let groupIDs = groupRows.map(\.id)
+            let members = try await fetchGroupMembers(groupIDs: groupIDs)
+            let sharedRows = try await fetchSharedHabits(groupIDs: groupIDs).filter(\.shared)
+            let memberIDs = Array(Set(members.map(\.userID)))
+            let habitIDs = Array(Set(sharedRows.map(\.habitID)))
+            let profilesByUserID = try await fetchProfiles(userIDs: memberIDs)
+            let habitsByID = try await fetchHabits(habitIDs: habitIDs)
+            let contextsByUserID = Dictionary(uniqueKeysWithValues: memberIDs.map { userID in
+                let timeZone = profilesByUserID[userID]?.timeZone ?? .current
+                return (userID, DayContext(now: now, timeZone: timeZone))
+            })
+            let historiesByPair = try await fetchCompletionHistories(
+                habitIDs: habitIDs,
+                userIDs: memberIDs,
+                contextsByUserID: contextsByUserID
+            )
 
-        var groups: [Group] = []
-        groups.reserveCapacity(groupRows.count)
-
-        for groupRow in groupRows {
-            do {
-                let members = try await fetchGroupMembers(groupID: groupRow.id)
-                let sharedRows = try await fetchSharedHabits(groupID: groupRow.id)
-
-                let sharedForGroup = sharedRows.filter(\.shared)
+            return groupRows.map { groupRow in
+                let groupMembers = members.filter { $0.groupID == groupRow.id }
+                let groupSharedRows = sharedRows.filter { $0.groupID == groupRow.id }
                 let currentUserSharedIDs = Set(
-                    sharedForGroup
+                    groupSharedRows
                         .filter { $0.userID == currentUserID }
                         .map(\.habitID)
                 )
-
-                var domainMembers: [GroupMember] = []
-                domainMembers.reserveCapacity(members.count)
-
-                for member in members {
+                let domainMembers = groupMembers.map { member in
                     let memberID = member.userID
-                    let profile = (try? await resolveProfile(for: memberID, cache: &profilesByUserID))
-                        ?? ResolvedProfile(name: "Member", avatarURL: nil)
-                    let memberSharedRows = sharedForGroup.filter { $0.userID == memberID }
-
-                    var memberSharedHabits: [SharedHabit] = []
-                    memberSharedHabits.reserveCapacity(memberSharedRows.count)
+                    let profile = profilesByUserID[memberID]
+                        ?? ResolvedProfile(name: "Member", avatarURL: nil, timeZone: .current, locale: "en")
+                    let context = contextsByUserID[memberID]
+                        ?? DayContext(now: now, timeZone: profile.timeZone)
+                    let memberSharedRows = groupSharedRows.filter { $0.userID == memberID }
                     var completedTodayDueCount = 0
                     var totalDueCount = 0
 
-                    for shared in memberSharedRows {
-                        if let habit = try await resolveHabit(shared.habitID, cache: &habitsByID) {
-                            let domainHabit = makeDomainHabit(from: habit)
-                            let completedToday = (try? await resolveCompletion(
-                                for: habit,
-                                userID: memberID,
-                                dayDate: todayDate,
-                                cache: &completionCache
-                            )) ?? false
-                            let streak = (try? await resolveStreak(
-                                for: habit,
-                                userID: memberID,
-                                cache: &completionHistoryCache
-                            )) ?? 0
-                            let memberWindowStart = Self.laterDate(groupRow.createdAt, member.joinedAt)
-                            let rollingCompletionPercent = (try? await resolveRollingCompletionPercent(
-                                for: habit,
-                                userID: memberID,
-                                groupCreatedAt: memberWindowStart,
-                                cache: &completionHistoryCache
-                            )) ?? 0
-                            if domainHabit.schedule.isDue(on: Date(), calendar: metricsCalendar, timeZone: metricsTimeZone) {
-                                totalDueCount += 1
-                                if completedToday {
-                                    completedTodayDueCount += 1
-                                }
-                            }
-
-                            memberSharedHabits.append(
-                                SharedHabit(
-                                    habitID: habit.id,
-                                    title: habit.name,
-                                    icon: habit.icon,
-                                    completedToday: completedToday,
-                                    dueToday: domainHabit.schedule.isDue(on: Date(), calendar: metricsCalendar, timeZone: metricsTimeZone),
-                                    streak: streak,
-                                    rollingCompletionPercent: rollingCompletionPercent
-                                )
-                            )
-                        } else {
-                            memberSharedHabits.append(
-                                SharedHabit(
-                                    habitID: shared.habitID,
-                                    title: "Shared habit",
-                                    icon: "star.fill",
-                                    completedToday: false,
-                                    dueToday: false,
-                                    streak: 0,
-                                    rollingCompletionPercent: 0
-                                )
+                    let sharedHabits = memberSharedRows.map { shared -> SharedHabit in
+                        guard let habitRow = habitsByID[shared.habitID] else {
+                            return SharedHabit(
+                                habitID: shared.habitID,
+                                title: "Shared habit",
+                                icon: "star.fill",
+                                completedToday: false,
+                                dueToday: false,
+                                streak: 0,
+                                rollingCompletionPercent: nil
                             )
                         }
+
+                        let habit = makeDomainHabit(from: habitRow)
+                        let pairKey = Self.completionPairKey(habitID: habit.id, userID: memberID)
+                        let completions = historiesByPair[pairKey] ?? []
+                        let todayCompletion = completions.first {
+                            context.calendar.isDate($0.dayDate, inSameDayAs: context.today)
+                        }
+                        let completedToday = todayCompletion?.isCompleted(for: habit) ?? false
+                        let dueToday = habit.schedule.isDue(
+                            on: context.now,
+                            calendar: context.calendar,
+                            timeZone: context.timeZone
+                        )
+                        if dueToday {
+                            totalDueCount += 1
+                            if completedToday { completedTodayDueCount += 1 }
+                        }
+
+                        let streak = StreakCalculator.streak(
+                            for: habit,
+                            completions: completions,
+                            context: context
+                        )
+                        var rollingHabit = habit
+                        if let memberWindowStart = Self.laterDate(groupRow.createdAt, member.joinedAt) {
+                            rollingHabit.createdAt = max(rollingHabit.createdAt, memberWindowStart)
+                        }
+                        let rollingCompletionPercent = HabitMetricsCalculator.rollingCompletionPercent(
+                            for: rollingHabit,
+                            completions: completions,
+                            context: context,
+                            occurrenceLimit: 40
+                        )
+
+                        return SharedHabit(
+                            habitID: habit.id,
+                            title: habit.name,
+                            icon: habit.icon,
+                            completedToday: completedToday,
+                            dueToday: dueToday,
+                            streak: streak,
+                            rollingCompletionPercent: rollingCompletionPercent
+                        )
                     }
 
-                    domainMembers.append(
-                        GroupMember(
-                            id: memberID,
-                            name: profile.name,
-                            avatarURL: profile.avatarURL,
-                            completedToday: completedTodayDueCount,
-                            totalSharedHabits: totalDueCount,
-                            sharedHabits: memberSharedHabits
-                        )
+                    return GroupMember(
+                        id: memberID,
+                        name: profile.name,
+                        avatarURL: profile.avatarURL,
+                        completedToday: completedTodayDueCount,
+                        totalSharedHabits: totalDueCount,
+                        sharedHabits: sharedHabits
                     )
                 }
 
-                groups.append(
-                    Group(
-                        id: groupRow.id,
-                        name: groupRow.name,
-                        code: groupRow.code,
-                        joinLocked: groupRow.joinLocked ?? false,
-                        members: domainMembers,
-                        sharedHabitIDs: currentUserSharedIDs,
-                        ownerMemberID: groupRow.ownerID,
-                        currentUserMemberID: currentUserID,
-                        progressDisplayMode: members.first(where: { $0.userID == currentUserID })?.progressDisplayMode ?? .percent
-                    )
+                return Group(
+                    id: groupRow.id,
+                    name: groupRow.name,
+                    code: groupRow.code,
+                    joinLocked: groupRow.joinLocked ?? false,
+                    members: domainMembers,
+                    sharedHabitIDs: currentUserSharedIDs,
+                    ownerMemberID: groupRow.ownerID,
+                    currentUserMemberID: currentUserID,
+                    progressDisplayMode: groupMembers.first(where: { $0.userID == currentUserID })?.progressDisplayMode ?? .percent
                 )
-            } catch {
-                logger.log(
-                    .storageFailure,
-                    metadata: [
-                        "scope": "groups_fetch_enrichment",
-                        "group_id": groupRow.id.uuidString,
-                        "error": error.localizedDescription
-                    ]
-                )
+            }
+        } catch {
+            logger.log(
+                .storageFailure,
+                metadata: [
+                    "scope": "groups_fetch_batch_enrichment",
+                    "error": error.localizedDescription
+                ]
+            )
+            var fallbacks: [Group] = []
+            fallbacks.reserveCapacity(groupRows.count)
+            for groupRow in groupRows {
                 if let fallback = await resilientFallbackGroup(from: groupRow, currentUserID: currentUserID) {
-                    groups.append(fallback)
+                    fallbacks.append(fallback)
                 } else {
-                    groups.append(minimalGroup(from: groupRow, currentUserID: currentUserID))
+                    fallbacks.append(minimalGroup(from: groupRow, currentUserID: currentUserID))
                 }
             }
+            return fallbacks
         }
-
-        return groups
     }
 
     func createGroup(name: String) async throws -> Group {
@@ -390,7 +437,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         let currentUserID = try await requireCurrentUserID()
         let validHabitRowsResponse = try await client
             .from("habits")
-            .select("id, user_id, name, icon, icon_key, preset_category, category_custom, type, target_count, schedule, weekdays, archived")
+            .select("id, user_id, name, icon, icon_key, preset_category, category_custom, type, target_count, schedule, weekdays, archived, created_at")
             .eq("user_id", value: currentUserID)
             .execute()
         let validHabitRows = try decoder.decode([HabitRow].self, from: validHabitRowsResponse.data)
@@ -503,7 +550,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                 toUserID: toUserID,
                 habitID: habitID
             )
-            return response.status
+            return verifiedNudgeStatus(response)
         } catch FunctionsError.httpError(let code, _) where code == 401 {
             do {
                 _ = try await client.auth.refreshSession()
@@ -512,10 +559,10 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
                     toUserID: toUserID,
                     habitID: habitID
                 )
-                return response.status
+                return verifiedNudgeStatus(response)
             } catch FunctionsError.httpError(_, let retryData) {
                 if let response = decodeNudgeResponse(fromErrorData: retryData) {
-                    return response.status
+                    return verifiedNudgeStatus(response)
                 }
                 throw NSError(
                     domain: "SupabaseGroupsRepository",
@@ -607,6 +654,38 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         }
     }
 
+    private func fetchGroupMembers(groupIDs: [UUID]) async throws -> [GroupMemberRow] {
+        guard !groupIDs.isEmpty else { return [] }
+        let values = groupIDs.map(\.uuidString)
+        if supportsProgressDisplayModeColumn == false {
+            let response = try await client
+                .from("group_members")
+                .select("group_id, user_id, joined_at")
+                .in("group_id", values: values)
+                .execute()
+            return try decoder.decode([GroupMemberRow].self, from: response.data)
+        }
+
+        do {
+            let response = try await client
+                .from("group_members")
+                .select("group_id, user_id, progress_display_mode, joined_at")
+                .in("group_id", values: values)
+                .execute()
+            supportsProgressDisplayModeColumn = true
+            return try decoder.decode([GroupMemberRow].self, from: response.data)
+        } catch {
+            guard Self.isMissingProgressDisplayModeColumnError(error) else { throw error }
+            supportsProgressDisplayModeColumn = false
+            let response = try await client
+                .from("group_members")
+                .select("group_id, user_id, joined_at")
+                .in("group_id", values: values)
+                .execute()
+            return try decoder.decode([GroupMemberRow].self, from: response.data)
+        }
+    }
+
     private func fetchSharedHabits(groupID: UUID) async throws -> [GroupSharedHabitRow] {
         let response = try await client
             .from("group_shared_habits")
@@ -616,6 +695,116 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         return try decoder.decode([GroupSharedHabitRow].self, from: response.data)
     }
 
+    private func fetchSharedHabits(groupIDs: [UUID]) async throws -> [GroupSharedHabitRow] {
+        guard !groupIDs.isEmpty else { return [] }
+        let response = try await client
+            .from("group_shared_habits")
+            .select("group_id, user_id, habit_id, shared")
+            .in("group_id", values: groupIDs.map(\.uuidString))
+            .execute()
+        return try decoder.decode([GroupSharedHabitRow].self, from: response.data)
+    }
+
+    private func fetchProfiles(userIDs: [UUID]) async throws -> [UUID: ResolvedProfile] {
+        guard !userIDs.isEmpty else { return [:] }
+        let response = try await client
+            .from("profiles")
+            .select("id, username, avatar_path, updated_at, time_zone, locale")
+            .in("id", values: userIDs.map(\.uuidString))
+            .execute()
+        let rows = try decoder.decode([BatchProfileRow].self, from: response.data)
+        return Dictionary(uniqueKeysWithValues: rows.map { row in
+            let name = row.username?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolved = ResolvedProfile(
+                name: (name?.isEmpty == false ? name : nil) ?? "Member",
+                avatarURL: profileAvatarURL(
+                    from: row.avatarPath,
+                    updatedAt: row.updatedAtRaw.flatMap(Self.timestamp(from:))
+                ),
+                timeZone: row.timeZone.flatMap(TimeZone.init(identifier:)) ?? .current,
+                locale: ["en", "ru", "kk"].contains(row.locale ?? "") ? row.locale ?? "en" : "en"
+            )
+            return (row.id, resolved)
+        })
+    }
+
+    private func fetchHabits(habitIDs: [UUID]) async throws -> [UUID: HabitRow] {
+        guard !habitIDs.isEmpty else { return [:] }
+        let values = habitIDs.map(\.uuidString)
+        let rows: [HabitRow]
+        if supportsHabitContractColumns == false {
+            let response = try await client
+                .from("habits")
+                .select("id, user_id, name, icon, type, target_count, schedule, weekdays, archived, created_at")
+                .in("id", values: values)
+                .execute()
+            rows = try decoder.decode([HabitRow].self, from: response.data)
+        } else {
+            do {
+                let response = try await client
+                    .from("habits")
+                    .select("id, user_id, name, icon, icon_key, preset_category, category_custom, type, target_count, schedule, weekdays, archived, created_at")
+                    .in("id", values: values)
+                    .execute()
+                rows = try decoder.decode([HabitRow].self, from: response.data)
+                supportsHabitContractColumns = true
+            } catch {
+                guard Self.isMissingHabitContractColumnError(error) else { throw error }
+                supportsHabitContractColumns = false
+                let response = try await client
+                    .from("habits")
+                    .select("id, user_id, name, icon, type, target_count, schedule, weekdays, archived, created_at")
+                    .in("id", values: values)
+                    .execute()
+                rows = try decoder.decode([HabitRow].self, from: response.data)
+            }
+        }
+        return Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
+    }
+
+    private func fetchCompletionHistories(
+        habitIDs: [UUID],
+        userIDs: [UUID],
+        contextsByUserID: [UUID: DayContext]
+    ) async throws -> [String: [HabitCompletion]] {
+        guard !habitIDs.isEmpty, !userIDs.isEmpty else { return [:] }
+        let windowStarts = contextsByUserID.values.map { context in
+            let start = context.calendar.date(byAdding: .day, value: -370, to: context.today) ?? context.today
+            return Self.syncDayDateString(for: start, calendar: context.calendar, timeZone: context.timeZone)
+        }
+        let earliestWindowStart = windowStarts.min() ?? "1970-01-01"
+        let response = try await client
+            .from("habit_completions")
+            .select("habit_id, user_id, day_date, value, completed_at, updated_at")
+            .in("habit_id", values: habitIDs.map(\.uuidString))
+            .in("user_id", values: userIDs.map(\.uuidString))
+            .gte("day_date", value: earliestWindowStart)
+            .execute()
+        let rows = try decoder.decode([BatchCompletionHistoryRow].self, from: response.data)
+        var result: [String: [HabitCompletion]] = [:]
+        for row in rows {
+            guard let context = contextsByUserID[row.userID],
+                  let dayDate = Self.syncDayDate(
+                    row.dayDate,
+                    calendar: context.calendar,
+                    timeZone: context.timeZone
+                  ) else {
+                continue
+            }
+            let key = Self.completionPairKey(habitID: row.habitID, userID: row.userID)
+            result[key, default: []].append(
+                HabitCompletion(
+                    habitID: row.habitID,
+                    dayDate: dayDate,
+                    value: row.value,
+                    completedAt: row.completedAtRaw.flatMap(Self.timestamp(from:)),
+                    updatedAt: Self.timestamp(from: row.updatedAtRaw) ?? .distantPast
+                )
+            )
+        }
+        return result
+    }
+
     private func resolveProfile(for userID: UUID, cache: inout [UUID: ResolvedProfile]) async throws -> ResolvedProfile {
         if let cached = cache[userID] {
             return cached
@@ -623,7 +812,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
 
         let response = try await client
             .from("profiles")
-            .select("username, avatar_path, updated_at")
+            .select("username, avatar_path, updated_at, time_zone, locale")
             .eq("id", value: userID)
             .limit(1)
             .execute()
@@ -633,7 +822,9 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         let avatarURL = profileAvatarURL(from: row?.avatarPath, updatedAt: row?.updatedAt)
         let resolved = ResolvedProfile(
             name: (name?.isEmpty == false ? name : nil) ?? "Member",
-            avatarURL: avatarURL
+            avatarURL: avatarURL,
+            timeZone: row?.timeZone.flatMap(TimeZone.init(identifier:)) ?? .current,
+            locale: ["en", "ru", "kk"].contains(row?.locale ?? "") ? row?.locale ?? "en" : "en"
         )
         cache[userID] = resolved
         return resolved
@@ -673,7 +864,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         if supportsHabitContractColumns == false {
             let fallbackResponse = try await client
                 .from("habits")
-                .select("id, user_id, name, icon, type, target_count, schedule, weekdays, archived")
+                .select("id, user_id, name, icon, type, target_count, schedule, weekdays, archived, created_at")
                 .eq("id", value: habitID)
                 .limit(1)
                 .execute()
@@ -688,7 +879,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         do {
             response = try await client
                 .from("habits")
-                .select("id, user_id, name, icon, icon_key, preset_category, category_custom, type, target_count, schedule, weekdays, archived")
+                .select("id, user_id, name, icon, icon_key, preset_category, category_custom, type, target_count, schedule, weekdays, archived, created_at")
                 .eq("id", value: habitID)
                 .limit(1)
                 .execute()
@@ -710,7 +901,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
 
             response = try await client
                 .from("habits")
-                .select("id, user_id, name, icon, type, target_count, schedule, weekdays, archived")
+                .select("id, user_id, name, icon, type, target_count, schedule, weekdays, archived, created_at")
                 .eq("id", value: habitID)
                 .limit(1)
                 .execute()
@@ -760,16 +951,20 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
     private func resolveStreak(
         for habit: HabitRow,
         userID: UUID,
+        context: DayContext,
         cache: inout [String: [HabitCompletion]]
     ) async throws -> Int {
-        let completions = try await completionHistory(for: habit.id, userID: userID, cache: &cache)
+        let completions = try await completionHistory(
+            for: habit.id,
+            userID: userID,
+            context: context,
+            cache: &cache
+        )
         let domainHabit = makeDomainHabit(from: habit)
         return StreakCalculator.streak(
             for: domainHabit,
             completions: completions,
-            asOf: Date(),
-            calendar: Self.utcCalendar(),
-            timeZone: Self.utcTimeZone
+            context: context
         )
     }
 
@@ -777,39 +972,51 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         for habit: HabitRow,
         userID: UUID,
         groupCreatedAt: Date?,
+        context: DayContext,
         cache: inout [String: [HabitCompletion]]
-    ) async throws -> Int {
-        let completions = try await completionHistory(for: habit.id, userID: userID, cache: &cache)
-        let domainHabit = makeDomainHabit(from: habit)
-        return Self.rollingCompletionPercent(
+    ) async throws -> Int? {
+        let completions = try await completionHistory(
+            for: habit.id,
+            userID: userID,
+            context: context,
+            cache: &cache
+        )
+        var domainHabit = makeDomainHabit(from: habit)
+        if let groupCreatedAt {
+            domainHabit.createdAt = max(domainHabit.createdAt, groupCreatedAt)
+        }
+        return HabitMetricsCalculator.rollingCompletionPercent(
             for: domainHabit,
             completions: completions,
-            groupCreatedAt: groupCreatedAt,
-            asOf: Date(),
-            calendar: Self.utcCalendar(),
-            timeZone: Self.utcTimeZone
+            context: context,
+            occurrenceLimit: 40
         )
     }
 
     private func completionHistory(
         for habitID: UUID,
         userID: UUID,
+        context: DayContext,
         cache: inout [String: [HabitCompletion]]
     ) async throws -> [HabitCompletion] {
         let cacheKey = "\(habitID.uuidString)-\(userID.uuidString)"
         if let cached = cache[cacheKey] {
             return cached
         }
-        let loaded = try await fetchCompletionHistory(for: habitID, userID: userID)
+        let loaded = try await fetchCompletionHistory(for: habitID, userID: userID, context: context)
         cache[cacheKey] = loaded
         return loaded
     }
 
-    private func fetchCompletionHistory(for habitID: UUID, userID: UUID) async throws -> [HabitCompletion] {
-        let calendar = Self.utcCalendar()
-        let timeZone = Self.utcTimeZone
+    private func fetchCompletionHistory(
+        for habitID: UUID,
+        userID: UUID,
+        context: DayContext
+    ) async throws -> [HabitCompletion] {
+        let calendar = context.calendar
+        let timeZone = context.timeZone
         let windowStart = Self.syncDayDateString(
-            for: Date().addingTimeInterval(-40 * 24 * 60 * 60),
+            for: context.calendar.date(byAdding: .day, value: -370, to: context.today) ?? context.today,
             calendar: calendar,
             timeZone: timeZone
         )
@@ -837,57 +1044,6 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         }
     }
 
-    private static func rollingCompletionPercent(
-        for habit: Habit,
-        completions: [HabitCompletion],
-        groupCreatedAt: Date?,
-        asOf: Date,
-        calendar: Calendar,
-        timeZone: TimeZone
-    ) -> Int {
-        var normalizedCalendar = calendar
-        normalizedCalendar.timeZone = timeZone
-        let today = normalizedCalendar.startOfDay(for: asOf)
-        let createdDay = normalizedCalendar.startOfDay(for: groupCreatedAt ?? today)
-        let inclusiveAge = max((normalizedCalendar.dateComponents([.day], from: createdDay, to: today).day ?? 0) + 1, 1)
-        let windowDays = min(inclusiveAge, 40)
-        let windowStart = normalizedCalendar.date(byAdding: .day, value: -(windowDays - 1), to: today) ?? today
-
-        var completionsByDay: [Date: HabitCompletion] = [:]
-        for completion in completions {
-            let day = normalizedCalendar.startOfDay(for: completion.dayDate)
-            guard day >= windowStart, day <= today else { continue }
-            if let existing = completionsByDay[day] {
-                if completion.updatedAt >= existing.updatedAt {
-                    completionsByDay[day] = completion
-                }
-            } else {
-                completionsByDay[day] = completion
-            }
-        }
-
-        var scheduledDays = 0
-        var completedScheduledDays = 0
-
-        for offset in 0..<windowDays {
-            guard let day = normalizedCalendar.date(byAdding: .day, value: offset, to: windowStart) else {
-                continue
-            }
-            guard habit.schedule.isDue(on: day, calendar: normalizedCalendar, timeZone: timeZone) else {
-                continue
-            }
-            scheduledDays += 1
-            if let completion = completionsByDay[normalizedCalendar.startOfDay(for: day)],
-               completion.isCompleted(for: habit) {
-                completedScheduledDays += 1
-            }
-        }
-
-        guard scheduledDays > 0 else { return 0 }
-        let percent = (Double(completedScheduledDays) / Double(scheduledDays)) * 100.0
-        return Int(percent.rounded())
-    }
-
     private func makeDomainHabit(from row: HabitRow) -> Habit {
         let habitType = HabitType(rawValue: row.type) ?? .binary
         let scheduleValue: HabitSchedule
@@ -908,7 +1064,8 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
             type: habitType,
             targetCount: row.targetCount,
             schedule: scheduleValue,
-            archived: row.archived ?? false
+            archived: row.archived ?? false,
+            createdAt: row.createdAtRaw.flatMap(Self.timestamp(from:)) ?? Date()
         )
     }
 
@@ -933,6 +1090,10 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         case let (nil, b?): return b
         case (nil, nil): return nil
         }
+    }
+
+    private static func completionPairKey(habitID: UUID, userID: UUID) -> String {
+        "\(habitID.uuidString.lowercased()):\(userID.uuidString.lowercased())"
     }
 
     private static func utcCalendar() -> Calendar {
@@ -1049,6 +1210,13 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         try? decoder.decode(NudgeFunctionResponse.self, from: data)
     }
 
+    private func verifiedNudgeStatus(_ response: NudgeFunctionResponse) -> GroupNudgeStatus {
+        if response.status == .delivered, response.delivered != true {
+            return .recipientNotRegistered
+        }
+        return response.status
+    }
+
     private func refreshGroupWithRetry(groupID: UUID, maxAttempts: Int = 6) async throws -> Group? {
         var attempt = 0
         while attempt < maxAttempts {
@@ -1085,7 +1253,7 @@ final class SupabaseGroupsRepository: GroupsRepository, @unchecked Sendable {
         mappedMembers.reserveCapacity(members.count)
         for member in members {
             let profile = (try? await resolveProfile(for: member.userID, cache: &profilesByUserID))
-                ?? ResolvedProfile(name: "Member", avatarURL: nil)
+                ?? ResolvedProfile(name: "Member", avatarURL: nil, timeZone: .current, locale: "en")
             mappedMembers.append(
                 GroupMember(
                     id: member.userID,

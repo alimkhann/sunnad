@@ -253,6 +253,12 @@ struct GroupDetailView: View {
                 dismiss()
             }
 
+            GroupAvatarStack(
+                members: group.members,
+                avatarSize: 26,
+                overlap: 10
+            )
+
             Text(group.name)
                 .font(.title2.weight(.bold))
                 .lineLimit(1)
@@ -422,6 +428,7 @@ struct GroupDetailView: View {
                                     onMemberProgressViewed(memberScope, visibleSharedHabitsCount)
                                 }
                             }
+                            .accessibilityIdentifier("group.member.row.\(member.userID.uuidString)")
 
                             if canKickMember {
                                 Button(role: .destructive) {
@@ -680,9 +687,12 @@ struct GroupDetailView: View {
         case .streak:
             return "\(sharedHabit.streak) \(L10n.t("today.day_streak"))"
         case .percent:
+            guard let percent = sharedHabit.rollingCompletionPercent else {
+                return L10n.t("groups.progress.new")
+            }
             return String(
                 format: L10n.t("insights.percent_complete"),
-                sharedHabit.rollingCompletionPercent ?? 0
+                percent
             )
         }
     }
@@ -725,10 +735,12 @@ struct GroupDetailView: View {
             }
             let status = await onSendReminder(target.memberID, target.habitID)
             switch status {
-            case .sent:
+            case .delivered:
                 showReminderToast(message: L10n.t("groups.reminder.sent"), style: .success)
-            case .duplicate:
+            case .alreadyDelivered:
                 showReminderToast(message: L10n.t("groups.reminder.rate_limited"), style: .rateLimited)
+            case .recipientNotRegistered:
+                showReminderToast(message: L10n.t("groups.reminder.recipient_unavailable"), style: .rateLimited)
             case .forbidden, .error:
                 showReminderToast(message: L10n.t("groups.reminder.error"), style: .error)
             }

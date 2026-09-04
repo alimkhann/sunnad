@@ -309,10 +309,12 @@ final class GroupsViewModel: ObservableObject {
             )
             let statusValue: String
             switch status {
-            case .sent:
-                statusValue = "sent"
-            case .duplicate:
-                statusValue = "duplicate"
+            case .delivered:
+                statusValue = "delivered"
+            case .alreadyDelivered:
+                statusValue = "already_delivered"
+            case .recipientNotRegistered:
+                statusValue = "recipient_not_registered"
             case .forbidden:
                 statusValue = "forbidden"
             case .error:
@@ -349,6 +351,9 @@ final class GroupsViewModel: ObservableObject {
             var mutable = group
             let myMemberID = mutable.currentUserMemberID ?? mutable.ownerMemberID
             let serverMember = mutable.members.first(where: { $0.id == myMemberID })
+            let serverSharedHabitsByID = Dictionary(
+                uniqueKeysWithValues: (serverMember?.sharedHabits ?? []).map { ($0.habitID, $0) }
+            )
             let today = Date()
             let localSharedHabits = habits.filter { mutable.sharedHabitIDs.contains($0.id) }
             let localDueSharedHabits = localSharedHabits
@@ -362,7 +367,7 @@ final class GroupsViewModel: ObservableObject {
                         completedToday: $0.completedToday,
                         dueToday: true,
                         streak: $0.streak,
-                        rollingCompletionPercent: nil
+                        rollingCompletionPercent: serverSharedHabitsByID[$0.id]?.rollingCompletionPercent
                     )
                 }
             let resolvedSharedHabits: [UISharedHabit]
@@ -373,7 +378,7 @@ final class GroupsViewModel: ObservableObject {
             }
             let updatedMe = UIGroupMember(
                 id: myMemberID,
-                userID: myMemberID,
+                userID: serverMember?.userID ?? myMemberID,
                 name: user.name ?? serverMember?.name ?? L10n.t("groups.you"),
                 avatarURL: user.avatarURL ?? serverMember?.avatarURL,
                 completedToday: resolvedSharedHabits.count { $0.completedToday },

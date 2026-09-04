@@ -16,6 +16,7 @@ final class DependencyContainer {
 
     let environment: AppEnvironment
     let modelContainer: ModelContainer
+    let startupStorageErrorDescription: String?
 
     let analytics: AnalyticsClient
     let analyticsLogger: AnalyticsLogging
@@ -53,6 +54,7 @@ final class DependencyContainer {
 
         if let modelContainer {
             self.modelContainer = modelContainer
+            self.startupStorageErrorDescription = nil
         } else {
             do {
                 self.modelContainer = try ModelContainer(
@@ -67,8 +69,28 @@ final class DependencyContainer {
                     LocalGroupMemberSyncEntity.self,
                     LocalGroupSharedHabitSyncEntity.self
                 )
+                self.startupStorageErrorDescription = nil
             } catch {
-                fatalError("Failed to initialize SwiftData container: \(error)")
+                let persistentStoreError = error
+                do {
+                    let fallbackConfiguration = ModelConfiguration(isStoredInMemoryOnly: true)
+                    self.modelContainer = try ModelContainer(
+                        for: HabitEntity.self,
+                        CompletionEntity.self,
+                        QuoteEntity.self,
+                        SavedQuoteEntity.self,
+                        DiagnosticEventEntity.self,
+                        LocalOutboxEventEntity.self,
+                        LocalSyncCursorEntity.self,
+                        LocalGroupSyncEntity.self,
+                        LocalGroupMemberSyncEntity.self,
+                        LocalGroupSharedHabitSyncEntity.self,
+                        configurations: fallbackConfiguration
+                    )
+                    self.startupStorageErrorDescription = persistentStoreError.localizedDescription
+                } catch {
+                    preconditionFailure("SwiftData schema is unavailable: \(error)")
+                }
             }
         }
 
@@ -126,9 +148,20 @@ final class DependencyContainer {
 
         let resolvedGroupsRepository: GroupsRepository
         if let client = supabaseClient {
-            resolvedGroupsRepository = SupabaseGroupsRepository(client: client, logger: logger)
+            let remoteGroupsRepository = SupabaseGroupsRepository(client: client, logger: logger)
+            let localGroupsCache = GroupsLocalRepository(
+                userDefaults: userDefaults,
+                ownerScopeProvider: ownerScopeResolver
+            )
+            resolvedGroupsRepository = CachedGroupsRepository(
+                remote: remoteGroupsRepository,
+                cache: localGroupsCache
+            )
         } else {
-            resolvedGroupsRepository = GroupsLocalRepository()
+            resolvedGroupsRepository = GroupsLocalRepository(
+                userDefaults: userDefaults,
+                ownerScopeProvider: ownerScopeResolver
+            )
         }
 
         if let syncCoordinator {
@@ -184,7 +217,11 @@ final class DependencyContainer {
         if let deviceTokenSyncService {
             self.deviceTokenSyncService = deviceTokenSyncService
         } else if let client = supabaseClient {
-            self.deviceTokenSyncService = SupabaseDeviceTokenSyncService(client: client, logger: logger)
+            self.deviceTokenSyncService = SupabaseDeviceTokenSyncService(
+                client: client,
+                logger: logger,
+                apnsEnvironment: resolvedEnvironment.apnsEnvironment
+            )
         } else {
             self.deviceTokenSyncService = NoOpDeviceTokenSyncService()
         }
@@ -370,7 +407,7 @@ final class DependencyContainer {
     func requestLocalNotificationPermission() {
         Task {
             _ = await reminderScheduler.requestAuthorizationIfNeeded()
-            await OneSignalBridge.shared.requestPermissionIfNeeded()
+            await APNsRegistrationBridge.shared.requestPermissionIfNeeded()
         }
     }
 

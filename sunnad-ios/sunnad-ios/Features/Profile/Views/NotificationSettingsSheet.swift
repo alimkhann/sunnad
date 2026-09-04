@@ -38,6 +38,7 @@ struct NotificationSettingsSheet: View {
 
                         Toggle(L10n.t("notifications.group_reminders"), isOn: $preferences.groupReminders)
                             .padding(16)
+                            .accessibilityIdentifier("notifications.group_reminders.toggle")
                     }
                 }
             }
