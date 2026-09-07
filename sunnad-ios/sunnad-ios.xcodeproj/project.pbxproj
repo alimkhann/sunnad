@@ -643,7 +643,7 @@
 				SUNNAD_AUTH_REDIRECT_URL_BUNDLE = "adat://auth-callback";
 				SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS_BUNDLE = 180;
 				SUNNAD_BUNDLE_DISPLAY_NAME_BUNDLE = Adat;
-				SUNNAD_APP_GROUP_ID = "group.com.arystan.almasuly.sunnad";
+				SUNNAD_APP_GROUP_ID = "group.com.arystan.almasuly.sunnad.prod";
 				SUNNAD_POSTHOG_API_KEY = "";
 				SUNNAD_POSTHOG_HOST = "https://eu.i.posthog.com";
 				SUNNAD_STORAGE_NAMESPACE_BUNDLE = prod;
@@ -943,7 +943,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUNNAD_APP_GROUP_ID = "group.com.arystan.almasuly.sunnad";
+				SUNNAD_APP_GROUP_ID = "group.com.arystan.almasuly.sunnad.prod";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
