@@ -4798,11 +4798,25 @@
         "ru" : { "stringUnit" : { "state" : "translated", "value" : "Показывает неотмеченные привычки за вчера" } }
       }
     },
+    "late_check_in.record_failed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't save. Try again." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Сақтау мүмкін болмады. Қайта көріңіз." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось сохранить. Попробуйте ещё раз." } }
+      }
+    },
     "late_check_in.title" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Record yesterday" } },
         "kk" : { "stringUnit" : { "state" : "translated", "value" : "Кешегі күнді белгілеу" } },
         "ru" : { "stringUnit" : { "state" : "translated", "value" : "Отметить вчера" } }
+      }
+    },
+    "late_check_in.window_closed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Too late to check in for yesterday" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Кешегі белгілеу уақыты өтті" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Время для отметки за вчера истекло" } }
       }
     },
     "notifications.group_reminders" : {

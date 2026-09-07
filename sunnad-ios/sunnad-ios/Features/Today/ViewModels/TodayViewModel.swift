@@ -1,6 +1,12 @@
 import Combine
 import Foundation
 
+enum LateCheckInResult: Equatable {
+    case recorded
+    case windowClosed
+    case storageFailure
+}
+
 @MainActor
 final class TodayViewModel: ObservableObject {
     struct HabitToggleTransaction {
@@ -30,6 +36,7 @@ final class TodayViewModel: ObservableObject {
     private var domainHabitsByID: [UUID: Habit] = [:]
     private var allDomainHabitsByID: [UUID: Habit] = [:]
     private var completionHistoryByHabitID: [UUID: [HabitCompletion]] = [:]
+    private var inFlightLateCheckInHabitIDs: Set<UUID> = []
     private var currentQuote: Quote?
 
     init(
@@ -141,13 +148,29 @@ final class TodayViewModel: ObservableObject {
         isLoading = false
     }
 
-    func recordLateCheckIn(for habitID: UUID) async -> Bool {
+    func recordLateCheckIn(for habitID: UUID) async -> LateCheckInResult {
         let context = DayContext(now: now(), calendar: calendar, timeZone: timeZone)
-        guard context.isWithinLateCheckInWindow,
-              let habit = allDomainHabitsByID[habitID],
-              habit.isDue(on: context.yesterday, calendar: calendar, timeZone: timeZone) else {
-            return false
+        guard context.isWithinLateCheckInWindow else {
+            lateCheckInCandidates.removeAll()
+            return .windowClosed
         }
+        guard let habit = allDomainHabitsByID[habitID],
+              habit.isDue(on: context.yesterday, calendar: calendar, timeZone: timeZone) else {
+            lateCheckInCandidates.removeAll { $0.id == habitID }
+            return .windowClosed
+        }
+        guard !inFlightLateCheckInHabitIDs.contains(habitID) else {
+            return .recorded
+        }
+        guard let previousIndex = lateCheckInCandidates.firstIndex(where: { $0.id == habitID }) else {
+            return .recorded
+        }
+        let candidate = lateCheckInCandidates[previousIndex]
+
+        inFlightLateCheckInHabitIDs.insert(habitID)
+        defer { inFlightLateCheckInHabitIDs.remove(habitID) }
+
+        lateCheckInCandidates.remove(at: previousIndex)
 
         do {
             if let existing = try await completionsRepository.fetchCompletion(
@@ -156,8 +179,7 @@ final class TodayViewModel: ObservableObject {
                 calendar: calendar,
                 timeZone: timeZone
             ), existing.isCompleted(for: habit) {
-                lateCheckInCandidates.removeAll { $0.id == habitID }
-                return true
+                return .recorded
             }
 
             let timestamp = now()
@@ -175,21 +197,39 @@ final class TodayViewModel: ObservableObject {
                 timeZone: timeZone
             )
             completionHistoryByHabitID[habitID] = updatedHistory(for: habitID, completion: completion)
-            lateCheckInCandidates.removeAll { $0.id == habitID }
+            refreshTodayStreakAfterLateCheckIn(for: habit)
             logger.log(.habitToggled, metadata: [
                 "habit_id": habitID.uuidString,
                 "value": "\(habit.normalizedTargetCount)",
                 "source": "late_check_in"
             ])
-            return true
+            return .recorded
         } catch {
             errorMessage = error.localizedDescription
             logger.log(.storageFailure, metadata: [
                 "scope": "late_check_in",
                 "error": error.localizedDescription
             ])
-            return false
+            let rollbackIndex = min(previousIndex, lateCheckInCandidates.count)
+            lateCheckInCandidates.insert(candidate, at: rollbackIndex)
+            return .storageFailure
         }
+    }
+
+    func clearStaleLateCheckInCandidates() {
+        let context = DayContext(now: now(), calendar: calendar, timeZone: timeZone)
+        guard !context.isWithinLateCheckInWindow else { return }
+        lateCheckInCandidates.removeAll()
+    }
+
+    private func refreshTodayStreakAfterLateCheckIn(for habit: Habit) {
+        guard let index = habits.firstIndex(where: { $0.id == habit.id }) else { return }
+        let today = now()
+        habits[index].streak = StreakCalculator.streak(
+            for: habit,
+            completions: completionHistoryByHabitID[habit.id] ?? [],
+            context: DayContext(now: today, calendar: calendar, timeZone: timeZone)
+        )
     }
 
     private static func deduplicatedHabits(_ habits: [Habit]) -> [Habit] {
@@ -372,14 +412,50 @@ final class TodayViewModel: ObservableObject {
         let context = DayContext(now: now, calendar: calendar, timeZone: timeZone)
         guard context.isWithinLateCheckInWindow else { return [] }
 
-        var candidates: [UIHabit] = []
-        for habit in habits where habit.isDue(on: context.yesterday, calendar: calendar, timeZone: timeZone) {
-            let history: [HabitCompletion]
-            if let preloadedHistory = preloadedHistories?[habit.id] {
-                history = preloadedHistory
-            } else {
-                history = try await completionsRepository.fetchCompletions(for: habit.id)
+        let dueHabits = habits.filter {
+            $0.isDue(on: context.yesterday, calendar: calendar, timeZone: timeZone)
+        }
+        let completionsRepository = self.completionsRepository
+        let preloaded = preloadedHistories
+
+        var historiesByHabitID: [UUID: Result<[HabitCompletion], Error>] = [:]
+        historiesByHabitID.reserveCapacity(dueHabits.count)
+
+        await withTaskGroup(of: (UUID, Result<[HabitCompletion], Error>).self) { group in
+            var nextIndex = 0
+            let maxConcurrent = min(8, dueHabits.count)
+
+            func enqueueNext() {
+                guard nextIndex < dueHabits.count else { return }
+                let habit = dueHabits[nextIndex]
+                nextIndex += 1
+                group.addTask {
+                    if let preloadedHistory = preloaded?[habit.id] {
+                        return (habit.id, .success(preloadedHistory))
+                    }
+                    do {
+                        let history = try await completionsRepository.fetchCompletions(for: habit.id)
+                        return (habit.id, .success(history))
+                    } catch {
+                        return (habit.id, .failure(error))
+                    }
+                }
             }
+
+            for _ in 0..<maxConcurrent {
+                enqueueNext()
+            }
+            for await (habitID, history) in group {
+                historiesByHabitID[habitID] = history
+                enqueueNext()
+            }
+        }
+
+        var candidates: [UIHabit] = []
+        candidates.reserveCapacity(dueHabits.count)
+        for habit in dueHabits {
+            guard let historyResult = historiesByHabitID[habit.id] else { continue }
+            let history = try historyResult.get()
             completionHistoryByHabitID[habit.id] = history
             let yesterdayCompletion = history.first {
                 context.calendar.isDate($0.dayDate, inSameDayAs: context.yesterday)

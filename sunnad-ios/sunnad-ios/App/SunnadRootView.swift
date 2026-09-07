@@ -82,6 +82,7 @@ struct SunnadRootView: View {
                     onManage: { state.fullScreen = .schedule },
                     onAddHabit: { state.rootSheet = .addHabit },
                     onLateCheckIn: state.recordLateCheckIn,
+                    onLateCheckInSheetAppear: state.clearStaleLateCheckInCandidates,
                     onOpenQuote: state.openQuoteOfDay
                 )
             }

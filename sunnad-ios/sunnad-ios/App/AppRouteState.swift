@@ -582,11 +582,12 @@ final class AppRouteState: ObservableObject {
         toggleTodayHabit(habitID, source: "groups")
     }
 
-    func recordLateCheckIn(_ habitID: UUID) {
-        Task {
-            guard await todayViewModel.recordLateCheckIn(for: habitID) else { return }
-            await loadTodayData()
-        }
+    func recordLateCheckIn(_ habitID: UUID) async -> LateCheckInResult {
+        await todayViewModel.recordLateCheckIn(for: habitID)
+    }
+
+    func clearStaleLateCheckInCandidates() {
+        todayViewModel.clearStaleLateCheckInCandidates()
     }
 
     func appDidBecomeActive() {

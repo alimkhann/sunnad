@@ -1,11 +1,36 @@
 import SwiftUI
 
 struct TodayView: View {
+    private struct LateCheckInToast: Identifiable, Equatable {
+        enum Style {
+            case rateLimited
+            case error
+
+            var icon: String {
+                switch self {
+                case .rateLimited: return "exclamationmark"
+                case .error: return "xmark"
+                }
+            }
+
+            var color: Color {
+                switch self {
+                case .rateLimited: return .orange
+                case .error: return .red
+                }
+            }
+        }
+
+        let id = UUID()
+        let message: String
+        let style: Style
+    }
+
     @AppStorage("adat.coachmark.firstCompletion.dismissed") private var didDismissFirstCompletionCoachMark = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsCompleted = false
     @State private var showsLateCheckIn = false
-    @State private var selectedLateCheckInHabit: UIHabit?
+    @State private var lateCheckInToast: LateCheckInToast?
     @State private var pendingCelebrationHabitID: UUID?
     @State private var celebrationToken = 0
     @State private var pendingCelebrationResetTask: Task<Void, Never>?
@@ -19,7 +44,8 @@ struct TodayView: View {
     let onSelectHabit: (UIHabit) -> Void
     let onManage: () -> Void
     let onAddHabit: () -> Void
-    let onLateCheckIn: (UUID) -> Void
+    let onLateCheckIn: (UUID) async -> LateCheckInResult
+    let onLateCheckInSheetAppear: () -> Void
     let onOpenQuote: () -> Void
 
     private var completedCount: Int {
@@ -222,14 +248,29 @@ struct TodayView: View {
         }
         .sheet(isPresented: $showsLateCheckIn) {
             NavigationStack {
-                List(lateCheckInCandidates) { habit in
-                    Button {
-                        selectedLateCheckInHabit = habit
-                    } label: {
-                        Label(habit.displayTitle, systemImage: habit.iconSystemName)
-                            .frame(minHeight: 44)
+                ScrollView {
+                    if !lateCheckInCandidates.isEmpty {
+                        Card(contentPadding: 0) {
+                            VStack(spacing: 0) {
+                                ForEach(
+                                    Array(lateCheckInCandidates.enumerated()),
+                                    id: \.element.id
+                                ) { index, habit in
+                                    HabitRowView(
+                                        habit: habit,
+                                        showsChevron: false,
+                                        onTap: {},
+                                        onToggle: { recordLateCheckIn(habit.id) }
+                                    )
+                                    .padding(.horizontal, 16)
+
+                                    if index < lateCheckInCandidates.count - 1 {
+                                        Divider().padding(.leading, 62)
+                                    }
+                                }
+                            }
+                        }
                     }
-                    .buttonStyle(.plain)
                 }
                 .navigationTitle(L10n.t("late_check_in.title"))
                 .navigationBarTitleDisplayMode(.inline)
@@ -238,29 +279,76 @@ struct TodayView: View {
                         Button(L10n.t("common.done")) { showsLateCheckIn = false }
                     }
                 }
-                .confirmationDialog(
-                    L10n.t("late_check_in.confirm.title"),
-                    isPresented: Binding(
-                        get: { selectedLateCheckInHabit != nil },
-                        set: { if !$0 { selectedLateCheckInHabit = nil } }
-                    ),
-                    titleVisibility: .visible
-                ) {
-                    if let selectedLateCheckInHabit {
-                        Button(L10n.t("late_check_in.confirm.action")) {
-                            onLateCheckIn(selectedLateCheckInHabit.id)
-                            self.selectedLateCheckInHabit = nil
+                .overlay(alignment: .top) {
+                    if let lateCheckInToast {
+                        HStack(spacing: 10) {
+                            Image(systemName: lateCheckInToast.style.icon)
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(lateCheckInToast.style.color)
+                            Text(lateCheckInToast.message)
+                                .font(.headline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                                .lineLimit(2)
                         }
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 14)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color(.secondarySystemBackground))
+                        )
+                        .shadow(color: Color.black.opacity(0.16), radius: 16, x: 0, y: 8)
+                        .padding(.top, 6)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
-                    Button(L10n.t("common.cancel"), role: .cancel) {
-                        selectedLateCheckInHabit = nil
-                    }
-                } message: {
-                    Text(L10n.t("late_check_in.confirm.message"))
+                }
+                .animation(.easeInOut(duration: 0.2), value: lateCheckInToast)
+                .task {
+                    onLateCheckInSheetAppear()
+                }
+                .onChange(of: lateCheckInCandidates.count) { _, _ in
+                    dismissLateCheckInSheetIfEligible()
                 }
             }
             .presentationDetents([.medium, .large])
         }
+    }
+
+    private func recordLateCheckIn(_ habitID: UUID) {
+        Task {
+            let result = await onLateCheckIn(habitID)
+            switch result {
+            case .recorded:
+                break
+            case .windowClosed:
+                showLateCheckInToast(
+                    message: L10n.t("late_check_in.window_closed"),
+                    style: .rateLimited
+                )
+            case .storageFailure:
+                showLateCheckInToast(
+                    message: L10n.t("late_check_in.record_failed"),
+                    style: .error
+                )
+            }
+        }
+    }
+
+    private func showLateCheckInToast(message: String, style: LateCheckInToast.Style) {
+        let toast = LateCheckInToast(message: message, style: style)
+        lateCheckInToast = toast
+
+        Task {
+            try? await Task.sleep(for: .seconds(2.2))
+            if lateCheckInToast?.id == toast.id {
+                lateCheckInToast = nil
+                dismissLateCheckInSheetIfEligible()
+            }
+        }
+    }
+
+    private func dismissLateCheckInSheetIfEligible() {
+        guard lateCheckInCandidates.isEmpty, lateCheckInToast == nil else { return }
+        showsLateCheckIn = false
     }
 
     private func completeHabitToggle(_ habitID: UUID) {

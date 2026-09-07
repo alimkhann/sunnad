@@ -252,7 +252,7 @@ struct TodayViewModelTests {
 
         await vm.loadToday()
         #expect(vm.lateCheckInCandidates.map(\.id) == [habit.id])
-        #expect(await vm.recordLateCheckIn(for: habit.id))
+        #expect(await vm.recordLateCheckIn(for: habit.id) == .recorded)
 
         let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: now))!
         let recorded = try #require(await completionsRepo.fetchCompletion(
@@ -286,7 +286,155 @@ struct TodayViewModelTests {
 
         await vm.loadToday()
         #expect(vm.lateCheckInCandidates.isEmpty)
-        #expect(!(await vm.recordLateCheckIn(for: habit.id)))
+        #expect(await vm.recordLateCheckIn(for: habit.id) == .windowClosed)
+    }
+
+    @Test
+    func lateCheckInRemovesCandidateOptimisticallyBeforePersistence() async {
+        let timeZone = TimeZone(identifier: "Asia/Almaty")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 29, hour: 3, minute: 30))!
+        let habit = Habit(name: "Read", icon: "book", type: .binary, schedule: .daily)
+        let gate = UpsertGate()
+        let vm = TodayViewModel(
+            habitsRepository: FakeHabitsRepository(habits: [habit]),
+            completionsRepository: GatedCompletionsRepository(
+                base: FakeCompletionsRepository(completionsByHabit: [habit.id: []]),
+                gate: gate
+            ),
+            quotesRepository: FakeQuotesRepository(quoteOfDay: nil),
+            logger: TestLogger(),
+            localeCode: "en",
+            calendar: calendar,
+            timeZone: timeZone,
+            now: { now }
+        )
+
+        await vm.loadToday()
+        #expect(vm.lateCheckInCandidates.map(\.id) == [habit.id])
+
+        let recordTask = Task { await vm.recordLateCheckIn(for: habit.id) }
+        await gate.waitUntilWaiting()
+        #expect(vm.lateCheckInCandidates.isEmpty)
+
+        gate.open()
+        let result = await recordTask.value
+        #expect(result == .recorded)
+    }
+
+    @Test
+    func lateCheckInFailureReinsertsCandidateAtOriginalIndex() async {
+        let timeZone = TimeZone(identifier: "Asia/Almaty")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 29, hour: 3, minute: 30))!
+        let firstHabit = Habit(name: "Read", icon: "book", type: .binary, schedule: .daily)
+        let secondHabit = Habit(name: "Pray", icon: "star", type: .binary, schedule: .daily)
+        let vm = TodayViewModel(
+            habitsRepository: FakeHabitsRepository(habits: [firstHabit, secondHabit]),
+            completionsRepository: ThrowingCompletionsRepository(),
+            quotesRepository: FakeQuotesRepository(quoteOfDay: nil),
+            logger: TestLogger(),
+            localeCode: "en",
+            calendar: calendar,
+            timeZone: timeZone,
+            now: { now }
+        )
+
+        await vm.loadToday()
+        #expect(vm.lateCheckInCandidates.map(\.id) == [firstHabit.id, secondHabit.id])
+
+        let result = await vm.recordLateCheckIn(for: secondHabit.id)
+
+        #expect(result == .storageFailure)
+        #expect(vm.lateCheckInCandidates.map(\.id) == [firstHabit.id, secondHabit.id])
+    }
+
+    @Test
+    func lateCheckInWindowClosedAtTapClearsCandidates() async {
+        let timeZone = TimeZone(identifier: "Asia/Almaty")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        var nowDate = calendar.date(from: DateComponents(year: 2026, month: 8, day: 29, hour: 3, minute: 59))!
+        let habit = Habit(name: "Read", icon: "book", type: .binary, schedule: .daily)
+        let vm = TodayViewModel(
+            habitsRepository: FakeHabitsRepository(habits: [habit]),
+            completionsRepository: FakeCompletionsRepository(completionsByHabit: [habit.id: []]),
+            quotesRepository: FakeQuotesRepository(quoteOfDay: nil),
+            logger: TestLogger(),
+            localeCode: "en",
+            calendar: calendar,
+            timeZone: timeZone,
+            now: { nowDate }
+        )
+
+        await vm.loadToday()
+        #expect(vm.lateCheckInCandidates.map(\.id) == [habit.id])
+
+        nowDate = calendar.date(from: DateComponents(year: 2026, month: 8, day: 29, hour: 4))!
+        let result = await vm.recordLateCheckIn(for: habit.id)
+
+        #expect(result == .windowClosed)
+        #expect(vm.lateCheckInCandidates.isEmpty)
+    }
+
+    @Test
+    func clearStaleLateCheckInCandidatesClearsOnlyOutsideWindow() async {
+        let timeZone = TimeZone(identifier: "Asia/Almaty")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        var nowDate = calendar.date(from: DateComponents(year: 2026, month: 8, day: 29, hour: 3, minute: 59))!
+        let habit = Habit(name: "Read", icon: "book", type: .binary, schedule: .daily)
+        let vm = TodayViewModel(
+            habitsRepository: FakeHabitsRepository(habits: [habit]),
+            completionsRepository: FakeCompletionsRepository(completionsByHabit: [habit.id: []]),
+            quotesRepository: FakeQuotesRepository(quoteOfDay: nil),
+            logger: TestLogger(),
+            localeCode: "en",
+            calendar: calendar,
+            timeZone: timeZone,
+            now: { nowDate }
+        )
+
+        await vm.loadToday()
+        #expect(vm.lateCheckInCandidates.map(\.id) == [habit.id])
+
+        vm.clearStaleLateCheckInCandidates()
+        #expect(vm.lateCheckInCandidates.map(\.id) == [habit.id])
+
+        nowDate = calendar.date(from: DateComponents(year: 2026, month: 8, day: 29, hour: 4, minute: 5))!
+        vm.clearStaleLateCheckInCandidates()
+        #expect(vm.lateCheckInCandidates.isEmpty)
+    }
+
+    @Test
+    func lateCheckInRecomputesTodayStreakWithoutFullReload() async {
+        let timeZone = TimeZone(identifier: "Asia/Almaty")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let now = calendar.date(from: DateComponents(year: 2026, month: 8, day: 29, hour: 3, minute: 59))!
+        let habit = Habit(name: "Read", icon: "book", type: .binary, schedule: .daily)
+        let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: now))!
+        let twoDaysAgoCompletion = HabitCompletion(habitID: habit.id, dayDate: twoDaysAgo, value: 1)
+        let vm = TodayViewModel(
+            habitsRepository: FakeHabitsRepository(habits: [habit]),
+            completionsRepository: FakeCompletionsRepository(completionsByHabit: [habit.id: [twoDaysAgoCompletion]]),
+            quotesRepository: FakeQuotesRepository(quoteOfDay: nil),
+            logger: TestLogger(),
+            localeCode: "en",
+            calendar: calendar,
+            timeZone: timeZone,
+            now: { now }
+        )
+
+        await vm.loadToday()
+        #expect(vm.habits.first?.streak == 1)
+
+        let result = await vm.recordLateCheckIn(for: habit.id)
+
+        #expect(result == .recorded)
+        #expect(vm.habits.first?.streak == 2)
     }
 
     private var fixedDate: Date {
@@ -368,6 +516,73 @@ final class ThrowingCompletionsRepository: CompletionsRepository, @unchecked Sen
     }
 
     func deleteCompletion(habitID: UUID, on day: Date, calendar: Calendar, timeZone: TimeZone) async throws {}
+}
+
+final class UpsertGate: @unchecked Sendable {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isWaitingFlag = false
+    private let lock = NSLock()
+
+    private var isWaiting: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isWaitingFlag
+    }
+
+    func waitUntilWaiting() async {
+        while !isWaiting {
+            await Task.yield()
+        }
+    }
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            self.continuation = continuation
+            isWaitingFlag = true
+            lock.unlock()
+        }
+    }
+
+    func open() {
+        lock.lock()
+        let continuation = self.continuation
+        self.continuation = nil
+        isWaitingFlag = false
+        lock.unlock()
+        continuation?.resume()
+    }
+}
+
+final class GatedCompletionsRepository: CompletionsRepository, @unchecked Sendable {
+    let base: FakeCompletionsRepository
+    let gate: UpsertGate
+
+    init(base: FakeCompletionsRepository, gate: UpsertGate) {
+        self.base = base
+        self.gate = gate
+    }
+
+    func fetchCompletions(on day: Date, calendar: Calendar, timeZone: TimeZone) async throws -> [HabitCompletion] {
+        try await base.fetchCompletions(on: day, calendar: calendar, timeZone: timeZone)
+    }
+
+    func fetchCompletions(for habitID: UUID) async throws -> [HabitCompletion] {
+        try await base.fetchCompletions(for: habitID)
+    }
+
+    func fetchCompletion(habitID: UUID, on day: Date, calendar: Calendar, timeZone: TimeZone) async throws -> HabitCompletion? {
+        try await base.fetchCompletion(habitID: habitID, on: day, calendar: calendar, timeZone: timeZone)
+    }
+
+    func upsertCompletion(_ completion: HabitCompletion, calendar: Calendar, timeZone: TimeZone) async throws {
+        await gate.wait()
+        try await base.upsertCompletion(completion, calendar: calendar, timeZone: timeZone)
+    }
+
+    func deleteCompletion(habitID: UUID, on day: Date, calendar: Calendar, timeZone: TimeZone) async throws {
+        try await base.deleteCompletion(habitID: habitID, on: day, calendar: calendar, timeZone: timeZone)
+    }
 }
 
 final class FakeCompletionsRepository: CompletionsRepository, @unchecked Sendable {
