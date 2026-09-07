@@ -1,5 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  apnsTopicForEnvironment,
   isInvalidAPNsTokenResponse,
   localDay,
   normalizeAPNsEnvironment,
@@ -45,6 +46,21 @@ Deno.test("normalizes APNs environment and invalid-token responses", () => {
   assertEquals(isInvalidAPNsTokenResponse(400, "BadDeviceToken"), true);
   assertEquals(isInvalidAPNsTokenResponse(410, "Unregistered"), true);
   assertEquals(isInvalidAPNsTokenResponse(500, "InternalServerError"), false);
+});
+
+Deno.test("selects the APNs topic per environment", () => {
+  const topics = {
+    development: "com.arystan.almasuly.sunnad.dev",
+    production: "com.arystan.almasuly.sunnad",
+  };
+  assertEquals(
+    apnsTopicForEnvironment("development", topics),
+    "com.arystan.almasuly.sunnad.dev",
+  );
+  assertEquals(
+    apnsTopicForEnvironment("production", topics),
+    "com.arystan.almasuly.sunnad",
+  );
 });
 
 Deno.test("localizes recipient-facing copy", () => {

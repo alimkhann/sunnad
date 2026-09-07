@@ -1708,9 +1708,20 @@ final class AppRouteState: ObservableObject {
                 Task {
                     await self.syncProfileContextIfNeeded()
                     await self.loadTodayData()
+                    await self.syncDeviceTokenForCurrentUserIfAuthorized()
                 }
             }
             .store(in: &cancellables)
+    }
+
+    private func syncDeviceTokenForCurrentUserIfAuthorized() async {
+        guard let userID = currentSessionUserID else { return }
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        guard status == .authorized || status == .provisional || status == .ephemeral else {
+            return
+        }
+        await APNsRegistrationBridge.shared.refreshRegistrationIfAuthorized()
+        await dependencies.deviceTokenSyncService.syncCurrentDeviceToken(for: userID)
     }
 
     private func bindDeviceTokenNotifications() {

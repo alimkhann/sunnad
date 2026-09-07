@@ -797,6 +797,8 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
     private let userDefaults: UserDefaults
     private let installationIdentifierStore: InstallationIdentifierStore
     private let apnsEnvironment: String
+    private let syncStateLock = NSLock()
+    private var lastSyncDidFail = false
 
     init(
         client: SupabaseClient,
@@ -818,6 +820,8 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
             logger.log(.syncFinished, metadata: ["scope": "device_token", "status": "skipped_no_token"])
             return
         }
+
+        let isRetryAfterFailure = readLastSyncDidFail()
 
         let row = DeviceTokenRow(
             userID: userID,
@@ -845,15 +849,20 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
                 .insert(row)
                 .execute()
 
+            setLastSyncDidFail(false)
+
             logger.log(
                 .syncFinished,
                 metadata: [
                     "scope": "device_token",
                     "status": "upserted",
-                    "environment": apnsEnvironment
+                    "environment": apnsEnvironment,
+                    "retry_after_failure": isRetryAfterFailure ? "true" : "false"
                 ]
             )
         } catch {
+            setLastSyncDidFail(true)
+
             logger.log(
                 .storageFailure,
                 metadata: [
@@ -862,6 +871,18 @@ final class SupabaseDeviceTokenSyncService: DeviceTokenSyncing, @unchecked Senda
                 ]
             )
         }
+    }
+
+    private func readLastSyncDidFail() -> Bool {
+        syncStateLock.lock()
+        defer { syncStateLock.unlock() }
+        return lastSyncDidFail
+    }
+
+    private func setLastSyncDidFail(_ value: Bool) {
+        syncStateLock.lock()
+        defer { syncStateLock.unlock() }
+        lastSyncDidFail = value
     }
 
     func setGroupRemindersEnabled(_ enabled: Bool, for userID: UUID) async {

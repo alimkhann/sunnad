@@ -202,6 +202,8 @@ struct GroupDetailView: View {
                 .shadow(color: Color.black.opacity(0.16), radius: 16, x: 0, y: 8)
                 .padding(.top, 6)
                 .transition(.move(edge: .top).combined(with: .opacity))
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("groups.reminder.toast")
             }
         }
         .animation(.easeInOut(duration: 0.2), value: reminderToast)
@@ -613,6 +615,7 @@ struct GroupDetailView: View {
             .buttonStyle(.plain)
             .disabled(isPendingReminder)
             .accessibilityLabel(L10n.t("groups.reminder.send"))
+            .accessibilityIdentifier("groups.reminder.bell")
         }
     }
 
@@ -830,6 +833,7 @@ private struct ReminderPromptSheet: View {
         } footer: {
             VStack(spacing: 10) {
                 PrimaryButton(title: L10n.t("groups.reminder.send"), action: onSend)
+                    .accessibilityIdentifier("groups.reminder.send.button")
                 SecondaryButton(title: L10n.t("common.cancel"), action: onCancel)
             }
         }

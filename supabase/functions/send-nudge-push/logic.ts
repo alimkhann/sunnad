@@ -46,6 +46,18 @@ export function localDay(date: Date, timeZone: string): string {
 
 export type APNsEnvironment = "development" | "production";
 
+export type APNsTopics = {
+  development: string;
+  production: string;
+};
+
+export function apnsTopicForEnvironment(
+  environment: APNsEnvironment,
+  topics: APNsTopics,
+): string {
+  return environment === "development" ? topics.development : topics.production;
+}
+
 export function normalizeAPNsToken(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim().toLowerCase();

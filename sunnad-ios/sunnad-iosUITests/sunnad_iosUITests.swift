@@ -348,18 +348,21 @@ final class sunnad_iosUITests: XCTestCase {
         )
         XCTAssertGreaterThanOrEqual(memberRows.count, 2)
 
-        let reminderButton = app.buttons["Send reminder"].firstMatch
+        let reminderButton = app.buttons["groups.reminder.bell"].firstMatch
         for index in 0..<memberRows.count where !reminderButton.exists {
             memberRows.element(boundBy: index).tap()
         }
         XCTAssertTrue(reminderButton.waitForExistence(timeout: 5))
         reminderButton.tap()
 
-        let sendButtons = app.buttons.matching(identifier: "Send reminder")
-        let confirmButton = sendButtons.element(boundBy: max(sendButtons.count - 1, 0))
+        let confirmButton = app.buttons["groups.reminder.send.button"].firstMatch
         XCTAssertTrue(confirmButton.waitForExistence(timeout: 5))
         confirmButton.tap()
-        XCTAssertTrue(app.staticTexts["Reminder sent"].waitForExistence(timeout: 15))
+
+        let reminderToast = app.descendants(matching: .any)
+            .matching(identifier: "groups.reminder.toast")
+            .firstMatch
+        XCTAssertTrue(reminderToast.waitForExistence(timeout: 15))
     }
 
     private func makeApp() -> XCUIApplication {

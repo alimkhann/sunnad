@@ -53,8 +53,9 @@ Create `dev` and `prod` GitHub environments with:
 - `SUPABASE_ACCESS_TOKEN`
 - `SUPABASE_DB_URL`
 - `SUPABASE_PROJECT_REF`
-- `SUPABASE_FUNCTIONS_ONESIGNAL_APP_ID` (only if deploying `send-nudge-push`)
-- `SUPABASE_FUNCTIONS_ONESIGNAL_REST_API_KEY` (only if deploying `send-nudge-push`)
+
+Push/APNs secrets live in Supabase project secrets (set via `supabase secrets set`,
+see "Edge Functions" below) — never store them in GitHub.
 
 ## iOS runtime config model (build-time first, env second)
 The app now reads Supabase/OAuth config from `Info.plist` bundle keys first.
@@ -200,18 +201,41 @@ Hosted dev/prod parity steps:
   - `supabase/functions/delete-account/index.ts`
   - `supabase/functions/send-nudge-push/index.ts`
 - Required runtime secrets:
+  - `SUPABASE_URL` (both functions; set by the platform on `functions deploy`, verify it exists)
+  - `SUPABASE_ANON_KEY` (`send-nudge-push`; platform-provided, verify it exists)
   - `SUPABASE_SERVICE_ROLE_KEY` (both functions)
-  - `ONESIGNAL_APP_ID` (`send-nudge-push`)
-  - `ONESIGNAL_REST_API_KEY` (`send-nudge-push`)
+  - `APNS_TEAM_ID` (`send-nudge-push`; 10-char Team ID from Membership page)
+  - `APNS_KEY_ID` (`send-nudge-push`; 10-char Key ID of the APNs-enabled .p8 key)
+  - `APNS_PRIVATE_KEY` (`send-nudge-push`; full contents of the .p8 file, never committed)
+  - `APNS_BUNDLE_ID_DEV` (`send-nudge-push`; `com.arystan.almasuly.sunnad.dev`)
+  - `APNS_BUNDLE_ID_PROD` (`send-nudge-push`; `com.arystan.almasuly.sunnad`)
+  - Legacy fallback: `APNS_BUNDLE_ID` alone makes the function use it for both
+    environments (logged as a warning). Prefer the per-environment pair.
+- Per-environment APNs topic mapping (in `send-nudge-push`):
+  - token row `apns_environment = development` -> host `api.sandbox.push.apple.com`, topic `APNS_BUNDLE_ID_DEV`
+  - token row `apns_environment = production` (or NULL) -> host `api.push.apple.com`, topic `APNS_BUNDLE_ID_PROD`
 - Set secrets per project (dev/prod) before deploy:
   - `supabase secrets set SUPABASE_SERVICE_ROLE_KEY=... --project-ref <ref>`
-  - `supabase secrets set ONESIGNAL_APP_ID=... ONESIGNAL_REST_API_KEY=... --project-ref <ref>`
+  - `supabase secrets set --project-ref <ref> \
+      APNS_TEAM_ID=<TEAMID10> \
+      APNS_KEY_ID=<KEYID10> \
+      APNS_PRIVATE_KEY="$(cat ~/secrets/AuthKey_<KEYID10>.p8)" \
+      APNS_BUNDLE_ID_DEV=com.arystan.almasuly.sunnad.dev \
+      APNS_BUNDLE_ID_PROD=com.arystan.almasuly.sunnad`
 - Deploy manually:
   - `supabase functions deploy delete-account --project-ref <ref>`
   - `supabase functions deploy send-nudge-push --project-ref <ref>`
+- Canonical project ref (iOS app pairing):
+  - The iOS app (Debug and Release) points at `artwfvypcdacdpqhciqt` (adat-prod) via
+    `SUNNAD_SUPABASE_URL_BUNDLE` build settings. `wejnrzlxnesqhbtvgdga` (adat-dev) exists
+    for isolated experiments only; do not treat it as the app's backend.
 - Behavior notes:
   - `delete-account` now removes profile avatar storage objects (`avatars/profiles/<user_id>/...`) before user deletion.
   - `send-nudge-push` requires authenticated bearer token; if iOS logs show `groups_send_nudge 401`, verify session refresh + function deployment parity.
+  - `send-nudge-push` returns 500 `Function is not configured: missing <names>` when any
+    required secret is absent — the missing names are listed in the error for triage.
+  - APNs 400/410 responses delete the offending `device_tokens` rows; the iOS app
+    re-upserts the token on next foreground/sign-in, so recovery is automatic.
 
 ## Stage 9 quote-admin functions
 - New functions:

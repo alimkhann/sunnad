@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 import {
+  apnsTopicForEnvironment,
   isInvalidAPNsTokenResponse,
   localDay,
   normalizeAPNsEnvironment,
@@ -9,6 +10,7 @@ import {
   normalizeTimeZone,
   nudgeBody,
   parseNudgeRequest,
+  type APNsTopics,
 } from "./logic.ts";
 
 type AdminClient = ReturnType<typeof createClient<any>>;
@@ -35,14 +37,15 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }, 405);
   }
 
-  const config = readConfig();
-  if (!config) {
+  const configResult = readConfig();
+  if (!configResult.ok) {
     return respond({
       status: "error",
-      error: "Function is not configured",
+      error: `Function is not configured: missing ${configResult.missing.join(", ")}`,
       delivered: false,
     }, 500);
   }
+  const config = configResult.config;
 
   const authorization = request.headers.get("Authorization");
   if (!authorization) {
@@ -386,7 +389,10 @@ async function sendAPNs(
         headers: {
           "Content-Type": "application/json",
           Authorization: `bearer ${providerToken}`,
-          "apns-topic": config.apnsBundleID,
+          "apns-topic": apnsTopicForEnvironment(
+            registration.environment,
+            config.apnsTopics,
+          ),
           "apns-push-type": "alert",
           "apns-priority": "10",
           "apns-expiration": String(Math.floor(Date.now() / 1000) + 3600),
@@ -415,10 +421,14 @@ type APNsConfig = {
   apnsTeamID: string;
   apnsKeyID: string;
   apnsPrivateKey: string;
-  apnsBundleID: string;
+  apnsTopics: APNsTopics;
 };
 
-function readConfig(): APNsConfig | null {
+type ConfigResult =
+  | { ok: true; config: APNsConfig }
+  | { ok: false; missing: string[] };
+
+function readConfig(): ConfigResult {
   const supabaseURL = Deno.env.get("SUPABASE_URL");
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -428,19 +438,46 @@ function readConfig(): APNsConfig | null {
     "\\n",
     "\n",
   );
-  const apnsBundleID = Deno.env.get("APNS_BUNDLE_ID");
-  return supabaseURL && supabaseAnonKey && serviceRoleKey &&
-      apnsTeamID && apnsKeyID && apnsPrivateKey && apnsBundleID
-    ? {
-      supabaseURL,
-      supabaseAnonKey,
-      serviceRoleKey,
-      apnsTeamID,
-      apnsKeyID,
-      apnsPrivateKey,
-      apnsBundleID,
-    }
-    : null;
+  const apnsBundleIDDev = Deno.env.get("APNS_BUNDLE_ID_DEV");
+  const apnsBundleIDProd = Deno.env.get("APNS_BUNDLE_ID_PROD");
+  const legacyBundleID = Deno.env.get("APNS_BUNDLE_ID");
+
+  const missing: string[] = [];
+  if (!supabaseURL) missing.push("SUPABASE_URL");
+  if (!supabaseAnonKey) missing.push("SUPABASE_ANON_KEY");
+  if (!serviceRoleKey) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  if (!apnsTeamID) missing.push("APNS_TEAM_ID");
+  if (!apnsKeyID) missing.push("APNS_KEY_ID");
+  if (!apnsPrivateKey) missing.push("APNS_PRIVATE_KEY");
+  if (!apnsBundleIDDev && !legacyBundleID) missing.push("APNS_BUNDLE_ID_DEV");
+  if (!apnsBundleIDProd && !legacyBundleID) missing.push("APNS_BUNDLE_ID_PROD");
+
+  if (missing.length > 0) {
+    return { ok: false, missing };
+  }
+
+  if (!apnsBundleIDDev || !apnsBundleIDProd) {
+    console.warn("send-nudge-push:legacy_apns_topic_fallback", {
+      detail:
+        "APNS_BUNDLE_ID_DEV/APNS_BUNDLE_ID_PROD not fully set; using legacy APNS_BUNDLE_ID for both environments",
+    });
+  }
+
+  return {
+    ok: true,
+    config: {
+      supabaseURL: supabaseURL!,
+      supabaseAnonKey: supabaseAnonKey!,
+      serviceRoleKey: serviceRoleKey!,
+      apnsTeamID: apnsTeamID!,
+      apnsKeyID: apnsKeyID!,
+      apnsPrivateKey: apnsPrivateKey!,
+      apnsTopics: {
+        development: apnsBundleIDDev ?? legacyBundleID!,
+        production: apnsBundleIDProd ?? legacyBundleID!,
+      },
+    },
+  };
 }
 
 function respond(body: NudgeResponse, status: number): Response {

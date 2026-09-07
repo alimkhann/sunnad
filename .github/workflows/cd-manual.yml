@@ -46,6 +46,27 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: supabase db push --db-url "$SUPABASE_DB_URL"
 
+      - name: Verify function runtime secrets
+        if: ${{ inputs.deploy_functions }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          # Preflight: send-nudge-push requires these runtime secret names.
+          # Values are never read or stored here — only names are checked.
+          required="SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY APNS_TEAM_ID APNS_KEY_ID APNS_PRIVATE_KEY APNS_BUNDLE_ID_DEV APNS_BUNDLE_ID_PROD"
+          names="$(supabase secrets list --project-ref "$SUPABASE_PROJECT_REF")"
+          missing=""
+          for name in $required; do
+            echo "$names" | grep -qE "(^|[[:space:]])$name([[:space:]]|$)" || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "Missing Supabase function secrets:$missing"
+            echo "Set them with: supabase secrets set --project-ref $SUPABASE_PROJECT_REF <NAME>=<value>"
+            exit 1
+          fi
+          echo "All required function secrets present."
+
       - name: Deploy edge functions
         if: ${{ inputs.deploy_functions }}
         env:
