@@ -166,8 +166,8 @@ final class UserNotificationReminderScheduler: LocalReminderScheduling, Reminder
 
     private func addRequest(id: String, habit: Habit, trigger: UNNotificationTrigger) async {
         let content = UNMutableNotificationContent()
-        content.title = L10n.t("notifications.habit_reminders")
-        content.body = habit.name
+        content.title = L10n.t("notifications.habit_reminder.title")
+        content.body = String(format: L10n.t("notifications.habit_reminder.body"), habit.name)
         content.sound = .default
         content.userInfo = ["habit_id": habit.id.uuidString]
 

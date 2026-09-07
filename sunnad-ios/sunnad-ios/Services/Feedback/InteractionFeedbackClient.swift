@@ -19,7 +19,7 @@ final class SystemInteractionFeedbackClient: InteractionFeedbackClient {
     func dhikrIncremented(hapticsEnabled: Bool) {
         guard hapticsEnabled else { return }
         lightImpact.prepare()
-        lightImpact.impactOccurred(intensity: 0.55)
+        lightImpact.impactOccurred(intensity: 0.9)
     }
 
     func dhikrTargetReached(hapticsEnabled: Bool, soundsEnabled: Bool) {

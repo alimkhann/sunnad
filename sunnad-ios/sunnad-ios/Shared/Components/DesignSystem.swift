@@ -236,6 +236,7 @@ struct ScreenScaffold<Content: View, Footer: View>: View {
                 .padding(.bottom, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .scrollDismissesKeyboard(.immediately)
 
             if Footer.self != EmptyView.self {
                 footer
@@ -245,6 +246,7 @@ struct ScreenScaffold<Content: View, Footer: View>: View {
                     .background(SunnadTheme.background)
             }
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .background(SunnadTheme.background.ignoresSafeArea())
     }
 

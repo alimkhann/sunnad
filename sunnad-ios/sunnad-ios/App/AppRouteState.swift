@@ -612,6 +612,9 @@ final class AppRouteState: ObservableObject {
         switch url.host {
         case "today":
             activeTab = .today
+            if url.path == "/add" {
+                rootSheet = .addHabit
+            }
         case "groups":
             activeTab = .groups
         default:

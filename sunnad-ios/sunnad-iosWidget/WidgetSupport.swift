@@ -50,11 +50,26 @@ struct WidgetSnapshotEntry: TimelineEntry {
     let snapshot: TodaySnapshot?
     let configurationHabit: WidgetHabitEntity?
     let configurationDhikr: WidgetDhikrEntity?
+    let configurationGroup: WidgetGroupEntity?
+
+    init(
+        date: Date,
+        snapshot: TodaySnapshot?,
+        configurationHabit: WidgetHabitEntity? = nil,
+        configurationDhikr: WidgetDhikrEntity? = nil,
+        configurationGroup: WidgetGroupEntity? = nil
+    ) {
+        self.date = date
+        self.snapshot = snapshot
+        self.configurationHabit = configurationHabit
+        self.configurationDhikr = configurationDhikr
+        self.configurationGroup = configurationGroup
+    }
 }
 
 struct SnapshotTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> WidgetSnapshotEntry {
-        WidgetSnapshotEntry(date: Date(), snapshot: nil, configurationHabit: nil, configurationDhikr: nil)
+        WidgetSnapshotEntry(date: Date(), snapshot: nil)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (WidgetSnapshotEntry) -> Void) {
@@ -68,18 +83,16 @@ struct SnapshotTimelineProvider: TimelineProvider {
     private func entry() -> WidgetSnapshotEntry {
         WidgetSnapshotEntry(
             date: Date(),
-            snapshot: WidgetSharedStore.makeShared()?.readSnapshot(),
-            configurationHabit: nil,
-            configurationDhikr: nil
+            snapshot: WidgetSharedStore.makeShared()?.readSnapshot()
         )
     }
 }
 
 struct ConfigurableSnapshotProvider<Intent: WidgetConfigurationIntent>: AppIntentTimelineProvider {
-    let mapConfiguration: (Intent) -> (habit: WidgetHabitEntity?, dhikr: WidgetDhikrEntity?)
+    let mapConfiguration: (Intent) -> (habit: WidgetHabitEntity?, dhikr: WidgetDhikrEntity?, group: WidgetGroupEntity?)
 
     func placeholder(in context: Context) -> WidgetSnapshotEntry {
-        WidgetSnapshotEntry(date: Date(), snapshot: nil, configurationHabit: nil, configurationDhikr: nil)
+        WidgetSnapshotEntry(date: Date(), snapshot: nil)
     }
 
     func snapshot(for configuration: Intent, in context: Context) async -> WidgetSnapshotEntry {
@@ -96,7 +109,8 @@ struct ConfigurableSnapshotProvider<Intent: WidgetConfigurationIntent>: AppInten
             date: Date(),
             snapshot: WidgetSharedStore.makeShared()?.readSnapshot(),
             configurationHabit: mapped.habit,
-            configurationDhikr: mapped.dhikr
+            configurationDhikr: mapped.dhikr,
+            configurationGroup: mapped.group
         )
     }
 }
@@ -170,5 +184,40 @@ struct WidgetDhikrQuery: EntityQuery {
             .map { habit in
                 WidgetDhikrEntity(id: habit.id.uuidString, title: habit.title)
             }
+    }
+}
+
+struct WidgetGroupEntity: AppEntity, Identifiable, Hashable, Codable, Sendable {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: LocalizedStringResource("widgets.intents.param.group"))
+    static let defaultQuery = WidgetGroupQuery()
+
+    let id: String
+    let title: String
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(title: "\(title)")
+    }
+}
+
+struct WidgetGroupQuery: EntityQuery {
+    func entities(for identifiers: [String]) async throws -> [WidgetGroupEntity] {
+        allGroups().filter { identifiers.contains($0.id) }
+    }
+
+    func suggestedEntities() async throws -> [WidgetGroupEntity] {
+        allGroups()
+    }
+
+    func defaultResult() async throws -> WidgetGroupEntity? {
+        allGroups().first
+    }
+
+    private func allGroups() -> [WidgetGroupEntity] {
+        guard let snapshot = WidgetSharedStore.makeShared()?.readSnapshot() else {
+            return []
+        }
+        return snapshot.groups.map { group in
+            WidgetGroupEntity(id: group.id.uuidString, title: group.name)
+        }
     }
 }

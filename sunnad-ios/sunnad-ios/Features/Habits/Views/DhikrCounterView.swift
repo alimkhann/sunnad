@@ -19,7 +19,10 @@ struct DhikrCounterView: View {
     private let builtInPhraseKeys = [
         "dhikr.choice.subhanallah",
         "dhikr.choice.alhamdulillah",
-        "dhikr.choice.allahu_akbar"
+        "dhikr.choice.allahu_akbar",
+        "dhikr.choice.la_ilaha_illa_allah",
+        "dhikr.choice.astaghfirullah",
+        "dhikr.choice.subhanallah_wa_bihamdih"
     ]
     private let targetPresets = [33, 99, 100, 1_000]
     private let customSelection = "custom"
@@ -60,16 +63,19 @@ struct DhikrCounterView: View {
                 Text(L10n.t("dhikr.phrase"))
                     .font(.subheadline.weight(.semibold))
                 Spacer()
-                Picker(L10n.t("dhikr.phrase"), selection: phraseSelection) {
-                    ForEach(builtInPhraseKeys, id: \.self) { key in
-                        Text(L10n.t(key)).tag(key)
-                    }
-                    Text(L10n.t("dhikr.custom_phrase")).tag(customSelection)
-                }
-                .labelsHidden()
-                .fontWeight(.medium)
-                .accessibilityIdentifier("dhikr.phrase.picker")
             }
+
+            Picker(L10n.t("dhikr.phrase"), selection: phraseSelection) {
+                ForEach(builtInPhraseKeys, id: \.self) { key in
+                    Text(L10n.t(key)).tag(key)
+                }
+                Text(L10n.t("dhikr.custom_phrase")).tag(customSelection)
+            }
+            .labelsHidden()
+            .fontWeight(.medium)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("dhikr.phrase.picker")
 
             if phraseSelection.wrappedValue == customSelection {
                 TextField(
@@ -162,9 +168,11 @@ struct DhikrCounterView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(Color(.quaternarySystemFill)))
+                    .frame(maxWidth: 208)
             }
         }
         .frame(maxWidth: 272, maxHeight: 272)

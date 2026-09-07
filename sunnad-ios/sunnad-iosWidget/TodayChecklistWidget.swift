@@ -22,8 +22,23 @@ private struct TodayChecklistEntryView: View {
         entry.snapshot?.habits ?? []
     }
 
+    /// Uncompleted habits first so completing an item pulls the next one up.
+    private var prioritizedHabits: [HabitSnapshot] {
+        habits.enumerated().sorted { lhs, rhs in
+            if lhs.element.completedToday != rhs.element.completedToday {
+                return !lhs.element.completedToday
+            }
+            return lhs.offset < rhs.offset
+        }
+        .map(\.element)
+    }
+
     private var visibleHabits: [HabitSnapshot] {
-        Array(habits.prefix(family == .systemLarge ? 8 : 5))
+        Array(prioritizedHabits.prefix(family == .systemLarge ? 8 : 3))
+    }
+
+    private var remainingCount: Int {
+        habits.filter { !$0.completedToday }.count
     }
 
     var body: some View {
@@ -41,25 +56,53 @@ private struct TodayChecklistEntryView: View {
         } else if habits.isEmpty {
             emptyState
         } else {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
+                header
+                Divider()
+                    .padding(.vertical, 2)
                 ForEach(visibleHabits, id: \.id) { habit in
                     WidgetHabitRowView(habit: habit)
                     if habit.id != visibleHabits.last?.id {
                         Divider()
                     }
                 }
-                if habits.count > visibleHabits.count {
-                    Text(L10n.t("widgets.more", habits.count - visibleHabits.count))
+                if prioritizedHabits.count > visibleHabits.count {
+                    Text(L10n.t("widgets.more", prioritizedHabits.count - visibleHabits.count))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
-                Text(L10n.t("widgets.today.progress", "\(entry.snapshot?.completedCount ?? 0)", "\(entry.snapshot?.totalCount ?? 0)"))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
             }
             .padding(4)
         }
+    }
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Text(L10n.t("tab.today"))
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Text(L10n.t("widgets.today.remaining", "\(remainingCount)", "\(habits.count)"))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Spacer(minLength: 4)
+
+            Link(destination: URL(string: "adat://today/add")!) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(WidgetTheme.primary)
+                    .frame(width: 30, height: 30)
+            }
+            .accessibilityLabel(L10n.t("widgets.today.add_habit"))
+        }
+        .padding(.horizontal, 4)
+        .padding(.top, 2)
     }
 
     private var emptyState: some View {
@@ -97,6 +140,7 @@ struct WidgetHabitRowView: View {
                     Text(habit.title)
                         .font(.footnote)
                         .lineLimit(1)
+                        .foregroundStyle(habit.completedToday ? .secondary : .primary)
 
                     if habit.streak > 0 {
                         Label("\(habit.streak)", systemImage: "flame")

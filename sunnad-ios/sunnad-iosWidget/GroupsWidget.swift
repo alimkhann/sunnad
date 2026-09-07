@@ -2,9 +2,21 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
+struct GroupsConfigurationIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = LocalizedStringResource("widgets.groups.name")
+    static var description = IntentDescription(LocalizedStringResource("widgets.groups.description"))
+
+    @Parameter(title: LocalizedStringResource("widgets.intents.param.group"))
+    var group: WidgetGroupEntity?
+}
+
 struct GroupsWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "adat.groups", provider: SnapshotTimelineProvider()) { entry in
+        AppIntentConfiguration(
+            kind: "adat.groups",
+            intent: GroupsConfigurationIntent.self,
+            provider: ConfigurableSnapshotProvider(mapConfiguration: { intent in (nil, nil, intent.group) })
+        ) { entry in
             GroupsEntryView(entry: entry)
         }
         .configurationDisplayName(LocalizedStringResource("widgets.groups.name"))
@@ -22,8 +34,18 @@ private struct GroupsEntryView: View {
         entry.snapshot?.groups ?? []
     }
 
-    private var visibleGroups: [GroupSnapshot] {
-        Array(groups.prefix(family == .systemLarge ? 2 : 1))
+    /// The group picked in the widget edit sheet; falls back to the first group.
+    private var selectedGroup: GroupSnapshot? {
+        if let configured = entry.configurationGroup,
+           let id = UUID(uuidString: configured.id),
+           let match = groups.first(where: { $0.id == id }) {
+            return match
+        }
+        return groups.first
+    }
+
+    private var memberLimit: Int {
+        family == .systemLarge ? 6 : 4
     }
 
     var body: some View {
@@ -46,19 +68,12 @@ private struct GroupsEntryView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if entry.snapshot?.sessionExpired == true {
             signInState
-        } else {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(visibleGroups, id: \.id) { group in
-                    GroupMemberListSection(
-                        group: group,
-                        failedNudgeMemberIDs: entry.snapshot?.failedNudgeMemberIDs
-                    )
-                    if group.id != visibleGroups.last?.id {
-                        Divider()
-                    }
-                }
-                Spacer(minLength: 0)
-            }
+        } else if let group = selectedGroup {
+            GroupMemberListSection(
+                group: group,
+                memberLimit: memberLimit,
+                failedNudgeMemberIDs: entry.snapshot?.failedNudgeMemberIDs
+            )
             .padding(4)
         }
     }
@@ -80,6 +95,7 @@ private struct GroupsEntryView: View {
 
 private struct GroupMemberListSection: View {
     let group: GroupSnapshot
+    let memberLimit: Int
     let failedNudgeMemberIDs: [UUID]?
 
     var body: some View {
@@ -89,13 +105,14 @@ private struct GroupMemberListSection: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
-            ForEach(group.members.prefix(4), id: \.id) { member in
+            ForEach(group.members.prefix(memberLimit), id: \.id) { member in
                 GroupMemberRowView(
                     group: group,
                     member: member,
                     hasFailedNudge: failedNudgeMemberIDs?.contains(member.id) == true
                 )
             }
+            Spacer(minLength: 0)
         }
     }
 }

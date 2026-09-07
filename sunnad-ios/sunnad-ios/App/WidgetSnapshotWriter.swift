@@ -34,9 +34,58 @@ final class WidgetSnapshotWriter {
         writeTask = Task { [store, debounceNanoseconds] in
             try? await Task.sleep(nanoseconds: debounceNanoseconds)
             guard !Task.isCancelled else { return }
-            store.writeSnapshot(snapshot)
+            // Widget taps recorded since this write was scheduled must not be
+            // clobbered by the app's rebuilt snapshot.
+            let pending = store.readPending()
+            let merged = Self.applying(pending: pending, to: snapshot, store: store)
+            store.writeSnapshot(merged)
             WidgetCenter.shared.reloadAllTimelines()
         }
+    }
+
+    /// Replays pending widget changes onto `snapshot` (oldest first), mirroring
+    /// the app's replay semantics: a widget toggle only completes a habit and a
+    /// widget increment only applies below target.
+    static func applying(
+        pending: [PendingChange],
+        to snapshot: TodaySnapshot,
+        store: WidgetSharedStore
+    ) -> TodaySnapshot {
+        var merged = snapshot
+        let dayKey = merged.dateKey
+        var applied = false
+        for change in PendingChangeQueue.replayOrder(pending) {
+            let habitID: UUID
+            switch change.kind {
+            case .toggleHabit(let id): habitID = id
+            case .dhikrIncrement(let id): habitID = id
+            }
+            guard let index = merged.habits.firstIndex(where: { $0.id == habitID }) else {
+                continue
+            }
+            switch change.kind {
+            case .toggleHabit:
+                guard !merged.habits[index].completedToday else { continue }
+                if merged.habits[index].isDhikr {
+                    merged.habits[index].dhikrCount = max(merged.habits[index].targetCount, 1)
+                }
+                merged.habits[index].completedToday = true
+                applied = true
+            case .dhikrIncrement:
+                let target = max(merged.habits[index].targetCount, 1)
+                guard merged.habits[index].dhikrCount < target else { continue }
+                merged.habits[index].dhikrCount = min(merged.habits[index].dhikrCount + 1, target)
+                merged.habits[index].completedToday = merged.habits[index].dhikrCount >= target
+                applied = true
+            }
+        }
+        guard let stored = store.readSnapshot(), stored.dateKey == dayKey else {
+            return applied ? merged : snapshot
+        }
+        // Preserve widget-side state for fields the app view doesn't own.
+        merged.failedNudgeMemberIDs = stored.failedNudgeMemberIDs
+        merged.sessionExpired = stored.sessionExpired
+        return applied ? merged : snapshot
     }
 
     static func makeSnapshot(

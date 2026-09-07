@@ -15,7 +15,7 @@ struct QuickToggleWidget: Widget {
         AppIntentConfiguration(
             kind: "adat.quicktoggle",
             intent: QuickToggleConfigurationIntent.self,
-            provider: ConfigurableSnapshotProvider(mapConfiguration: { intent in (intent.habit, nil) })
+            provider: ConfigurableSnapshotProvider(mapConfiguration: { intent in (intent.habit, nil, nil) })
         ) { entry in
             QuickToggleEntryView(entry: entry)
         }
@@ -57,6 +57,20 @@ private struct QuickToggleEntryView: View {
         if WidgetSupport.isStale(entry.snapshot, date: entry.date) {
             staleContent
         } else if let habit {
+            toggleableHabit(habit)
+        } else {
+            Text(L10n.t("widgets.today.empty"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    /// The whole widget toggles the habit in place via AppIntent — no app open.
+    @ViewBuilder
+    private func toggleableHabit(_ habit: HabitSnapshot) -> some View {
+        Button(intent: ToggleHabitIntent(habitID: habit.id.uuidString)) {
             switch family {
             case .accessoryCircular:
                 VStack(spacing: 2) {
@@ -84,13 +98,13 @@ private struct QuickToggleEntryView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
-        } else {
-            Text(L10n.t("widgets.today.empty"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(.rect)
+        .accessibilityLabel(habit.completedToday
+            ? L10n.t("widgets.intents.toggle.undone")
+            : L10n.t("widgets.intents.toggle.title"))
     }
 
     private var staleContent: some View {

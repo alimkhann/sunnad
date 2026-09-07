@@ -820,24 +820,38 @@ private struct ReminderPromptSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
-        ScreenScaffold(contentTopPadding: 16) {
-            VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 16) {
+            ZStack {
                 Text(L10n.t("groups.reminder.sheet.title"))
-                    .font(.title2.weight(.bold))
+                    .font(.headline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity)
 
-                Text(String(format: L10n.t("groups.reminder.sheet.message"), memberName, habitTitle))
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button(L10n.t("common.cancel"), action: onCancel)
+                        .font(.body)
+                        .foregroundStyle(SunnadTheme.primary)
+                    Spacer()
+                }
             }
-        } footer: {
-            VStack(spacing: 10) {
-                PrimaryButton(title: L10n.t("groups.reminder.send"), action: onSend)
-                    .accessibilityIdentifier("groups.reminder.send.button")
-                SecondaryButton(title: L10n.t("common.cancel"), action: onCancel)
-            }
+
+            Text(String(format: L10n.t("groups.reminder.sheet.message"), memberName, habitTitle))
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
         }
-        .presentationDetents([.height(250)])
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .safeAreaInset(edge: .bottom) {
+            PrimaryButton(title: L10n.t("groups.reminder.send"), action: onSend)
+                .accessibilityIdentifier("groups.reminder.send.button")
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+        }
+        .presentationDetents([.height(220)])
         .presentationDragIndicator(.visible)
     }
 }
