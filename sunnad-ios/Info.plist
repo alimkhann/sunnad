@@ -48,6 +48,8 @@
 	<string>$(SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS_BUNDLE)</string>
 	<key>SunnadAPNsEnvironment</key>
 	<string>$(SUNNAD_APNS_ENVIRONMENT_BUNDLE)</string>
+	<key>SunnadAppGroupID</key>
+	<string>$(SUNNAD_APP_GROUP_ID)</string>
 	<key>SunnadStorageNamespace</key>
 	<string>$(SUNNAD_STORAGE_NAMESPACE_BUNDLE)</string>
 	<key>SunnadSupabaseAnonKey</key>

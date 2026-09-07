@@ -325,6 +325,19 @@ final class SupabaseAuthService: AuthService, @unchecked Sendable {
         }
     }
 
+    func currentAccessToken() async -> String? {
+        do {
+            return try await client.auth.session.accessToken
+        } catch {
+            do {
+                let refreshed = try await client.auth.refreshSession()
+                return refreshed.accessToken
+            } catch {
+                return nil
+            }
+        }
+    }
+
     func currentUser() async -> SessionUser? {
         if let user = client.auth.currentUser {
             return await sessionUser(from: user)

@@ -210,15 +210,24 @@ final class AppRouteState: ObservableObject {
     private var currentSessionUserID: UUID?
     private var isHydratingNotificationPreferences = true
     private var didPromptNotificationsDuringOnboarding = false
+    private let widgetStore: WidgetSharedStore?
+    private let widgetSnapshotWriter: WidgetSnapshotWriter
+    private var widgetReplayTask: Task<Void, Never>?
     private var postDeleteHabitSnapshot: [UIHabit]?
     private var streakByHabitID: [UUID: Int] = [:]
     private let sessionTracker: AppSessionAnalyticsTracker
     private let connectivityMonitor = NWPathMonitor()
     private let connectivityMonitorQueue = DispatchQueue(label: "com.sunnad.connectivity.monitor")
 
-    init(dependencies: DependencyContainer, userDefaults: UserDefaults = .standard) {
+    init(
+        dependencies: DependencyContainer,
+        userDefaults: UserDefaults = .standard,
+        widgetStore: WidgetSharedStore? = nil
+    ) {
         self.dependencies = dependencies
         self.userDefaults = userDefaults
+        self.widgetStore = widgetStore ?? WidgetSharedStore.makeShared()
+        self.widgetSnapshotWriter = WidgetSnapshotWriter(store: self.widgetStore)
         self.sessionTracker = AppSessionAnalyticsTracker(
             analytics: dependencies.analytics,
             consumeNotificationOpenSource: {
@@ -273,6 +282,7 @@ final class AppRouteState: ObservableObject {
         bindChildViewModels()
         bindTimeChangeNotifications()
         bindDeviceTokenNotifications()
+        bindWidgetStoreNotifications()
         startConnectivityMonitoring()
 
         #if DEBUG
@@ -293,6 +303,10 @@ final class AppRouteState: ObservableObject {
         otpResendTimerTask?.cancel()
         todayReloadTask?.cancel()
         connectivityMonitor.cancel()
+        CFNotificationCenterRemoveEveryObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque()
+        )
     }
 
     var todayHabits: [UIHabit] {
@@ -583,11 +597,99 @@ final class AppRouteState: ObservableObject {
     }
 
     func recordLateCheckIn(_ habitID: UUID) async -> LateCheckInResult {
-        await todayViewModel.recordLateCheckIn(for: habitID)
+        let result = await todayViewModel.recordLateCheckIn(for: habitID)
+        if result == .recorded {
+            widgetSnapshotWriter.writeFromApp(habits: todayHabits, groups: groupsViewModel.groups)
+        }
+        return result
     }
 
     func clearStaleLateCheckInCandidates() {
         todayViewModel.clearStaleLateCheckInCandidates()
+    }
+
+    func handleWidgetDeepLink(_ url: URL) {
+        switch url.host {
+        case "today":
+            activeTab = .today
+        case "groups":
+            activeTab = .groups
+        default:
+            break
+        }
+    }
+
+    // MARK: - Widget pending-change replay
+
+    private static let widgetStoreChangedNotification = "adat.widgetstore.changed"
+
+    func replayPendingWidgetChanges() {
+        guard let store = widgetStore, !store.readPending().isEmpty else { return }
+        let previousTask = widgetReplayTask
+        widgetReplayTask = Task { [weak self] in
+            _ = await previousTask?.value
+            await self?.performWidgetReplay()
+        }
+    }
+
+    private func performWidgetReplay() async {
+        guard let store = widgetStore else { return }
+        let pending = PendingChangeQueue.replayOrder(store.readPending())
+        guard !pending.isEmpty else { return }
+
+        for change in pending {
+            switch change.kind {
+            case .toggleHabit(let habitID):
+                guard let habit = habits.first(where: { $0.id == habitID }),
+                      habit.isScheduled(on: Date()),
+                      !habit.completedToday else {
+                    continue
+                }
+                toggleTodayHabit(habitID, source: "widget")
+            case .dhikrIncrement(let habitID):
+                applyWidgetDhikrIncrement(habitID)
+            }
+        }
+
+        store.replacePending([])
+        await loadTodayData()
+    }
+
+    private func applyWidgetDhikrIncrement(_ habitID: UUID) {
+        guard let index = habits.firstIndex(where: { $0.id == habitID }),
+              habits[index].isDhikr else {
+            return
+        }
+        let target = max(habits[index].dhikrTarget, 1)
+        guard habits[index].dhikrCount < target else {
+            return
+        }
+        var updated = habits[index]
+        updated.dhikrCount = min(updated.dhikrCount + 1, target)
+        updated.completedToday = updated.dhikrCount >= target
+        updateHabit(updated)
+    }
+
+    // MARK: - Widget session keys
+
+    private func applyWidgetSession() async {
+        guard let store = widgetStore, !user.isGuest, let userID = currentSessionUserID else { return }
+        guard let supabaseConfig = dependencies.environment.supabaseConfig,
+              let accessToken = await dependencies.authService.currentAccessToken() else {
+            return
+        }
+        store.saveSession(
+            WidgetSession(
+                supabaseURL: supabaseConfig.url.absoluteString,
+                anonKey: supabaseConfig.anonKey,
+                accessToken: accessToken,
+                userID: userID
+            )
+        )
+    }
+
+    private func clearWidgetSession() {
+        widgetStore?.clearSession()
     }
 
     func appDidBecomeActive() {
@@ -1157,6 +1259,7 @@ final class AppRouteState: ObservableObject {
             authSuccessMessage = nil
             user = .guest
             currentSessionUserID = nil
+            clearWidgetSession()
             await dependencies.syncCoordinator.setSignedInUserID(nil)
             await loadTodayData()
         }
@@ -1207,6 +1310,7 @@ final class AppRouteState: ObservableObject {
             otpFlowMode = .signup
             user = .guest
             currentSessionUserID = nil
+            clearWidgetSession()
             authErrorMessage = nil
             authSuccessMessage = nil
             markOnboardingCompleted()
@@ -1217,6 +1321,7 @@ final class AppRouteState: ObservableObject {
             habits = preservedHabits
             todayHabitsData = preservedTodayHabits
             trackStreakTransitions(using: preservedTodayHabits)
+            widgetSnapshotWriter.writeFromApp(habits: preservedTodayHabits, groups: [])
             activeTab = .profile
         }
     }
@@ -1639,6 +1744,7 @@ final class AppRouteState: ObservableObject {
         todayViewModel.$habits
             .sink { [weak self] habits in
                 self?.todayHabitsData = habits
+                self?.widgetSnapshotWriter.writeFromApp(habits: habits, groups: self?.groupsViewModel.groups ?? [])
             }
             .store(in: &cancellables)
 
@@ -1671,7 +1777,8 @@ final class AppRouteState: ObservableObject {
 
         groupsViewModel.$groups
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] groups in
+                self?.widgetSnapshotWriter.writeFromApp(habits: self?.todayHabits ?? [], groups: groups)
                 self?.updateAnalyticsPersonPropertiesIfNeeded()
             }
             .store(in: &cancellables)
@@ -1709,9 +1816,27 @@ final class AppRouteState: ObservableObject {
                     await self.syncProfileContextIfNeeded()
                     await self.loadTodayData()
                     await self.syncDeviceTokenForCurrentUserIfAuthorized()
+                    self.replayPendingWidgetChanges()
                 }
             }
             .store(in: &cancellables)
+    }
+
+    private func bindWidgetStoreNotifications() {
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque(),
+            { _, observer, _, _, _ in
+                guard let observer else { return }
+                let state = Unmanaged<AppRouteState>.fromOpaque(observer).takeUnretainedValue()
+                MainActor.assumeIsolated {
+                    state.replayPendingWidgetChanges()
+                }
+            },
+            Self.widgetStoreChangedNotification as CFString,
+            nil,
+            .coalesce
+        )
     }
 
     private func syncDeviceTokenForCurrentUserIfAuthorized() async {
@@ -2102,6 +2227,7 @@ final class AppRouteState: ObservableObject {
             await dependencies.syncCoordinator.promoteGuestDataIfNeeded(to: activeSessionUserID)
         }
         currentSessionUserID = activeSessionUserID
+        await applyWidgetSession()
         Task { [weak self] in
             guard let self else { return }
             await APNsRegistrationBridge.shared.refreshRegistrationIfAuthorized()

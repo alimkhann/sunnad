@@ -7205,6 +7205,174 @@
           }
         }
       }
+    },
+    "widgets.checklist.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Today's habits with quick check-off." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Бүгінгі әдеттер және жылдам белгілеу." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Привычки на сегодня с быстрой отметкой." } }
+      }
+    },
+    "widgets.checklist.name" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Today checklist" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Бүгінгі тізім" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Чек-лист на сегодня" } }
+      }
+    },
+    "widgets.dhikr.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Count dhikr from the home screen." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Үй экранынан зикр санаңыз." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Считайте зикр с главного экрана." } }
+      }
+    },
+    "widgets.dhikr.name" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dhikr counter" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Зикр санағыш" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Счётчик зикра" } }
+      }
+    },
+    "widgets.groups.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Group accountability with quick reminders." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Топтық жауапкершілік және жылдам еске салу." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Группы с быстрыми напоминаниями." } }
+      }
+    },
+    "widgets.groups.name" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Groups" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Топтар" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Группы" } }
+      }
+    },
+    "widgets.groups.remind" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remind" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Еске салу" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Напомнить" } }
+      }
+    },
+    "widgets.groups.send_failed" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Couldn't send" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Жіберу мүмкін болмады" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Не удалось отправить" } }
+      }
+    },
+    "widgets.groups.sent" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sent" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Жіберілді" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Отправлено" } }
+      }
+    },
+    "widgets.groups.signin" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sign in to remind" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Еске салу үшін кіріңіз" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Войдите, чтобы напомнить" } }
+      }
+    },
+    "widgets.intents.dhikr.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Count dhikr" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Зикр санау" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Посчитать зикр" } }
+      }
+    },
+    "widgets.intents.param.group" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Group" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Топ" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Группа" } }
+      }
+    },
+    "widgets.intents.param.habit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Habit" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Әдет" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Привычка" } }
+      }
+    },
+    "widgets.intents.param.member" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Member" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Қатысушы" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Участник" } }
+      }
+    },
+    "widgets.intents.remind.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Send reminder" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Еске салу жіберу" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Отправить напоминание" } }
+      }
+    },
+    "widgets.intents.toggle.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Toggle habit" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Әдетті ауыстыру" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Переключить привычку" } }
+      }
+    },
+    "widgets.more" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%1$d more" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Тағы %1$d" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Ещё %1$d" } }
+      }
+    },
+    "widgets.progress.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Today's progress and streak." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Бүгінгі прогресс және серия." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Прогресс и серия за сегодня." } }
+      }
+    },
+    "widgets.progress.name" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Progress" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Прогресс" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Прогресс" } }
+      }
+    },
+    "widgets.quicktoggle.description" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Complete one habit with a tap." } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Бір түртумен әдетті белгілеңіз." } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Отмечайте привычку одним касанием." } }
+      }
+    },
+    "widgets.quicktoggle.name" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quick toggle" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Жылдам ауыстыру" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Быстрое переключение" } }
+      }
+    },
+    "widgets.stale" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Sunnad to refresh" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Жаңарту үшін Sunnad ашыңыз" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Откройте Sunnad, чтобы обновить" } }
+      }
+    },
+    "widgets.today.empty" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No habits today" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "Бүгін дағы әдет жоқ" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "Сегодня нет привычек" } }
+      }
+    },
+    "widgets.today.progress" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%1$@/%2$@ done" } },
+        "kk" : { "stringUnit" : { "state" : "translated", "value" : "%1$@/%2$@ орындалды" } },
+        "ru" : { "stringUnit" : { "state" : "translated", "value" : "%1$@/%2$@ выполнено" } }
+      }
     }
   },
   "version" : "1.1"

@@ -53,9 +53,12 @@ struct DhikrCounterView: View {
 
     private var phraseEditor: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
+            HStack(spacing: 8) {
+                Image(systemName: "text.quote")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(SunnadTheme.primary)
                 Text(L10n.t("dhikr.phrase"))
-                    .font(.headline.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                 Spacer()
                 Picker(L10n.t("dhikr.phrase"), selection: phraseSelection) {
                     ForEach(builtInPhraseKeys, id: \.self) { key in
@@ -64,6 +67,7 @@ struct DhikrCounterView: View {
                     Text(L10n.t("dhikr.custom_phrase")).tag(customSelection)
                 }
                 .labelsHidden()
+                .fontWeight(.medium)
                 .accessibilityIdentifier("dhikr.phrase.picker")
             }
 
@@ -104,6 +108,7 @@ struct DhikrCounterView: View {
                         )
                         .rotationEffect(.degrees(-90))
                 }
+                .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(L10n.t("dhikr.tap"))
@@ -134,6 +139,7 @@ struct DhikrCounterView: View {
                     } label: {
                         Text("\(count)")
                             .font(.system(size: 56, weight: .bold, design: .rounded))
+                            .monospacedDigit()
                             .contentTransition(.numericText())
                     }
                     .buttonStyle(.plain)
@@ -141,9 +147,24 @@ struct DhikrCounterView: View {
                     .accessibilityIdentifier("dhikr.count.edit.button")
                 }
 
-                Text("\(L10n.t("dhikr.of")) \(normalizedTarget)")
-                    .font(.title3.weight(.medium))
+                Text(L10n.t("dhikr.of"))
+                    .font(.caption.weight(.semibold))
+                    .textCase(.uppercase)
+                    .tracking(0.5)
                     .foregroundStyle(.secondary)
+
+                Text("\(count) / \(normalizedTarget)")
+                    .font(.title3.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
+
+                Text(currentPhraseTitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color(.quaternarySystemFill)))
             }
         }
         .frame(maxWidth: 272, maxHeight: 272)
@@ -159,16 +180,18 @@ struct DhikrCounterView: View {
             } label: {
                 Label(L10n.t("dhikr.reset"), systemImage: "arrow.counterclockwise")
                     .font(.headline.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .frame(maxWidth: .infinity, minHeight: 52)
             }
             .buttonStyle(.bordered)
+            .controlSize(.large)
 
             Button(action: increment) {
                 Text(L10n.t("dhikr.tap"))
                     .font(.headline.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .frame(maxWidth: .infinity, minHeight: 52)
             }
             .buttonStyle(.borderedProminent)
+            .controlSize(.large)
             .tint(SunnadTheme.primary)
         }
     }
@@ -229,6 +252,13 @@ struct DhikrCounterView: View {
 
     private var normalizedTarget: Int {
         min(max(target, 1), 999_999)
+    }
+
+    private var currentPhraseTitle: String {
+        if let customPhrase, !customPhrase.isEmpty {
+            return customPhrase
+        }
+        return L10n.t(phraseKey ?? builtInPhraseKeys[0])
     }
 
     private var progress: CGFloat {

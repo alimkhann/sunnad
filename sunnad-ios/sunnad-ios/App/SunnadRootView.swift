@@ -48,6 +48,9 @@ struct SunnadRootView: View {
             trackCurrentScreen()
             state.appDidBecomeActive()
         }
+        .onOpenURL { url in
+            state.handleWidgetDeepLink(url)
+        }
         .onChange(of: state.activeTab) { _, _ in
             guard !state.showsOnboarding else { return }
             trackCurrentScreen()

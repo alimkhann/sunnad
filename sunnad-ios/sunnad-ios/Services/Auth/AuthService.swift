@@ -63,6 +63,11 @@ protocol AuthService: Sendable {
     func updatePassword(newPassword: String) async throws -> SessionUser
     func handleAuthCallback(url: URL) async throws -> SessionUser?
     func currentUser() async -> SessionUser?
+    func currentAccessToken() async -> String?
+}
+
+extension AuthService {
+    func currentAccessToken() async -> String? { nil }
 }
 
 protocol DeviceTokenSyncing: Sendable {

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		47A6918B2F47B88900BC3F31 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A1D9E801D7D14B9A8A5E1001 /* Supabase */; };
+		AA0C0DE0000000000000000A /* sunnad-iosWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = AA0C0DE00000000000000002 /* sunnad-iosWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -18,6 +19,13 @@
 			remoteGlobalIDString = 47C8D7182F44B4DC006F8DF3;
 			remoteInfo = "sunnad-ios";
 		};
+		AA0C0DE00000000000000008 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 47C8D7112F44B4DC006F8DF3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA0C0DE00000000000000006;
+			remoteInfo = "sunnad-iosWidget";
+		};
 		47C8D7332F44B4DD006F8DF3 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 47C8D7112F44B4DC006F8DF3 /* Project object */;
@@ -27,15 +35,33 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		AA0C0DE00000000000000009 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				AA0C0DE0000000000000000A /* sunnad-iosWidget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		47C8D7192F44B4DC006F8DF3 /* sunnad-ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "sunnad-ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		47C8D7282F44B4DD006F8DF3 /* sunnad-iosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "sunnad-iosTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		47C8D7322F44B4DD006F8DF3 /* sunnad-iosUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "sunnad-iosUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0C0DE00000000000000002 /* sunnad-iosWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "sunnad-iosWidget.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		47C8D71B2F44B4DC006F8DF3 /* sunnad-ios */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AA0C0DE0000000000000000F /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+			);
 			path = "sunnad-ios";
 			sourceTree = "<group>";
 		};
@@ -49,9 +75,45 @@
 			path = "sunnad-iosUITests";
 			sourceTree = "<group>";
 		};
+		AA0C0DE00000000000000001 /* sunnad-iosWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AA0C0DE00000000000000010 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+			);
+			path = "sunnad-iosWidget";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		AA0C0DE0000000000000000F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Resources/Localizable.xcstrings",
+				"Shared/Localization/L10n.swift",
+				"Shared/Widgets/PendingChange.swift",
+				"Shared/Widgets/WidgetSharedStore.swift",
+				"Shared/Widgets/WidgetSnapshot.swift",
+			);
+			target = AA0C0DE00000000000000006 /* sunnad-iosWidget */;
+		};
+		AA0C0DE00000000000000010 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Info.plist",
+			);
+			target = AA0C0DE00000000000000006 /* sunnad-iosWidget */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFrameworksBuildPhase section */
+		AA0C0DE00000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		47C8D7162F44B4DC006F8DF3 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -81,6 +143,7 @@
 			isa = PBXGroup;
 			children = (
 				47C8D71B2F44B4DC006F8DF3 /* sunnad-ios */,
+				AA0C0DE00000000000000001 /* sunnad-iosWidget */,
 				47C8D72B2F44B4DD006F8DF3 /* sunnad-iosTests */,
 				47C8D7352F44B4DD006F8DF3 /* sunnad-iosUITests */,
 				47C8D71A2F44B4DC006F8DF3 /* Products */,
@@ -91,6 +154,7 @@
 			isa = PBXGroup;
 			children = (
 				47C8D7192F44B4DC006F8DF3 /* sunnad-ios.app */,
+				AA0C0DE00000000000000002 /* sunnad-iosWidget.appex */,
 				47C8D7282F44B4DD006F8DF3 /* sunnad-iosTests.xctest */,
 				47C8D7322F44B4DD006F8DF3 /* sunnad-iosUITests.xctest */,
 			);
@@ -100,6 +164,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		AA0C0DE00000000000000006 /* sunnad-iosWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA0C0DE0000000000000000B /* Build configuration list for PBXNativeTarget "sunnad-iosWidget" */;
+			buildPhases = (
+				AA0C0DE00000000000000003 /* Sources */,
+				AA0C0DE00000000000000004 /* Frameworks */,
+				AA0C0DE00000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AA0C0DE00000000000000001 /* sunnad-iosWidget */,
+			);
+			name = "sunnad-iosWidget";
+			packageProductDependencies = (
+			);
+			productName = "sunnad-iosWidget";
+			productReference = AA0C0DE00000000000000002 /* sunnad-iosWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		47C8D7182F44B4DC006F8DF3 /* sunnad-ios */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 47C8D73C2F44B4DD006F8DF3 /* Build configuration list for PBXNativeTarget "sunnad-ios" */;
@@ -107,11 +193,13 @@
 				47C8D7152F44B4DC006F8DF3 /* Sources */,
 				47C8D7162F44B4DC006F8DF3 /* Frameworks */,
 				47C8D7172F44B4DC006F8DF3 /* Resources */,
+				AA0C0DE00000000000000009 /* Embed App Extensions */,
 				AA0000001234ABCD56780001 /* Strip iPad Icon Declaration */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				AA0C0DE00000000000000007 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				47C8D71B2F44B4DC006F8DF3 /* sunnad-ios */,
@@ -196,6 +284,9 @@
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = 47C8D7182F44B4DC006F8DF3;
 					};
+					AA0C0DE00000000000000006 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 				};
 			};
 			buildConfigurationList = 47C8D7142F44B4DC006F8DF3 /* Build configuration list for PBXProject "sunnad-ios" */;
@@ -216,6 +307,7 @@
 			projectRoot = "";
 			targets = (
 				47C8D7182F44B4DC006F8DF3 /* sunnad-ios */,
+				AA0C0DE00000000000000006 /* sunnad-iosWidget */,
 				47C8D7272F44B4DD006F8DF3 /* sunnad-iosTests */,
 				47C8D7312F44B4DD006F8DF3 /* sunnad-iosUITests */,
 			);
@@ -223,6 +315,13 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		AA0C0DE00000000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		47C8D7172F44B4DC006F8DF3 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -272,6 +371,13 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		AA0C0DE00000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		47C8D7152F44B4DC006F8DF3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -305,6 +411,11 @@
 			isa = PBXTargetDependency;
 			target = 47C8D7182F44B4DC006F8DF3 /* sunnad-ios */;
 			targetProxy = 47C8D7332F44B4DD006F8DF3 /* PBXContainerItemProxy */;
+		};
+		AA0C0DE00000000000000007 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA0C0DE00000000000000006 /* sunnad-iosWidget */;
+			targetProxy = AA0C0DE00000000000000008 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -477,6 +588,7 @@
 				SUNNAD_AUTH_REDIRECT_URL_BUNDLE = "adat://auth-callback";
 				SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS_BUNDLE = 120;
 				SUNNAD_BUNDLE_DISPLAY_NAME_BUNDLE = "Adat Dev";
+				SUNNAD_APP_GROUP_ID = "group.com.arystan.almasuly.sunnad.dev";
 				SUNNAD_POSTHOG_API_KEY = "";
 				SUNNAD_POSTHOG_HOST = "https://eu.i.posthog.com";
 				SUNNAD_STORAGE_NAMESPACE_BUNDLE = prod;
@@ -531,6 +643,7 @@
 				SUNNAD_AUTH_REDIRECT_URL_BUNDLE = "adat://auth-callback";
 				SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS_BUNDLE = 180;
 				SUNNAD_BUNDLE_DISPLAY_NAME_BUNDLE = Adat;
+				SUNNAD_APP_GROUP_ID = "group.com.arystan.almasuly.sunnad";
 				SUNNAD_POSTHOG_API_KEY = "";
 				SUNNAD_POSTHOG_HOST = "https://eu.i.posthog.com";
 				SUNNAD_STORAGE_NAMESPACE_BUNDLE = prod;
@@ -727,6 +840,7 @@
 				SUNNAD_AUTH_REDIRECT_URL_BUNDLE = "adat://auth-callback";
 				SUNNAD_AUTH_RESEND_COOLDOWN_SECONDS_BUNDLE = 120;
 				SUNNAD_BUNDLE_DISPLAY_NAME_BUNDLE = "Adat Local";
+				SUNNAD_APP_GROUP_ID = "group.com.arystan.almasuly.sunnad.local";
 				SUNNAD_POSTHOG_API_KEY = "";
 				SUNNAD_POSTHOG_HOST = "https://eu.i.posthog.com";
 				SUNNAD_STORAGE_NAMESPACE_BUNDLE = local;
@@ -745,6 +859,99 @@
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Local;
+		};
+		AA0C0DE0000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "sunnad-iosWidget/sunnad-iosWidget.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 8;
+				DEVELOPMENT_TEAM = 6378AFQPXV;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "sunnad-iosWidget/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Adat Widgets";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.arystan.almasuly.sunnad.dev.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUNNAD_APP_GROUP_ID = "group.com.arystan.almasuly.sunnad.dev";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		AA0C0DE0000000000000000E /* Local */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "sunnad-iosWidget/sunnad-iosWidget.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 8;
+				DEVELOPMENT_TEAM = 6378AFQPXV;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "sunnad-iosWidget/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Adat Widgets";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.arystan.almasuly.sunnad.local.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUNNAD_APP_GROUP_ID = "group.com.arystan.almasuly.sunnad.local";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Local;
+		};
+		AA0C0DE0000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "sunnad-iosWidget/sunnad-iosWidget.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 8;
+				DEVELOPMENT_TEAM = 6378AFQPXV;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "sunnad-iosWidget/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Adat Widgets";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.arystan.almasuly.sunnad.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUNNAD_APP_GROUP_ID = "group.com.arystan.almasuly.sunnad";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
@@ -785,6 +992,16 @@
 				47C8D7432F44B4DD006F8DF3 /* Debug */,
 				47C8D7442F44B4DD006F8DF3 /* Release */,
 				47A69F1C2F4DE12200BC3F31 /* Local */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA0C0DE0000000000000000B /* Build configuration list for PBXNativeTarget "sunnad-iosWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0C0DE0000000000000000C /* Debug */,
+				AA0C0DE0000000000000000E /* Local */,
+				AA0C0DE0000000000000000D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
