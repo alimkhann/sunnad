@@ -4,6 +4,8 @@ Offline-first habit tracker for Muslims. SwiftUI iOS, Compose Android, Supabase 
 
 On the App Store as [Adat, Islamic habit tracker](https://apps.apple.com/kz/app/adat-islamic-habit-tracker/id6761636021).
 
+[![Adat landing page](docs/screenshot-landing.png)](https://adatapp.vercel.app)
+
 Today shows only habits scheduled today. Streaks, one reminder per habit, quote of the day with save and share. Dhikr habits use a built-in counter. Groups add light accountability. Three tabs only: Today, Groups, Profile.
 
 ## Why I built this
