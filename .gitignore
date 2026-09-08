@@ -52,3 +52,8 @@ apple-logo.png
 .claude/
 .playwright-cli/
 onesignal-requests.txt
+
+# Xcode user state
+xcuserdata/
+*.xcuserdata/
+*.xcuserstate
