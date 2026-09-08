@@ -2,6 +2,8 @@
 
 Offline-first habit tracker for Muslims. SwiftUI iOS, Compose Android, Supabase sync. English, Russian, and Kazakh.
 
+On the App Store as [Adat, Islamic habit tracker](https://apps.apple.com/kz/app/adat-islamic-habit-tracker/id6761636021).
+
 Today shows only habits scheduled today. Streaks, one reminder per habit, quote of the day with save and share. Dhikr habits use a built-in counter. Groups add light accountability. Three tabs only: Today, Groups, Profile.
 
 ## Why I built this
@@ -48,3 +50,15 @@ docs/             PRD, UX notes, schema notes, translation glossary
 ```
 
 See `AGENTS.md` for working rules. iOS is the reference build. Android follows it.
+
+## Roadmap
+
+- Android parity with the iOS feature set
+- Group accountability polish once sync proves itself
+- Whatever the store reviews complain about loudest
+
+## Contact
+
+Alimkhan Yergebayev — alimkhan.yergebayev@gmail.com
+
+Project link: [https://github.com/alimkhann/sunnad](https://github.com/alimkhann/sunnad)
